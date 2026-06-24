@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">کرپک</string>
+
+    <string name="onboarding_title">کرپک</string>
+    <string name="onboarding_local_summary">اطلاعات این نسخه فقط روی همین دستگاه نگهداری می‌شود و به اینترنت ارسال نمی‌شود.</string>
+    <string name="onboarding_non_medical_summary">کرپک ابزار ثبت و یادآوری مراقبت است و جایگزین نظر پزشک، داروساز یا خدمات اورژانسی نیست.</string>
+    <string name="onboarding_continue">شروع تنظیم</string>
+
+    <string name="recipient_title">فرد تحت مراقبت</string>
+    <string name="recipient_description">در نسخه ۱ فقط یک فرد تحت مراقبت می‌تواند ثبت شود.</string>
+    <string name="recipient_name_label">نام نمایشی</string>
+    <string name="save_and_continue">ذخیره و ادامه</string>
+
+    <string name="medication_schedule_title">دارو و برنامه</string>
+    <string name="medication_name_label">نام دارو</string>
+    <string name="instruction_label">دستور مصرف یا توضیح مراقبت</string>
+    <string name="weekday_label">روز هفته</string>
+    <string name="time_label">زمان به شکل ۲۴ ساعته، مانند ۱۴:۳۰</string>
+    <string name="create_care_plan">ساخت برنامه مراقبت</string>
+
+    <string name="today_title">امروز</string>
+    <string name="today_empty_title">موردی برای امروز وجود ندارد</string>
+    <string name="today_empty_body">اگر روز یا زمان انتخاب‌شده مربوط به امروز نباشد، موردی در این صفحه نمایش داده نمی‌شود.</string>
+
+    <string name="report_not_recorded">ثبت نشده</string>
+    <string name="report_given">داده شده</string>
+
+    <string name="detail_title">جزئیات نوبت</string>
+    <string name="scheduled_time">زمان برنامه‌ریزی‌شده</string>
+    <string name="instruction">دستور</string>
+    <string name="record_given">ثبت به‌عنوان داده شده</string>
+    <string name="already_given">این مورد به‌عنوان داده شده ثبت شده است.</string>
+    <string name="back">بازگشت</string>
+
+    <string name="loading">در حال بارگذاری…</string>
+    <string name="retry">تلاش دوباره</string>
+    <string name="storage_error">ذخیره‌سازی انجام نشد. دوباره تلاش کنید.</string>
+    <string name="debug_occurrence_id">شناسه آزمایشی: %1$s</string>
+
+    <string name="saturday">شنبه</string>
+    <string name="sunday">یکشنبه</string>
+    <string name="monday">دوشنبه</string>
+    <string name="tuesday">سه‌شنبه</string>
+    <string name="wednesday">چهارشنبه</string>
+    <string name="thursday">پنجشنبه</string>
+    <string name="friday">جمعه</string>
+</resources>
