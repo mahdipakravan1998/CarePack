@@ -53,7 +53,11 @@ fun OnboardingScreen(
                         text = stringResource(
                             R.string.onboarding_local_summary,
                         ),
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .testTag(
+                                "onboarding_local_summary",
+                            ),
                         style =
                             MaterialTheme.typography.bodyLarge,
                     )
@@ -68,7 +72,11 @@ fun OnboardingScreen(
                         text = stringResource(
                             R.string.onboarding_non_medical_summary,
                         ),
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier
+                            .padding(20.dp)
+                            .testTag(
+                                "onboarding_non_medical_summary",
+                            ),
                         style =
                             MaterialTheme.typography.bodyLarge,
                     )

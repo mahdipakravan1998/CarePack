@@ -27,6 +27,10 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
 import java.util.ArrayDeque
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -141,6 +145,7 @@ class PersistentTracerBulletTest {
             }
 
             assertTrue(databaseRejectedSecond)
+
             assertEquals(
                 1,
                 database.careRecipientDao().count(),
@@ -148,7 +153,7 @@ class PersistentTracerBulletTest {
         }
 
     @Test
-    fun carePlanGraph_rollsBackWhenLaterInsertFails() =
+    fun carePlanGraph_rollsBackCompletelyWhenLaterInsertFails() =
         runBlocking {
             val setupGenerator =
                 RoomOccurrenceGenerator(
@@ -214,6 +219,18 @@ class PersistentTracerBulletTest {
             val medicationCountBefore =
                 database.medicationDao().count()
 
+            val seriesCountBefore =
+                database.scheduleDao().countSeries()
+
+            val versionCountBefore =
+                database.scheduleDao().countVersions()
+
+            val timeCountBefore =
+                database.scheduleDao().countTimes()
+
+            val occurrenceCountBefore =
+                database.occurrenceDao().count()
+
             val collisionIds =
                 SequenceIdSource(
                     "new-medication",
@@ -267,6 +284,103 @@ class PersistentTracerBulletTest {
             assertEquals(
                 medicationCountBefore,
                 database.medicationDao().count(),
+            )
+
+            assertEquals(
+                seriesCountBefore,
+                database.scheduleDao().countSeries(),
+            )
+
+            assertEquals(
+                versionCountBefore,
+                database.scheduleDao().countVersions(),
+            )
+
+            assertEquals(
+                timeCountBefore,
+                database.scheduleDao().countTimes(),
+            )
+
+            assertEquals(
+                occurrenceCountBefore,
+                database.occurrenceDao().count(),
+            )
+        }
+
+    @Test
+    fun earlierSameDaySchedule_doesNotCreateArtificialOccurrence() =
+        runBlocking {
+            val ids =
+                SequenceIdSource(
+                    "recipient-1",
+                    "medication-1",
+                    "series-1",
+                    "version-1",
+                )
+
+            val generator =
+                RoomOccurrenceGenerator(
+                    database = database,
+                    idSource = ids,
+                    candidateResolver =
+                        OccurrenceCandidateResolver(),
+                )
+
+            val carePlanService =
+                RoomCarePlanService(
+                    database = database,
+                    occurrenceGenerator = generator,
+                    clock = fixedClock,
+                    idSource = ids,
+                )
+
+            val recipientOutcome =
+                carePlanService.createRecipient(
+                    CreateRecipientCommand(
+                        displayName = "آزمایش",
+                    ),
+                )
+
+            val recipientId =
+                (
+                        recipientOutcome as
+                                CreateRecipientOutcome.Created
+                        ).recipientId
+
+            val planOutcome =
+                carePlanService
+                    .createMedicationAndSchedule(
+                        CreateMedicationScheduleCommand(
+                            recipientId = recipientId,
+                            medicationName =
+                                "داروی نمونه",
+                            instruction =
+                                "دستور نمونه",
+                            weekday =
+                                DayOfWeek.WEDNESDAY,
+                            localTime =
+                                LocalTime.of(10, 0),
+                            zoneId =
+                                "Asia/Tehran",
+                        ),
+                    )
+
+            assertTrue(
+                planOutcome is
+                        CreateMedicationScheduleOutcome.Created,
+            )
+
+            val createdPlan =
+                planOutcome as
+                        CreateMedicationScheduleOutcome.Created
+
+            assertTrue(
+                createdPlan.occurrenceIds.isEmpty(),
+            )
+
+            assertEquals(
+                0,
+                database.occurrenceDao().count(),
             )
         }
 
@@ -344,6 +458,25 @@ class PersistentTracerBulletTest {
                 createdPlan.occurrenceIds,
             )
 
+            val persistedOccurrence =
+                checkNotNull(
+                    database
+                        .occurrenceDao()
+                        .getById("occurrence-1"),
+                )
+
+            assertEquals(
+                "داروی نمونه",
+                persistedOccurrence
+                    .medicationNameSnapshot,
+            )
+
+            assertEquals(
+                "دستور غیرحساس نمونه",
+                persistedOccurrence
+                    .medicationInstructionSnapshot,
+            )
+
             val anchorDate =
                 LocalDate.parse("2026-06-24")
 
@@ -377,6 +510,7 @@ class PersistentTracerBulletTest {
                     .first()
 
             assertEquals(1, beforeReport.size)
+
             assertEquals(
                 "occurrence-1",
                 beforeReport.single().occurrenceId,
@@ -387,6 +521,13 @@ class PersistentTracerBulletTest {
                 beforeReport
                     .single()
                     .medicationName,
+            )
+
+            assertEquals(
+                "دستور غیرحساس نمونه",
+                beforeReport
+                    .single()
+                    .medicationInstruction,
             )
 
             val reportService =
@@ -468,6 +609,20 @@ class PersistentTracerBulletTest {
             )
 
             assertEquals(
+                "داروی نمونه",
+                reopenedToday
+                    .single()
+                    .medicationName,
+            )
+
+            assertEquals(
+                "دستور غیرحساس نمونه",
+                reopenedToday
+                    .single()
+                    .medicationInstruction,
+            )
+
+            assertEquals(
                 CaregiverReportState.GIVEN,
                 reopenedToday
                     .single()
@@ -487,6 +642,134 @@ class PersistentTracerBulletTest {
             )
         }
 
+    @Test
+    fun concurrentGivenRequests_createOneReportWithoutFailure() =
+        runBlocking {
+            val ids =
+                SequenceIdSource(
+                    "recipient-1",
+                    "medication-1",
+                    "series-1",
+                    "version-1",
+                    "occurrence-1",
+                )
+
+            val generator =
+                RoomOccurrenceGenerator(
+                    database = database,
+                    idSource = ids,
+                    candidateResolver =
+                        OccurrenceCandidateResolver(),
+                )
+
+            val carePlanService =
+                RoomCarePlanService(
+                    database = database,
+                    occurrenceGenerator = generator,
+                    clock = fixedClock,
+                    idSource = ids,
+                )
+
+            val recipientOutcome =
+                carePlanService.createRecipient(
+                    CreateRecipientCommand(
+                        displayName = "آزمایش",
+                    ),
+                )
+
+            val recipientId =
+                (
+                        recipientOutcome as
+                                CreateRecipientOutcome.Created
+                        ).recipientId
+
+            val planOutcome =
+                carePlanService
+                    .createMedicationAndSchedule(
+                        CreateMedicationScheduleCommand(
+                            recipientId = recipientId,
+                            medicationName =
+                                "داروی نمونه",
+                            instruction =
+                                "دستور نمونه",
+                            weekday =
+                                DayOfWeek.WEDNESDAY,
+                            localTime =
+                                LocalTime.of(12, 0),
+                            zoneId =
+                                "Asia/Tehran",
+                        ),
+                    )
+
+            val createdPlan =
+                planOutcome as
+                        CreateMedicationScheduleOutcome.Created
+
+            val occurrenceId =
+                createdPlan
+                    .occurrenceIds
+                    .single()
+
+            val reportService =
+                RoomCaregiverReportService(
+                    database = database,
+                    clock = fixedClock,
+                )
+
+            val outcomes =
+                coroutineScope {
+                    List(CONCURRENT_REQUEST_COUNT) {
+                        async(Dispatchers.Default) {
+                            reportService.recordGiven(
+                                occurrenceId,
+                            )
+                        }
+                    }.awaitAll()
+                }
+
+            assertEquals(
+                1,
+                outcomes.count {
+                    it is RecordGivenOutcome.Recorded
+                },
+            )
+
+            assertEquals(
+                CONCURRENT_REQUEST_COUNT - 1,
+                outcomes.count {
+                    it is RecordGivenOutcome.Unchanged
+                },
+            )
+
+            assertTrue(
+                outcomes.all { outcome ->
+                    outcome is
+                            RecordGivenOutcome.Recorded ||
+                            outcome is
+                                    RecordGivenOutcome.Unchanged
+                },
+            )
+
+            assertEquals(
+                1,
+                database
+                    .caregiverReportDao()
+                    .count(),
+            )
+
+            val persistedReport =
+                database
+                    .caregiverReportDao()
+                    .getByOccurrenceId(
+                        occurrenceId,
+                    )
+
+            assertEquals(
+                CaregiverReportState.GIVEN.name,
+                persistedReport?.state,
+            )
+        }
+
     private fun openDatabase():
             CarePackDatabase {
         return Room.databaseBuilder(
@@ -494,6 +777,10 @@ class PersistentTracerBulletTest {
             CarePackDatabase::class.java,
             databaseName,
         ).build()
+    }
+
+    private companion object {
+        const val CONCURRENT_REQUEST_COUNT = 8
     }
 }
 

@@ -33,65 +33,82 @@ class RoomCaregiverReportService(
                 }
 
                 else -> {
-                    val existingReport =
-                        database
-                            .caregiverReportDao()
-                            .getByOccurrenceId(
-                                occurrenceId,
-                            )
-
-                    if (existingReport != null) {
-                        val existingState =
-                            CaregiverReportState.valueOf(
-                                existingReport.state,
-                            )
-
-                        if (
-                            existingState ==
-                            CaregiverReportState.GIVEN
-                        ) {
-                            RecordGivenOutcome.Unchanged(
-                                occurrenceId =
-                                    occurrenceId,
-                            )
-                        } else {
-                            RecordGivenOutcome
-                                .ExistingDifferentReport(
-                                    occurrenceId =
-                                        occurrenceId,
-                                    existingState =
-                                        existingState,
-                                )
-                        }
-                    } else {
-                        val nowEpochMillis =
-                            clock
-                                .instant()
-                                .toEpochMilli()
-
-                        database
-                            .caregiverReportDao()
-                            .insert(
-                                CaregiverReportEntity(
-                                    occurrenceId =
-                                        occurrenceId,
-                                    state =
-                                        CaregiverReportState
-                                            .GIVEN
-                                            .name,
-                                    recordedAtEpochMillis =
-                                        nowEpochMillis,
-                                    updatedAtEpochMillis =
-                                        nowEpochMillis,
-                                ),
-                            )
-
-                        RecordGivenOutcome.Recorded(
-                            occurrenceId = occurrenceId,
-                        )
-                    }
+                    recordActiveOccurrenceAsGiven(
+                        occurrenceId = occurrenceId,
+                    )
                 }
             }
         }
+    }
+
+    private suspend fun recordActiveOccurrenceAsGiven(
+        occurrenceId: String,
+    ): RecordGivenOutcome {
+        val reportDao =
+            database.caregiverReportDao()
+
+        val existingReport =
+            reportDao.getByOccurrenceId(
+                occurrenceId,
+            )
+
+        if (existingReport != null) {
+            return existingReport.toExistingOutcome()
+        }
+
+        val nowEpochMillis =
+            clock
+                .instant()
+                .toEpochMilli()
+
+        val insertResult =
+            reportDao.insertIgnoringConflict(
+                CaregiverReportEntity(
+                    occurrenceId = occurrenceId,
+                    state =
+                        CaregiverReportState
+                            .GIVEN
+                            .name,
+                    recordedAtEpochMillis =
+                        nowEpochMillis,
+                    updatedAtEpochMillis =
+                        nowEpochMillis,
+                ),
+            )
+
+        if (insertResult != -1L) {
+            return RecordGivenOutcome.Recorded(
+                occurrenceId = occurrenceId,
+            )
+        }
+
+        val persistedReport =
+            checkNotNull(
+                reportDao.getByOccurrenceId(
+                    occurrenceId,
+                ),
+            )
+
+        return persistedReport.toExistingOutcome()
+    }
+}
+
+private fun CaregiverReportEntity.toExistingOutcome():
+        RecordGivenOutcome {
+    val existingState =
+        CaregiverReportState.valueOf(state)
+
+    return if (
+        existingState ==
+        CaregiverReportState.GIVEN
+    ) {
+        RecordGivenOutcome.Unchanged(
+            occurrenceId = occurrenceId,
+        )
+    } else {
+        RecordGivenOutcome.ExistingDifferentReport(
+            occurrenceId = occurrenceId,
+            existingState = existingState,
+        )
     }
 }

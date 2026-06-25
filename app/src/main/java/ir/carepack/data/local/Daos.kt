@@ -87,8 +87,14 @@ interface ScheduleDao {
         nowEpochMillis: Long,
     ): List<String>
 
+    @Query("SELECT COUNT(*) FROM schedule_series")
+    suspend fun countSeries(): Int
+
     @Query("SELECT COUNT(*) FROM schedule_versions")
     suspend fun countVersions(): Int
+
+    @Query("SELECT COUNT(*) FROM schedule_times")
+    suspend fun countTimes(): Int
 }
 
 @Dao
@@ -177,8 +183,10 @@ interface OccurrenceDao {
 
 @Dao
 interface CaregiverReportDao {
-    @Insert
-    suspend fun insert(entity: CaregiverReportEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertIgnoringConflict(
+        entity: CaregiverReportEntity,
+    ): Long
 
     @Query(
         """

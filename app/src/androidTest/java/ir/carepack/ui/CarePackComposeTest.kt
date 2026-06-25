@@ -1,6 +1,7 @@
 package ir.carepack.ui
 
 import android.content.Context
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -14,22 +15,30 @@ import ir.carepack.core.id.IdSource
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.preferences.SetupPreferenceStore
+import ir.carepack.domain.careplan.CarePlanService
+import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
+import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
+import ir.carepack.domain.careplan.CreateRecipientCommand
+import ir.carepack.domain.careplan.CreateRecipientOutcome
 import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.domain.careplan.SetupProgress
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.today.RoomTodayQueryService
-import ir.carepack.feature.setup.RecipientSetupScreen
-import ir.carepack.feature.setup.RecipientSetupUiState
+import ir.carepack.feature.setup.RecipientSetupRoute
+import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.ArrayDeque
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.After
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -138,6 +147,22 @@ class CarePackComposeTest {
 
         composeRule
             .onNodeWithTag(
+                "onboarding_local_summary",
+            )
+            .assertTextEquals(
+                "اطلاعات این نسخه فقط روی همین دستگاه نگهداری می‌شود و به اینترنت ارسال نمی‌شود.",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "onboarding_non_medical_summary",
+            )
+            .assertTextEquals(
+                "کرپک ابزار ثبت و یادآوری مراقبت است و جایگزین نظر پزشک، داروساز یا خدمات اورژانسی نیست.",
+            )
+
+        composeRule
+            .onNodeWithTag(
                 "onboarding_continue",
             )
             .assertExists()
@@ -223,29 +248,96 @@ class CarePackComposeTest {
     }
 
     @Test
-    fun storageFailure_doesNotShowSuccess() {
+    fun storageFailure_doesNotNavigateOrShowSuccess() {
+        val continueInvoked =
+            AtomicBoolean(false)
+
+        val viewModel =
+            RecipientSetupViewModel(
+                carePlanService =
+                    FailingCarePlanService(),
+            )
+
         composeRule.setContent {
             CarePackTheme {
-                RecipientSetupScreen(
-                    state =
-                        RecipientSetupUiState(
-                            displayName =
-                                "Test recipient",
-                            isSaving = false,
-                            errorMessage =
-                                "Storage failed.",
-                        ),
-                    onDisplayNameChanged = {},
-                    onSave = {},
+                RecipientSetupRoute(
+                    viewModel = viewModel,
+                    onContinue = {
+                        continueInvoked.set(true)
+                    },
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
+                "recipient_name",
+            )
+            .performTextInput(
+                "Test recipient",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_save",
+            )
+            .performClick()
+
+        composeRule.waitUntil(
+            timeoutMillis = 5_000,
+        ) {
+            composeRule
+                .onAllNodesWithTag(
+                    "recipient_error",
+                )
+                .fetchSemanticsNodes()
+                .isNotEmpty()
+        }
+
+        composeRule
+            .onNodeWithTag(
                 "recipient_error",
             )
+            .assertTextEquals(
+                "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
+            )
+
+        composeRule.runOnIdle {
+            assertFalse(
+                continueInvoked.get(),
+            )
+        }
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_save",
+            )
             .assertExists()
+    }
+}
+
+private class FailingCarePlanService :
+    CarePlanService {
+
+    override suspend fun createRecipient(
+        command: CreateRecipientCommand,
+    ): CreateRecipientOutcome {
+        throw IllegalStateException(
+            "Synthetic storage failure.",
+        )
+    }
+
+    override suspend fun createMedicationAndSchedule(
+        command: CreateMedicationScheduleCommand,
+    ): CreateMedicationScheduleOutcome {
+        return CreateMedicationScheduleOutcome.Invalid(
+            reason = "Not used.",
+        )
+    }
+
+    override suspend fun getSetupProgress():
+            SetupProgress {
+        return SetupProgress.Empty
     }
 }
 
