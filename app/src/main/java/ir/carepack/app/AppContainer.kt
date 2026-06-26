@@ -7,6 +7,7 @@ import ir.carepack.core.id.UuidIdSource
 import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
+import ir.carepack.data.local.DatabaseMigrations
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
@@ -23,7 +24,8 @@ import java.time.Clock
 class AppContainer(
     context: Context,
 ) {
-    val clock: Clock = Clock.systemUTC()
+    val clock: Clock =
+        Clock.systemUTC()
 
     val zoneProvider: ZoneProvider =
         SystemZoneProvider()
@@ -36,9 +38,12 @@ class AppContainer(
             context.applicationContext,
             CarePackDatabase::class.java,
             DATABASE_NAME,
-        ).build()
+        )
+            .addMigrations(DatabaseMigrations.MIGRATION_1_2)
+            .build()
 
-    val occurrenceGenerator: OccurrenceGenerator =
+    val occurrenceGenerator:
+            OccurrenceGenerator =
         RoomOccurrenceGenerator(
             database = database,
             idSource = idSource,
@@ -49,7 +54,8 @@ class AppContainer(
     val carePlanService: CarePlanService =
         RoomCarePlanService(
             database = database,
-            occurrenceGenerator = occurrenceGenerator,
+            occurrenceGenerator =
+                occurrenceGenerator,
             clock = clock,
             idSource = idSource,
         )
@@ -61,16 +67,20 @@ class AppContainer(
             clock = clock,
         )
 
-    val todayQueryService: TodayQueryService =
+    val todayQueryService:
+            TodayQueryService =
         RoomTodayQueryService(
             database = database,
         )
 
     val setupPreferenceStore:
             SetupPreferenceStore =
-        DataStoreSetupPreferenceStore(context)
+        DataStoreSetupPreferenceStore(
+            context = context,
+        )
 
     private companion object {
-        const val DATABASE_NAME = "carepack.db"
+        const val DATABASE_NAME =
+            "carepack.db"
     }
 }

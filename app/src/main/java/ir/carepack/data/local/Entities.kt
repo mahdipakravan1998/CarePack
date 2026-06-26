@@ -3,6 +3,7 @@ package ir.carepack.data.local
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
+import androidx.room.PrimaryKey
 
 @Entity(
     tableName = "care_recipients",
@@ -14,7 +15,7 @@ import androidx.room.Index
     ],
 )
 data class CareRecipientEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val id: String,
     val singletonSlot: Int,
     val displayName: String,
@@ -36,12 +37,14 @@ data class CareRecipientEntity(
     ],
 )
 data class MedicationEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val id: String,
     val careRecipientId: String,
     val name: String,
     val instruction: String,
     val createdAtEpochMillis: Long,
+    val stoppedAtEpochMillis: Long?,
+    val archivedAtEpochMillis: Long?,
 )
 
 @Entity(
@@ -59,7 +62,7 @@ data class MedicationEntity(
     ],
 )
 data class ScheduleSeriesEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val id: String,
     val medicationId: String,
     val createdAtEpochMillis: Long,
@@ -86,13 +89,16 @@ data class ScheduleSeriesEntity(
         Index(value = ["seriesId"]),
         Index(value = ["medicationId"]),
         Index(
-            value = ["seriesId", "versionNumber"],
+            value = [
+                "seriesId",
+                "versionNumber",
+            ],
             unique = true,
         ),
     ],
 )
 data class ScheduleVersionEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val id: String,
     val seriesId: String,
     val medicationId: String,
@@ -169,7 +175,7 @@ data class ScheduleTimeEntity(
     ],
 )
 data class OccurrenceEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val id: String,
     val scheduleSeriesId: String,
     val scheduleVersionId: String,
@@ -182,6 +188,8 @@ data class OccurrenceEntity(
     val medicationInstructionSnapshot: String,
     val lifecycle: String,
     val createdAtEpochMillis: Long,
+    val cancelledAtEpochMillis: Long?,
+    val cancellationReason: String?,
 )
 
 @Entity(
@@ -196,7 +204,7 @@ data class OccurrenceEntity(
     ],
 )
 data class CaregiverReportEntity(
-    @androidx.room.PrimaryKey
+    @PrimaryKey
     val occurrenceId: String,
     val state: String,
     val recordedAtEpochMillis: Long,

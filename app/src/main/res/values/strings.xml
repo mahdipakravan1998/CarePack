@@ -11,17 +11,52 @@
     <string name="recipient_description">در نسخه ۱ فقط یک فرد تحت مراقبت می‌تواند ثبت شود.</string>
     <string name="recipient_name_label">نام نمایشی</string>
     <string name="save_and_continue">ذخیره و ادامه</string>
+    <string name="edit_recipient">ویرایش نام فرد تحت مراقبت</string>
 
     <string name="medication_schedule_title">دارو و برنامه</string>
     <string name="medication_name_label">نام دارو</string>
     <string name="instruction_label">دستور مصرف یا توضیح مراقبت</string>
-    <string name="weekday_label">روز هفته</string>
-    <string name="time_label">زمان به شکل ۲۴ ساعته، مانند ۱۴:۳۰</string>
+    <string name="weekday_label">روزهای هفته</string>
+    <string name="time_label">زمان ۲۴ ساعته</string>
+    <string name="selected_times_label">زمان‌های روزانه</string>
+    <string name="add_time">افزودن</string>
+    <string name="remove_time">حذف</string>
+    <string name="start_date_label">تاریخ شروع اختیاری، YYYY-MM-DD</string>
+    <string name="end_date_label">تاریخ پایان اختیاری، YYYY-MM-DD</string>
+    <string name="fixed_zone_label">منطقه زمانی ثابت این نسخه برنامه</string>
     <string name="create_care_plan">ساخت برنامه مراقبت</string>
 
     <string name="today_title">امروز</string>
     <string name="today_empty_title">موردی برای امروز وجود ندارد</string>
     <string name="today_empty_body">اگر روز یا زمان انتخاب‌شده مربوط به امروز نباشد، موردی در این صفحه نمایش داده نمی‌شود.</string>
+    <string name="manage_care_plan">مدیریت برنامه مراقبت</string>
+
+    <string name="care_plan_title">برنامه مراقبت</string>
+    <string name="add_medication">افزودن دارو</string>
+    <string name="no_medications">داروی فعالی برای نمایش وجود ندارد.</string>
+    <string name="edit_medication_text">ویرایش متن</string>
+    <string name="edit_schedule">ویرایش برنامه</string>
+    <string name="stop_medication">توقف دارو</string>
+    <string name="archive_medication">بایگانی دارو</string>
+    <string name="status_active">فعال</string>
+    <string name="status_stopped">متوقف‌شده</string>
+
+    <string name="schedule_weekdays">روزها:</string>
+    <string name="schedule_times">زمان‌ها:</string>
+    <string name="schedule_zone">منطقه زمانی:</string>
+    <string name="schedule_dates">بازه تاریخ:</string>
+    <string name="open_ended">بدون محدودیت</string>
+
+    <string name="confirm_stop_title">توقف دارو</string>
+    <string name="confirm_stop_body">داروی «%1$s» متوقف شود؟ نوبت‌های آینده ثبت‌نشده لغو می‌شوند و سابقه باقی می‌ماند.</string>
+    <string name="confirm_archive_title">بایگانی دارو</string>
+    <string name="confirm_archive_body">داروی متوقف‌شده «%1$s» از فهرست اصلی پنهان شود؟ سابقه حذف نمی‌شود.</string>
+
+    <string name="medication_text_edit_title">ویرایش متن دارو</string>
+    <string name="schedule_edit_title">ویرایش برنامه دارو</string>
+    <string name="original_zone_value">منطقه زمانی نسخه فعلی: %1$s</string>
+    <string name="save_changes">ذخیره تغییرات</string>
+    <string name="cancel">انصراف</string>
 
     <string name="report_not_recorded">ثبت نشده</string>
     <string name="report_given">داده شده</string>

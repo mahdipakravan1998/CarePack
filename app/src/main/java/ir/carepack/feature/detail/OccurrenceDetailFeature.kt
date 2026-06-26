@@ -34,6 +34,7 @@ import ir.carepack.domain.report.RecordGivenOutcome
 import ir.carepack.domain.today.TodayQueryService
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -59,14 +60,15 @@ class OccurrenceDetailViewModel(
             OccurrenceDetailUiState(),
         )
 
-    val state = mutableState
+    val state =
+        mutableState.asStateFlow()
 
     init {
         todayQueryService
             .observeOccurrence(occurrenceId)
             .onEach { occurrence ->
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
                         occurrence = occurrence,
                         errorMessage = null,
@@ -74,8 +76,8 @@ class OccurrenceDetailViewModel(
                 }
             }
             .catch {
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
                         errorMessage =
                             "خواندن جزئیات انجام نشد.",
@@ -86,13 +88,19 @@ class OccurrenceDetailViewModel(
     }
 
     fun recordGiven() {
-        if (mutableState.value.isSaving) {
+        val currentState =
+            mutableState.value
+
+        if (
+            currentState.isSaving ||
+            currentState.occurrence == null
+        ) {
             return
         }
 
         viewModelScope.launch {
-            mutableState.update {
-                it.copy(
+            mutableState.update { current ->
+                current.copy(
                     isSaving = true,
                     errorMessage = null,
                 )
@@ -106,29 +114,34 @@ class OccurrenceDetailViewModel(
                 ) {
                     is RecordGivenOutcome.Recorded,
                     is RecordGivenOutcome.Unchanged,
-                        -> Unit
+                        -> {
+                        markGivenAsPersisted()
+                    }
 
-                    is RecordGivenOutcome.ExistingDifferentReport -> {
-                        mutableState.update {
-                            it.copy(
+                    is RecordGivenOutcome
+                    .ExistingDifferentReport -> {
+                        mutableState.update { current ->
+                            current.copy(
                                 errorMessage =
                                     "برای این نوبت گزارش دیگری ثبت شده است.",
                             )
                         }
                     }
 
-                    RecordGivenOutcome.OccurrenceNotFound -> {
-                        mutableState.update {
-                            it.copy(
+                    RecordGivenOutcome
+                        .OccurrenceNotFound -> {
+                        mutableState.update { current ->
+                            current.copy(
                                 errorMessage =
                                     "نوبت پیدا نشد.",
                             )
                         }
                     }
 
-                    RecordGivenOutcome.CancelledOccurrenceRejected -> {
-                        mutableState.update {
-                            it.copy(
+                    RecordGivenOutcome
+                        .CancelledOccurrenceRejected -> {
+                        mutableState.update { current ->
+                            current.copy(
                                 errorMessage =
                                     "برای نوبت لغوشده نمی‌توان گزارش ثبت کرد.",
                             )
@@ -136,17 +149,36 @@ class OccurrenceDetailViewModel(
                     }
                 }
             } catch (_: Exception) {
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         errorMessage =
                             "ثبت گزارش انجام نشد.",
                     )
                 }
             } finally {
-                mutableState.update {
-                    it.copy(isSaving = false)
+                mutableState.update { current ->
+                    current.copy(
+                        isSaving = false,
+                    )
                 }
             }
+        }
+    }
+
+    private fun markGivenAsPersisted() {
+        mutableState.update { current ->
+            val occurrence =
+                current.occurrence
+                    ?: return@update current
+
+            current.copy(
+                occurrence =
+                    occurrence.copy(
+                        reportState =
+                            CaregiverReportState.GIVEN,
+                    ),
+                errorMessage = null,
+            )
         }
     }
 
@@ -180,7 +212,9 @@ fun OccurrenceDetailRoute(
     onBack: () -> Unit,
 ) {
     val state by
-    viewModel.state.collectAsStateWithLifecycle()
+    viewModel
+        .state
+        .collectAsStateWithLifecycle()
 
     OccurrenceDetailScreen(
         state = state,
@@ -198,52 +232,86 @@ fun OccurrenceDetailScreen(
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) { contentPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding)
                 .padding(24.dp),
-            verticalArrangement = Arrangement.Top,
+            verticalArrangement =
+                Arrangement.Top,
         ) {
             TextButton(
                 onClick = onBack,
-                modifier = Modifier.testTag("detail_back"),
+                modifier =
+                    Modifier.testTag(
+                        "detail_back",
+                    ),
             ) {
                 Text(
-                    text = stringResource(R.string.back),
+                    text = stringResource(
+                        R.string.back,
+                    ),
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp),
+            )
 
             Text(
                 text = stringResource(
                     R.string.detail_title,
                 ),
                 style =
-                    MaterialTheme.typography.headlineMedium,
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(24.dp),
+            )
 
             when {
                 state.isLoading -> {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.testTag(
+                                "detail_loading",
+                            ),
+                    )
                 }
 
                 state.errorMessage != null &&
                         state.occurrence == null -> {
                     Text(
-                        text = state.errorMessage,
+                        text =
+                            state.errorMessage,
                         color =
-                            MaterialTheme.colorScheme.error,
+                            MaterialTheme
+                                .colorScheme
+                                .error,
+                        modifier =
+                            Modifier.testTag(
+                                "detail_error",
+                            ),
                     )
                 }
 
                 state.occurrence == null -> {
-                    Text(text = "نوبت پیدا نشد.")
+                    Text(
+                        text =
+                            "نوبت پیدا نشد.",
+                        modifier =
+                            Modifier.testTag(
+                                "detail_not_found",
+                            ),
+                    )
                 }
 
                 else -> {
@@ -251,31 +319,43 @@ fun OccurrenceDetailScreen(
                         state.occurrence
 
                     Text(
-                        text = occurrence.medicationName,
+                        text =
+                            occurrence
+                                .medicationName,
                         style =
-                            MaterialTheme.typography.titleLarge,
+                            MaterialTheme
+                                .typography
+                                .titleLarge,
                     )
 
                     Spacer(
-                        modifier = Modifier.height(16.dp),
+                        modifier =
+                            Modifier.height(16.dp),
                     )
 
                     Text(
                         text = stringResource(
-                            R.string.scheduled_time,
+                            R.string
+                                .scheduled_time,
                         ),
                         style =
-                            MaterialTheme.typography.labelLarge,
+                            MaterialTheme
+                                .typography
+                                .labelLarge,
                     )
 
                     Text(
-                        text = occurrence.localTime.format(
-                            HOUR_MINUTE_FORMATTER,
-                        ),
+                        text =
+                            occurrence
+                                .localTime
+                                .format(
+                                    HOUR_MINUTE_FORMATTER,
+                                ),
                     )
 
                     Spacer(
-                        modifier = Modifier.height(16.dp),
+                        modifier =
+                            Modifier.height(16.dp),
                     )
 
                     Text(
@@ -283,7 +363,9 @@ fun OccurrenceDetailScreen(
                             R.string.instruction,
                         ),
                         style =
-                            MaterialTheme.typography.labelLarge,
+                            MaterialTheme
+                                .typography
+                                .labelLarge,
                     )
 
                     Text(
@@ -300,11 +382,15 @@ fun OccurrenceDetailScreen(
 
                         Text(
                             text = stringResource(
-                                R.string.debug_occurrence_id,
-                                occurrence.occurrenceId,
+                                R.string
+                                    .debug_occurrence_id,
+                                occurrence
+                                    .occurrenceId,
                             ),
                             style =
-                                MaterialTheme.typography.bodySmall,
+                                MaterialTheme
+                                    .typography
+                                    .bodySmall,
                             modifier =
                                 Modifier.testTag(
                                     "debug_occurrence_id",
@@ -325,11 +411,16 @@ fun OccurrenceDetailScreen(
                                 MaterialTheme
                                     .colorScheme
                                     .error,
+                            modifier =
+                                Modifier.testTag(
+                                    "report_error",
+                                ),
                         )
                     }
 
                     Spacer(
-                        modifier = Modifier.height(24.dp),
+                        modifier =
+                            Modifier.height(24.dp),
                     )
 
                     if (
@@ -338,7 +429,8 @@ fun OccurrenceDetailScreen(
                     ) {
                         Text(
                             text = stringResource(
-                                R.string.already_given,
+                                R.string
+                                    .already_given,
                             ),
                             color =
                                 MaterialTheme
@@ -351,8 +443,10 @@ fun OccurrenceDetailScreen(
                         )
                     } else {
                         Button(
-                            onClick = onRecordGiven,
-                            enabled = !state.isSaving,
+                            onClick =
+                                onRecordGiven,
+                            enabled =
+                                !state.isSaving,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .testTag(
@@ -365,7 +459,8 @@ fun OccurrenceDetailScreen(
                                 Text(
                                     text =
                                         stringResource(
-                                            R.string.record_given,
+                                            R.string
+                                                .record_given,
                                         ),
                                 )
                             }
@@ -378,4 +473,6 @@ fun OccurrenceDetailScreen(
 }
 
 private val HOUR_MINUTE_FORMATTER =
-    DateTimeFormatter.ofPattern("HH:mm")
+    DateTimeFormatter.ofPattern(
+        "HH:mm",
+    )

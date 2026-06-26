@@ -24,7 +24,6 @@ import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneOffset
 import java.util.ArrayDeque
 import kotlinx.coroutines.Dispatchers
@@ -57,6 +56,11 @@ class PersistentTracerBulletTest {
             ZoneOffset.UTC,
         )
 
+    private val anchorDate =
+        LocalDate.parse(
+            "2026-06-24",
+        )
+
     @Before
     fun setUp() {
         context =
@@ -81,7 +85,9 @@ class PersistentTracerBulletTest {
     fun singletonRecipient_isEnforcedByServiceAndDatabase() =
         runBlocking {
             val idSource =
-                SequenceIdSource("recipient-1")
+                SequenceIdSource(
+                    "recipient-1",
+                )
 
             val generator =
                 RoomOccurrenceGenerator(
@@ -97,7 +103,8 @@ class PersistentTracerBulletTest {
             val service =
                 RoomCarePlanService(
                     database = database,
-                    occurrenceGenerator = generator,
+                    occurrenceGenerator =
+                        generator,
                     clock = fixedClock,
                     idSource = idSource,
                 )
@@ -123,32 +130,41 @@ class PersistentTracerBulletTest {
 
             assertTrue(
                 second is
-                        CreateRecipientOutcome.AlreadyExists,
+                        CreateRecipientOutcome
+                        .AlreadyExists,
             )
 
-            var databaseRejectedSecond = false
+            var databaseRejectedSecond =
+                false
 
             try {
-                database.careRecipientDao().insert(
-                    CareRecipientEntity(
-                        id = "recipient-2",
-                        singletonSlot = 1,
-                        displayName = "دوم",
-                        createdAtEpochMillis =
-                            fixedClock
-                                .instant()
-                                .toEpochMilli(),
-                    ),
-                )
+                database
+                    .careRecipientDao()
+                    .insert(
+                        CareRecipientEntity(
+                            id = "recipient-2",
+                            singletonSlot = 1,
+                            displayName = "دوم",
+                            createdAtEpochMillis =
+                                fixedClock
+                                    .instant()
+                                    .toEpochMilli(),
+                        ),
+                    )
             } catch (_: Exception) {
-                databaseRejectedSecond = true
+                databaseRejectedSecond =
+                    true
             }
 
-            assertTrue(databaseRejectedSecond)
+            assertTrue(
+                databaseRejectedSecond,
+            )
 
             assertEquals(
                 1,
-                database.careRecipientDao().count(),
+                database
+                    .careRecipientDao()
+                    .count(),
             )
         }
 
@@ -179,16 +195,19 @@ class PersistentTracerBulletTest {
                 )
 
             val recipientOutcome =
-                recipientService.createRecipient(
-                    CreateRecipientCommand(
-                        displayName = "آزمایش",
-                    ),
-                )
+                recipientService
+                    .createRecipient(
+                        CreateRecipientCommand(
+                            displayName =
+                                "آزمایش",
+                        ),
+                    )
 
             val recipientId =
                 (
                         recipientOutcome as
-                                CreateRecipientOutcome.Created
+                                CreateRecipientOutcome
+                                .Created
                         ).recipientId
 
             val now =
@@ -196,40 +215,66 @@ class PersistentTracerBulletTest {
                     .instant()
                     .toEpochMilli()
 
-            database.medicationDao().insert(
-                MedicationEntity(
-                    id = "existing-medication",
-                    careRecipientId = recipientId,
-                    name = "داروی موجود",
-                    instruction = "دستور موجود",
-                    createdAtEpochMillis = now,
-                ),
-            )
+            database
+                .medicationDao()
+                .insert(
+                    MedicationEntity(
+                        id =
+                            "existing-medication",
+                        careRecipientId =
+                            recipientId,
+                        name =
+                            "داروی موجود",
+                        instruction =
+                            "دستور موجود",
+                        createdAtEpochMillis =
+                            now,
+                        stoppedAtEpochMillis =
+                            null,
+                        archivedAtEpochMillis =
+                            null,
+                    ),
+                )
 
-            database.scheduleDao().insertSeries(
-                ScheduleSeriesEntity(
-                    id = "collision-series",
-                    medicationId =
-                        "existing-medication",
-                    createdAtEpochMillis = now,
-                    stoppedAtEpochMillis = null,
-                ),
-            )
+            database
+                .scheduleDao()
+                .insertSeries(
+                    ScheduleSeriesEntity(
+                        id =
+                            "collision-series",
+                        medicationId =
+                            "existing-medication",
+                        createdAtEpochMillis =
+                            now,
+                        stoppedAtEpochMillis =
+                            null,
+                    ),
+                )
 
             val medicationCountBefore =
-                database.medicationDao().count()
+                database
+                    .medicationDao()
+                    .count()
 
             val seriesCountBefore =
-                database.scheduleDao().countSeries()
+                database
+                    .scheduleDao()
+                    .countSeries()
 
             val versionCountBefore =
-                database.scheduleDao().countVersions()
+                database
+                    .scheduleDao()
+                    .countVersions()
 
             val timeCountBefore =
-                database.scheduleDao().countTimes()
+                database
+                    .scheduleDao()
+                    .countTimes()
 
             val occurrenceCountBefore =
-                database.occurrenceDao().count()
+                database
+                    .occurrenceDao()
+                    .count()
 
             val collisionIds =
                 SequenceIdSource(
@@ -242,7 +287,8 @@ class PersistentTracerBulletTest {
             val collisionGenerator =
                 RoomOccurrenceGenerator(
                     database = database,
-                    idSource = collisionIds,
+                    idSource =
+                        collisionIds,
                     candidateResolver =
                         OccurrenceCandidateResolver(),
                 )
@@ -253,7 +299,8 @@ class PersistentTracerBulletTest {
                     occurrenceGenerator =
                         collisionGenerator,
                     clock = fixedClock,
-                    idSource = collisionIds,
+                    idSource =
+                        collisionIds,
                 )
 
             var failed = false
@@ -262,15 +309,25 @@ class PersistentTracerBulletTest {
                 collisionService
                     .createMedicationAndSchedule(
                         CreateMedicationScheduleCommand(
-                            recipientId = recipientId,
+                            recipientId =
+                                recipientId,
                             medicationName =
                                 "داروی جدید",
                             instruction =
                                 "دستور جدید",
-                            weekday =
-                                DayOfWeek.WEDNESDAY,
-                            localTime =
-                                LocalTime.of(12, 0),
+                            weekdays =
+                                setOf(
+                                    DayOfWeek
+                                        .WEDNESDAY,
+                                ),
+                            minutesOfDay =
+                                listOf(
+                                    12 * 60,
+                                ),
+                            startDate =
+                                anchorDate,
+                            endDate =
+                                anchorDate,
                             zoneId =
                                 "Asia/Tehran",
                         ),
@@ -283,27 +340,37 @@ class PersistentTracerBulletTest {
 
             assertEquals(
                 medicationCountBefore,
-                database.medicationDao().count(),
+                database
+                    .medicationDao()
+                    .count(),
             )
 
             assertEquals(
                 seriesCountBefore,
-                database.scheduleDao().countSeries(),
+                database
+                    .scheduleDao()
+                    .countSeries(),
             )
 
             assertEquals(
                 versionCountBefore,
-                database.scheduleDao().countVersions(),
+                database
+                    .scheduleDao()
+                    .countVersions(),
             )
 
             assertEquals(
                 timeCountBefore,
-                database.scheduleDao().countTimes(),
+                database
+                    .scheduleDao()
+                    .countTimes(),
             )
 
             assertEquals(
                 occurrenceCountBefore,
-                database.occurrenceDao().count(),
+                database
+                    .occurrenceDao()
+                    .count(),
             )
         }
 
@@ -329,37 +396,51 @@ class PersistentTracerBulletTest {
             val carePlanService =
                 RoomCarePlanService(
                     database = database,
-                    occurrenceGenerator = generator,
+                    occurrenceGenerator =
+                        generator,
                     clock = fixedClock,
                     idSource = ids,
                 )
 
             val recipientOutcome =
-                carePlanService.createRecipient(
-                    CreateRecipientCommand(
-                        displayName = "آزمایش",
-                    ),
-                )
+                carePlanService
+                    .createRecipient(
+                        CreateRecipientCommand(
+                            displayName =
+                                "آزمایش",
+                        ),
+                    )
 
             val recipientId =
                 (
                         recipientOutcome as
-                                CreateRecipientOutcome.Created
+                                CreateRecipientOutcome
+                                .Created
                         ).recipientId
 
             val planOutcome =
                 carePlanService
                     .createMedicationAndSchedule(
                         CreateMedicationScheduleCommand(
-                            recipientId = recipientId,
+                            recipientId =
+                                recipientId,
                             medicationName =
                                 "داروی نمونه",
                             instruction =
                                 "دستور نمونه",
-                            weekday =
-                                DayOfWeek.WEDNESDAY,
-                            localTime =
-                                LocalTime.of(10, 0),
+                            weekdays =
+                                setOf(
+                                    DayOfWeek
+                                        .WEDNESDAY,
+                                ),
+                            minutesOfDay =
+                                listOf(
+                                    10 * 60,
+                                ),
+                            startDate =
+                                anchorDate,
+                            endDate =
+                                anchorDate,
                             zoneId =
                                 "Asia/Tehran",
                         ),
@@ -367,20 +448,26 @@ class PersistentTracerBulletTest {
 
             assertTrue(
                 planOutcome is
-                        CreateMedicationScheduleOutcome.Created,
+                        CreateMedicationScheduleOutcome
+                        .Created,
             )
 
             val createdPlan =
                 planOutcome as
-                        CreateMedicationScheduleOutcome.Created
+                        CreateMedicationScheduleOutcome
+                        .Created
 
             assertTrue(
-                createdPlan.occurrenceIds.isEmpty(),
+                createdPlan
+                    .occurrenceIds
+                    .isEmpty(),
             )
 
             assertEquals(
                 0,
-                database.occurrenceDao().count(),
+                database
+                    .occurrenceDao()
+                    .count(),
             )
         }
 
@@ -408,37 +495,51 @@ class PersistentTracerBulletTest {
             val carePlanService =
                 RoomCarePlanService(
                     database = database,
-                    occurrenceGenerator = generator,
+                    occurrenceGenerator =
+                        generator,
                     clock = fixedClock,
                     idSource = ids,
                 )
 
             val recipientOutcome =
-                carePlanService.createRecipient(
-                    CreateRecipientCommand(
-                        displayName = "آزمایش",
-                    ),
-                )
+                carePlanService
+                    .createRecipient(
+                        CreateRecipientCommand(
+                            displayName =
+                                "آزمایش",
+                        ),
+                    )
 
             val recipientId =
                 (
                         recipientOutcome as
-                                CreateRecipientOutcome.Created
+                                CreateRecipientOutcome
+                                .Created
                         ).recipientId
 
             val planOutcome =
                 carePlanService
                     .createMedicationAndSchedule(
                         CreateMedicationScheduleCommand(
-                            recipientId = recipientId,
+                            recipientId =
+                                recipientId,
                             medicationName =
                                 "داروی نمونه",
                             instruction =
                                 "دستور غیرحساس نمونه",
-                            weekday =
-                                DayOfWeek.WEDNESDAY,
-                            localTime =
-                                LocalTime.of(12, 0),
+                            weekdays =
+                                setOf(
+                                    DayOfWeek
+                                        .WEDNESDAY,
+                                ),
+                            minutesOfDay =
+                                listOf(
+                                    12 * 60,
+                                ),
+                            startDate =
+                                anchorDate,
+                            endDate =
+                                anchorDate,
                             zoneId =
                                 "Asia/Tehran",
                         ),
@@ -446,15 +547,19 @@ class PersistentTracerBulletTest {
 
             assertTrue(
                 planOutcome is
-                        CreateMedicationScheduleOutcome.Created,
+                        CreateMedicationScheduleOutcome
+                        .Created,
             )
 
             val createdPlan =
                 planOutcome as
-                        CreateMedicationScheduleOutcome.Created
+                        CreateMedicationScheduleOutcome
+                        .Created
 
             assertEquals(
-                listOf("occurrence-1"),
+                listOf(
+                    "occurrence-1",
+                ),
                 createdPlan.occurrenceIds,
             )
 
@@ -462,7 +567,9 @@ class PersistentTracerBulletTest {
                 checkNotNull(
                     database
                         .occurrenceDao()
-                        .getById("occurrence-1"),
+                        .getById(
+                            "occurrence-1",
+                        ),
                 )
 
             assertEquals(
@@ -477,16 +584,17 @@ class PersistentTracerBulletTest {
                     .medicationInstructionSnapshot,
             )
 
-            val anchorDate =
-                LocalDate.parse("2026-06-24")
-
             val secondGeneration =
-                generator.guaranteeForSchedule(
-                    scheduleVersionId =
-                        createdPlan.scheduleVersionId,
-                    anchorDate = anchorDate,
-                    now = fixedClock.instant(),
-                )
+                generator
+                    .guaranteeWindowForSchedule(
+                        scheduleVersionId =
+                            createdPlan
+                                .scheduleVersionId,
+                        anchorDate =
+                            anchorDate,
+                        now =
+                            fixedClock.instant(),
+                    )
 
             assertEquals(
                 "occurrence-1",
@@ -498,22 +606,33 @@ class PersistentTracerBulletTest {
 
             assertEquals(
                 1,
-                database.occurrenceDao().count(),
+                database
+                    .occurrenceDao()
+                    .count(),
             )
 
             val todayQuery =
-                RoomTodayQueryService(database)
+                RoomTodayQueryService(
+                    database,
+                )
 
             val beforeReport =
                 todayQuery
-                    .observeToday(anchorDate)
+                    .observeToday(
+                        anchorDate,
+                    )
                     .first()
 
-            assertEquals(1, beforeReport.size)
+            assertEquals(
+                1,
+                beforeReport.size,
+            )
 
             assertEquals(
                 "occurrence-1",
-                beforeReport.single().occurrenceId,
+                beforeReport
+                    .single()
+                    .occurrenceId,
             )
 
             assertEquals(
@@ -565,12 +684,16 @@ class PersistentTracerBulletTest {
 
             val afterReport =
                 todayQuery
-                    .observeToday(anchorDate)
+                    .observeToday(
+                        anchorDate,
+                    )
                     .first()
 
             assertEquals(
                 CaregiverReportState.GIVEN,
-                afterReport.single().reportState,
+                afterReport
+                    .single()
+                    .reportState,
             )
 
             database.close()
@@ -589,17 +712,26 @@ class PersistentTracerBulletTest {
                 )
 
             reopenedGenerator
-                .guaranteeForEffectiveSchedules(
-                    anchorDate = anchorDate,
-                    now = fixedClock.instant(),
+                .guaranteeWindowForAll(
+                    anchorDate =
+                        anchorDate,
+                    now =
+                        fixedClock.instant(),
                 )
 
             val reopenedToday =
-                RoomTodayQueryService(database)
-                    .observeToday(anchorDate)
+                RoomTodayQueryService(
+                    database,
+                )
+                    .observeToday(
+                        anchorDate,
+                    )
                     .first()
 
-            assertEquals(1, reopenedToday.size)
+            assertEquals(
+                1,
+                reopenedToday.size,
+            )
 
             assertEquals(
                 "occurrence-1",
@@ -631,7 +763,9 @@ class PersistentTracerBulletTest {
 
             assertEquals(
                 1,
-                database.occurrenceDao().count(),
+                database
+                    .occurrenceDao()
+                    .count(),
             )
 
             assertEquals(
@@ -665,37 +799,51 @@ class PersistentTracerBulletTest {
             val carePlanService =
                 RoomCarePlanService(
                     database = database,
-                    occurrenceGenerator = generator,
+                    occurrenceGenerator =
+                        generator,
                     clock = fixedClock,
                     idSource = ids,
                 )
 
             val recipientOutcome =
-                carePlanService.createRecipient(
-                    CreateRecipientCommand(
-                        displayName = "آزمایش",
-                    ),
-                )
+                carePlanService
+                    .createRecipient(
+                        CreateRecipientCommand(
+                            displayName =
+                                "آزمایش",
+                        ),
+                    )
 
             val recipientId =
                 (
                         recipientOutcome as
-                                CreateRecipientOutcome.Created
+                                CreateRecipientOutcome
+                                .Created
                         ).recipientId
 
             val planOutcome =
                 carePlanService
                     .createMedicationAndSchedule(
                         CreateMedicationScheduleCommand(
-                            recipientId = recipientId,
+                            recipientId =
+                                recipientId,
                             medicationName =
                                 "داروی نمونه",
                             instruction =
                                 "دستور نمونه",
-                            weekday =
-                                DayOfWeek.WEDNESDAY,
-                            localTime =
-                                LocalTime.of(12, 0),
+                            weekdays =
+                                setOf(
+                                    DayOfWeek
+                                        .WEDNESDAY,
+                                ),
+                            minutesOfDay =
+                                listOf(
+                                    12 * 60,
+                                ),
+                            startDate =
+                                anchorDate,
+                            endDate =
+                                anchorDate,
                             zoneId =
                                 "Asia/Tehran",
                         ),
@@ -703,7 +851,8 @@ class PersistentTracerBulletTest {
 
             val createdPlan =
                 planOutcome as
-                        CreateMedicationScheduleOutcome.Created
+                        CreateMedicationScheduleOutcome
+                        .Created
 
             val occurrenceId =
                 createdPlan
@@ -718,11 +867,16 @@ class PersistentTracerBulletTest {
 
             val outcomes =
                 coroutineScope {
-                    List(CONCURRENT_REQUEST_COUNT) {
-                        async(Dispatchers.Default) {
-                            reportService.recordGiven(
-                                occurrenceId,
-                            )
+                    List(
+                        CONCURRENT_REQUEST_COUNT,
+                    ) {
+                        async(
+                            Dispatchers.Default,
+                        ) {
+                            reportService
+                                .recordGiven(
+                                    occurrenceId,
+                                )
                         }
                     }.awaitAll()
                 }
@@ -730,23 +884,30 @@ class PersistentTracerBulletTest {
             assertEquals(
                 1,
                 outcomes.count {
-                    it is RecordGivenOutcome.Recorded
+                    it is
+                            RecordGivenOutcome
+                            .Recorded
                 },
             )
 
             assertEquals(
-                CONCURRENT_REQUEST_COUNT - 1,
+                CONCURRENT_REQUEST_COUNT -
+                        1,
                 outcomes.count {
-                    it is RecordGivenOutcome.Unchanged
+                    it is
+                            RecordGivenOutcome
+                            .Unchanged
                 },
             )
 
             assertTrue(
                 outcomes.all { outcome ->
                     outcome is
-                            RecordGivenOutcome.Recorded ||
+                            RecordGivenOutcome
+                            .Recorded ||
                             outcome is
-                                    RecordGivenOutcome.Unchanged
+                                    RecordGivenOutcome
+                                    .Unchanged
                 },
             )
 
@@ -765,22 +926,27 @@ class PersistentTracerBulletTest {
                     )
 
             assertEquals(
-                CaregiverReportState.GIVEN.name,
+                CaregiverReportState
+                    .GIVEN
+                    .name,
                 persistedReport?.state,
             )
         }
 
     private fun openDatabase():
             CarePackDatabase {
-        return Room.databaseBuilder(
-            context,
-            CarePackDatabase::class.java,
-            databaseName,
-        ).build()
+        return Room
+            .databaseBuilder(
+                context,
+                CarePackDatabase::class.java,
+                databaseName,
+            )
+            .build()
     }
 
     private companion object {
-        const val CONCURRENT_REQUEST_COUNT = 8
+        const val CONCURRENT_REQUEST_COUNT =
+            8
     }
 }
 
@@ -789,10 +955,14 @@ private class SequenceIdSource(
 ) : IdSource {
 
     private val remainingIds =
-        ArrayDeque(ids.toList())
+        ArrayDeque(
+            ids.toList(),
+        )
 
     override fun nextId(): String {
-        check(remainingIds.isNotEmpty()) {
+        check(
+            remainingIds.isNotEmpty(),
+        ) {
             "No test ID remains."
         }
 
