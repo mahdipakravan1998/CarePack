@@ -53,7 +53,11 @@ $failureMarkers =
         "Process crashed.",
         "Test run failed to complete",
         "ComposeTimeoutException",
-        "INSTRUMENTATION_CODE: 0"
+        "CAREPACK_INSTRUMENTATION_TIMEOUT",
+        "INSTRUMENTATION_CODE: 0",
+        "INSTRUMENTATION_RESULT: shortMsg=Process crashed",
+        "Unable to find instrumentation info",
+        "No tests found"
     )
 
 foreach ($marker in $failureMarkers) {
@@ -83,18 +87,18 @@ if (
 }
 
 if (
-    -not $report.Contains(
-        "INSTRUMENTATION_CODE: -1"
-    )
+    $report -notmatch
+    "INSTRUMENTATION_CODE:\s*-1"
 ) {
     Write-Host ""
-    Write-Host "Instrumentation success code was not found:"
+    Write-Host "Successful instrumentation completion marker was not found:"
     Write-Host "INSTRUMENTATION_CODE: -1"
 
     exit 2
 }
 
 Write-Host ""
-Write-Host "Instrumentation report validated successfully."
+Write-Host "Instrumentation report is valid."
+Write-Host ""
 
 exit 0
