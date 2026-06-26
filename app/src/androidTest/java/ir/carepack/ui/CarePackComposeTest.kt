@@ -230,7 +230,8 @@ class CarePackComposeTest {
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
-                    carePlanService = service,
+                    carePlanService =
+                        service,
                     todayQueryService =
                         todayQueryService,
                     caregiverReportService =
@@ -272,7 +273,7 @@ class CarePackComposeTest {
             .assertExists()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
@@ -298,7 +299,7 @@ class CarePackComposeTest {
             .assertIsDisplayed()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
@@ -342,7 +343,7 @@ class CarePackComposeTest {
             )
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
@@ -360,7 +361,7 @@ class CarePackComposeTest {
             .assertExists()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
@@ -378,18 +379,20 @@ class CarePackComposeTest {
             .assertExists()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
-                "given_status",
+                "current_report_state",
         )
 
         composeRule
             .onNodeWithTag(
-                "given_status",
+                "current_report_state",
             )
-            .assertExists()
+            .assertTextEquals(
+                "مراقب ثبت کرده است که دارو داده شده است",
+            )
 
         logStep(
             "TEST_FINISHED",
@@ -446,7 +449,7 @@ class CarePackComposeTest {
             .assertIsDisplayed()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
@@ -516,7 +519,7 @@ class CarePackComposeTest {
             .performScrollTo()
             .performClick()
 
-        runQueuedMainTasks()
+        composeRule.waitForIdle()
 
         composeRule
             .onNodeWithText(
@@ -893,8 +896,7 @@ class CarePackComposeTest {
         }
     }
 
-    private fun createRecipient():
-            String {
+    private fun createRecipient(): String {
         return runBlocking {
             when (
                 val outcome =
@@ -906,16 +908,19 @@ class CarePackComposeTest {
                             ),
                         )
             ) {
-                is CreateRecipientOutcome.Created ->
+                is CreateRecipientOutcome.Created -> {
                     outcome.recipientId
+                }
 
-                is CreateRecipientOutcome.AlreadyExists ->
+                is CreateRecipientOutcome.AlreadyExists -> {
                     outcome.recipientId
+                }
 
-                is CreateRecipientOutcome.Invalid ->
+                is CreateRecipientOutcome.Invalid -> {
                     error(
                         "Recipient creation failed.",
                     )
+                }
             }
         }
     }
@@ -1001,8 +1006,6 @@ class CarePackComposeTest {
             timeoutMillis =
                 TEST_TIMEOUT_MILLIS,
         ) {
-            runQueuedMainTasks()
-
             composeRule
                 .onAllNodesWithTag(
                     testTag =
@@ -1028,17 +1031,8 @@ class CarePackComposeTest {
         composeRule.waitUntil(
             timeoutMillis =
                 TEST_TIMEOUT_MILLIS,
-        ) {
-            runQueuedMainTasks()
-            condition()
-        }
-    }
-
-    private fun runQueuedMainTasks() {
-        composeRule
-            .mainClock
-            .scheduler
-            .runCurrent()
+            condition = condition,
+        )
     }
 
     private fun logStep(
@@ -1183,8 +1177,7 @@ private class UiSequenceIdSource(
         val generatedId =
             "occurrence-$nextOccurrenceNumber"
 
-        nextOccurrenceNumber +=
-            1
+        nextOccurrenceNumber += 1
 
         return generatedId
     }
@@ -1207,8 +1200,7 @@ private class ComposeTestClock(
     private val instant: Instant,
 ) : Clock() {
 
-    override fun getZone():
-            ZoneId {
+    override fun getZone(): ZoneId {
         return ZoneOffset.UTC
     }
 
@@ -1218,8 +1210,7 @@ private class ComposeTestClock(
         return this
     }
 
-    override fun instant():
-            Instant {
+    override fun instant(): Instant {
         return instant
     }
 }

@@ -1,17 +1,20 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 rem ------------------------------------------------------------
 rem CarePack Xiaomi physical-device instrumented test runner
 rem
-rem Full suite, isolated into two instrumentation sessions:
+rem Full suite:
 rem   tools\run-xiaomi-android-tests.cmd
 rem
-rem One class:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.CarePackComposeTest"
+rem One non-Compose class:
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.ReportingIntegrationTest"
+rem
+rem One Compose class:
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingComposeTest"
 rem
 rem One method:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.CarePackComposeTest#fullSetup_navigatesToToday_andRecordsGiven"
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingComposeTest#detail_exposesAllThreeReportActions"
 rem ------------------------------------------------------------
 
 cd /d "%~dp0.."
@@ -23,7 +26,10 @@ set "TEST_PACKAGE=ir.carepack.debug.test"
 set "TEST_RUNNER=androidx.test.runner.AndroidJUnitRunner"
 set "TEST_COMPONENT=%TEST_PACKAGE%/%TEST_RUNNER%"
 
-set "COMPOSE_TEST_CLASS=ir.carepack.ui.CarePackComposeTest"
+set "REPORTING_COMPOSE_CLASS=ir.carepack.ui.ReportingComposeTest"
+set "CAREPACK_COMPOSE_CLASS=ir.carepack.ui.CarePackComposeTest"
+
+set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%"
 
 set "TARGET_APK=%CD%\app\build\outputs\apk\debug\app-debug.apk"
 set "TEST_APK=%CD%\app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
@@ -32,10 +38,18 @@ set "REPORT_DIRECTORY=%CD%\app\build\reports\xiaomiAndroidTest"
 
 set "NON_UI_REPORT_FILE=%REPORT_DIRECTORY%\instrumentation-non-ui-result.txt"
 set "UI_REPORT_FILE=%REPORT_DIRECTORY%\instrumentation-ui-result.txt"
+set "UI_SESSION_REPORT_FILE=%REPORT_DIRECTORY%\instrumentation-ui-session-result.txt"
 set "SELECTED_REPORT_FILE=%REPORT_DIRECTORY%\instrumentation-selected-result.txt"
 
 set "PERMISSION_SCRIPT=%CD%\tools\grant-xiaomi-ui-permissions.ps1"
+set "INSTRUMENTATION_SCRIPT=%CD%\tools\run-adb-instrumentation.ps1"
 set "VALIDATOR_SCRIPT=%CD%\tools\validate-instrumentation-report.ps1"
+
+set "INSTRUMENTATION_TIMEOUT_SECONDS=180"
+
+set "REPORTING_COMPOSE_METHODS=noReportAndUnknown_haveDifferentVisibleText detail_exposesAllThreeReportActions cancelledOccurrence_disablesNewReportActions undoSnackbar_callsCurrentUndoToken todayShowsSeparateNoMedicationEmptyState historySectionShowsGroupedRecentHistory"
+
+set "CAREPACK_COMPOSE_METHODS=fullSetup_navigatesToToday_andRecordsGiven storageFailure_doesNotNavigateOrShowSuccess invalidMedicationForm_showsFieldErrors_andWritesNothing invalidRecipientRename_staysOpen_showsFieldError_andKeepsValue scheduleEdit_supportsMultipleTimesAndOptionalDates activeMedication_cannotArchive_thenStopAndArchiveHidesIt"
 
 echo.
 echo ============================================================
@@ -53,6 +67,12 @@ if not exist "%GRADLEW%" (
 if not exist "%PERMISSION_SCRIPT%" (
     echo ERROR: Xiaomi permission PowerShell script was not found:
     echo %PERMISSION_SCRIPT%
+    exit /b 1
+)
+
+if not exist "%INSTRUMENTATION_SCRIPT%" (
+    echo ERROR: Instrumentation PowerShell runner was not found:
+    echo %INSTRUMENTATION_SCRIPT%
     exit /b 1
 )
 
@@ -103,7 +123,7 @@ echo Device model:        %DEVICE_MODEL%
 echo Android version:     %ANDROID_VERSION%
 echo.
 
-echo [1/7] Building application and test APKs...
+echo [1/8] Building application and test APKs...
 
 call "%GRADLEW%" ^
     :app:assembleDebug ^
@@ -131,13 +151,14 @@ if not exist "%TEST_APK%" (
 )
 
 echo.
-echo [2/7] Stopping previous processes...
+echo [2/8] Stopping previous processes...
 
 adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
 adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
+adb shell am force-stop com.miui.securitycenter >nul 2>&1
 
 echo.
-echo [3/7] Updating application APK...
+echo [3/8] Updating application APK...
 
 adb install -r -t -g "%TARGET_APK%"
 
@@ -148,9 +169,13 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/7] Updating Android test APK...
+echo [4/8] Installing a fresh Android test APK...
 
-adb install -r -t -g "%TEST_APK%"
+rem A fresh test-package install prevents stale or missing
+rem instrumentation registration after interrupted Gradle runs.
+adb uninstall "%TEST_PACKAGE%" >nul 2>&1
+
+adb install -t -g "%TEST_APK%"
 
 if errorlevel 1 (
     echo.
@@ -159,13 +184,51 @@ if errorlevel 1 (
 )
 
 echo.
-echo [5/7] Granting Xiaomi permission through UI automation...
+echo [5/8] Waiting for instrumentation registration...
+
+call :wait_for_instrumentation
+
+if errorlevel 1 (
+    echo.
+    echo Instrumentation was not registered after the first install.
+    echo Reinstalling the Android test APK once...
+    echo.
+
+    adb uninstall "%TEST_PACKAGE%" >nul 2>&1
+
+    adb install -t -g "%TEST_APK%"
+
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Android test APK reinstallation failed.
+        exit /b 1
+    )
+
+    call :wait_for_instrumentation
+
+    if errorlevel 1 (
+        echo.
+        echo ERROR: Instrumentation component was not registered:
+        echo %TEST_COMPONENT%
+        echo.
+        echo Registered instrumentation components:
+        adb shell pm list instrumentation
+        exit /b 1
+    )
+)
+
+echo Instrumentation registered:
+echo %TEST_COMPONENT%
+
+echo.
+echo [6/8] Granting Xiaomi background-window permission...
 
 powershell.exe ^
     -NoLogo ^
     -NoProfile ^
     -ExecutionPolicy Bypass ^
-    -File "%PERMISSION_SCRIPT%"
+    -File "%PERMISSION_SCRIPT%" ^
+    -PackageName "%TARGET_PACKAGE%"
 
 if errorlevel 1 (
     echo.
@@ -174,10 +237,17 @@ if errorlevel 1 (
 )
 
 echo.
-echo [6/7] Preparing device...
+echo [7/8] Preparing physical device...
 
 adb shell input keyevent 224 >nul 2>&1
 adb shell wm dismiss-keyguard >nul 2>&1
+adb shell input keyevent 3 >nul 2>&1
+
+adb shell settings put global window_animation_scale 0 >nul 2>&1
+adb shell settings put global transition_animation_scale 0 >nul 2>&1
+adb shell settings put global animator_duration_scale 0 >nul 2>&1
+
+adb shell svc power stayon true >nul 2>&1
 
 adb shell am set-standby-bucket "%TARGET_PACKAGE%" active >nul 2>&1
 adb shell am set-standby-bucket "%TEST_PACKAGE%" active >nul 2>&1
@@ -185,11 +255,16 @@ adb shell am set-standby-bucket "%TEST_PACKAGE%" active >nul 2>&1
 adb shell dumpsys deviceidle whitelist +"%TARGET_PACKAGE%" >nul 2>&1
 adb shell dumpsys deviceidle whitelist +"%TEST_PACKAGE%" >nul 2>&1
 
-rem The Xiaomi permission editor may remain in the foreground.
-rem Do not launch CarePack manually here. Instrumentation creates
-rem and manages its own test host.
-adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
-adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
+adb shell cmd appops set "%TARGET_PACKAGE%" RUN_IN_BACKGROUND allow >nul 2>&1
+adb shell cmd appops set "%TARGET_PACKAGE%" RUN_ANY_IN_BACKGROUND allow >nul 2>&1
+
+adb shell cmd appops set "%TEST_PACKAGE%" RUN_IN_BACKGROUND allow >nul 2>&1
+adb shell cmd appops set "%TEST_PACKAGE%" RUN_ANY_IN_BACKGROUND allow >nul 2>&1
+
+adb shell am force-stop com.miui.securitycenter >nul 2>&1
+adb shell input keyevent 3 >nul 2>&1
+
+timeout /t 1 /nobreak >nul
 
 if not exist "%REPORT_DIRECTORY%" (
     mkdir "%REPORT_DIRECTORY%"
@@ -203,265 +278,359 @@ if exist "%UI_REPORT_FILE%" (
     del /f /q "%UI_REPORT_FILE%" >nul 2>&1
 )
 
+if exist "%UI_SESSION_REPORT_FILE%" (
+    del /f /q "%UI_SESSION_REPORT_FILE%" >nul 2>&1
+)
+
 if exist "%SELECTED_REPORT_FILE%" (
     del /f /q "%SELECTED_REPORT_FILE%" >nul 2>&1
 )
 
 echo.
-echo [7/7] Running instrumented tests...
+echo [8/8] Running instrumented tests...
 echo.
 
-if not "%~1"=="" goto :run_selected_test
+if not "%~1"=="" goto :dispatch_selected_test
+
 goto :run_full_suite
 
 
-:run_full_suite
+:dispatch_selected_test
 
-rem ------------------------------------------------------------
-rem Session A:
-rem Run all instrumented tests except the Compose Navigation class.
-rem ------------------------------------------------------------
+if /I "%~1"=="%REPORTING_COMPOSE_CLASS%" (
+    goto :run_selected_reporting_compose_class
+)
 
-echo [7A/7] Running non-UI instrumented tests...
-echo Excluded class:
-echo %COMPOSE_TEST_CLASS%
-echo.
+if /I "%~1"=="%CAREPACK_COMPOSE_CLASS%" (
+    goto :run_selected_carepack_compose_class
+)
 
-adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
-adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
-
-adb shell am instrument ^
-    -w ^
-    -r ^
-    -e notClass "%COMPOSE_TEST_CLASS%" ^
-    "%TEST_COMPONENT%" ^
-    > "%NON_UI_REPORT_FILE%" 2>&1
-
-set "NON_UI_ADB_EXIT_CODE=%ERRORLEVEL%"
-
-echo.
-echo Non-UI instrumentation adb process returned.
-echo ADB exit code: %NON_UI_ADB_EXIT_CODE%
-echo.
-
-if not exist "%NON_UI_REPORT_FILE%" goto :non_ui_report_missing
-
-type "%NON_UI_REPORT_FILE%"
-
-powershell.exe ^
-    -NoLogo ^
-    -NoProfile ^
-    -ExecutionPolicy Bypass ^
-    -File "%VALIDATOR_SCRIPT%" ^
-    -ReportFile "%NON_UI_REPORT_FILE%" ^
-    -AdbExitCode "%NON_UI_ADB_EXIT_CODE%"
-
-set "NON_UI_VALIDATION_EXIT_CODE=%ERRORLEVEL%"
-
-if not "%NON_UI_VALIDATION_EXIT_CODE%"=="0" goto :non_ui_tests_failed
-
-rem ------------------------------------------------------------
-rem Completely end the first instrumentation and app lifecycle
-rem before starting Compose Navigation tests.
-rem ------------------------------------------------------------
-
-echo.
-echo Isolating Compose UI test session...
-
-adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
-adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
-
-timeout /t 1 /nobreak >nul
-
-adb shell input keyevent 224 >nul 2>&1
-adb shell wm dismiss-keyguard >nul 2>&1
-
-rem ------------------------------------------------------------
-rem Session B:
-rem Run Compose Navigation tests in a fresh instrumentation process.
-rem ------------------------------------------------------------
-
-echo.
-echo [7B/7] Running Compose UI instrumented tests...
-echo Selected class:
-echo %COMPOSE_TEST_CLASS%
-echo.
-
-adb shell am instrument ^
-    -w ^
-    -r ^
-    -e class "%COMPOSE_TEST_CLASS%" ^
-    "%TEST_COMPONENT%" ^
-    > "%UI_REPORT_FILE%" 2>&1
-
-set "UI_ADB_EXIT_CODE=%ERRORLEVEL%"
-
-echo.
-echo Compose UI instrumentation adb process returned.
-echo ADB exit code: %UI_ADB_EXIT_CODE%
-echo.
-
-if not exist "%UI_REPORT_FILE%" goto :ui_report_missing
-
-type "%UI_REPORT_FILE%"
-
-powershell.exe ^
-    -NoLogo ^
-    -NoProfile ^
-    -ExecutionPolicy Bypass ^
-    -File "%VALIDATOR_SCRIPT%" ^
-    -ReportFile "%UI_REPORT_FILE%" ^
-    -AdbExitCode "%UI_ADB_EXIT_CODE%"
-
-set "UI_VALIDATION_EXIT_CODE=%ERRORLEVEL%"
-
-if not "%UI_VALIDATION_EXIT_CODE%"=="0" goto :ui_tests_failed
-
-goto :full_suite_passed
+goto :run_selected_single
 
 
-:run_selected_test
+:run_selected_single
 
-echo Selected test:
-echo %~1
-echo.
+call :run_and_validate ^
+    "class" ^
+    "%~1" ^
+    "%SELECTED_REPORT_FILE%" ^
+    "Selected instrumented test"
 
-adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
-adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
-
-adb shell am instrument ^
-    -w ^
-    -r ^
-    -e class "%~1" ^
-    "%TEST_COMPONENT%" ^
-    > "%SELECTED_REPORT_FILE%" 2>&1
-
-set "SELECTED_ADB_EXIT_CODE=%ERRORLEVEL%"
-
-echo.
-echo Selected instrumentation adb process returned.
-echo ADB exit code: %SELECTED_ADB_EXIT_CODE%
-echo.
-
-if not exist "%SELECTED_REPORT_FILE%" goto :selected_report_missing
-
-type "%SELECTED_REPORT_FILE%"
-
-powershell.exe ^
-    -NoLogo ^
-    -NoProfile ^
-    -ExecutionPolicy Bypass ^
-    -File "%VALIDATOR_SCRIPT%" ^
-    -ReportFile "%SELECTED_REPORT_FILE%" ^
-    -AdbExitCode "%SELECTED_ADB_EXIT_CODE%"
-
-set "SELECTED_VALIDATION_EXIT_CODE=%ERRORLEVEL%"
-
-if not "%SELECTED_VALIDATION_EXIT_CODE%"=="0" goto :selected_test_failed
+if errorlevel 1 goto :selected_test_failed
 
 goto :selected_test_passed
 
 
-:non_ui_report_missing
+:run_selected_reporting_compose_class
+
+type nul > "%SELECTED_REPORT_FILE%"
+
+for %%M in (%REPORTING_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%REPORTING_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "ReportingComposeTest#%%M"
+
+    if errorlevel 1 goto :selected_test_failed
+
+    call :append_report ^
+        "%REPORTING_COMPOSE_CLASS%#%%M" ^
+        "%SELECTED_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+goto :selected_test_passed
+
+
+:run_selected_carepack_compose_class
+
+type nul > "%SELECTED_REPORT_FILE%"
+
+for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "CarePackComposeTest#%%M"
+
+    if errorlevel 1 goto :selected_test_failed
+
+    call :append_report ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%SELECTED_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+goto :selected_test_passed
+
+
+:run_full_suite
+
+echo [8A/8] Running non-Compose instrumented tests...
+echo Excluded classes:
+echo %COMPOSE_EXCLUDED_CLASSES%
 echo.
-echo ============================================================
-echo NON-UI INSTRUMENTATION REPORT WAS NOT GENERATED
-echo ============================================================
+
+call :run_and_validate ^
+    "notClass" ^
+    "%COMPOSE_EXCLUDED_CLASSES%" ^
+    "%NON_UI_REPORT_FILE%" ^
+    "Non-Compose instrumented tests"
+
+if errorlevel 1 goto :non_ui_tests_failed
+
+type nul > "%UI_REPORT_FILE%"
+
 echo.
-echo Expected report:
-echo %NON_UI_REPORT_FILE%
+echo [8B/8] Running ReportingComposeTest methods in isolated sessions...
 echo.
+
+for %%M in (%REPORTING_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%REPORTING_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "ReportingComposeTest#%%M"
+
+    if errorlevel 1 goto :ui_tests_failed
+
+    call :append_report ^
+        "%REPORTING_COMPOSE_CLASS%#%%M" ^
+        "%UI_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+echo.
+echo [8C/8] Running CarePackComposeTest methods in isolated sessions...
+echo.
+
+for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "CarePackComposeTest#%%M"
+
+    if errorlevel 1 goto :ui_tests_failed
+
+    call :append_report ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%UI_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+goto :full_suite_passed
+
+
+:run_and_validate
+
+set "RUN_FILTER_ARGUMENT=%~1"
+set "RUN_FILTER_VALUE=%~2"
+set "RUN_REPORT_FILE=%~3"
+set "RUN_DISPLAY_NAME=%~4"
+
+set "LAST_FILTER_VALUE=%RUN_FILTER_VALUE%"
+set "LAST_REPORT_FILE=%RUN_REPORT_FILE%"
+
+echo.
+echo ------------------------------------------------------------
+echo Running:
+echo %RUN_DISPLAY_NAME%
+echo ------------------------------------------------------------
+echo.
+
+call :prepare_test_session
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+if exist "%RUN_REPORT_FILE%" (
+    del /f /q "%RUN_REPORT_FILE%" >nul 2>&1
+)
+
+powershell.exe ^
+    -NoLogo ^
+    -NoProfile ^
+    -ExecutionPolicy Bypass ^
+    -File "%INSTRUMENTATION_SCRIPT%" ^
+    -Component "%TEST_COMPONENT%" ^
+    -ReportFile "%RUN_REPORT_FILE%" ^
+    -TargetPackage "%TARGET_PACKAGE%" ^
+    -TestPackage "%TEST_PACKAGE%" ^
+    -FilterArgumentName "%RUN_FILTER_ARGUMENT%" ^
+    -FilterValue "%RUN_FILTER_VALUE%" ^
+    -TimeoutSeconds "%INSTRUMENTATION_TIMEOUT_SECONDS%"
+
+set "RUN_ADB_EXIT_CODE=!ERRORLEVEL!"
+
+echo.
+echo Instrumentation process returned.
+echo ADB exit code: !RUN_ADB_EXIT_CODE!
+echo.
+
+if not exist "%RUN_REPORT_FILE%" (
+    echo ERROR: Instrumentation report was not generated:
+    echo %RUN_REPORT_FILE%
+    exit /b 1
+)
+
+type "%RUN_REPORT_FILE%"
+
+powershell.exe ^
+    -NoLogo ^
+    -NoProfile ^
+    -ExecutionPolicy Bypass ^
+    -File "%VALIDATOR_SCRIPT%" ^
+    -ReportFile "%RUN_REPORT_FILE%" ^
+    -AdbExitCode "!RUN_ADB_EXIT_CODE!"
+
+set "RUN_VALIDATION_EXIT_CODE=!ERRORLEVEL!"
+
+if not "!RUN_VALIDATION_EXIT_CODE!"=="0" (
+    exit /b !RUN_VALIDATION_EXIT_CODE!
+)
+
+exit /b 0
+
+
+:prepare_test_session
+
+adb get-state >nul 2>&1
+
+if errorlevel 1 (
+    echo ERROR: Device disconnected before instrumentation.
+    exit /b 1
+)
+
+call :wait_for_instrumentation
+
+if errorlevel 1 (
+    echo ERROR: Instrumentation registration disappeared:
+    echo %TEST_COMPONENT%
+    exit /b 1
+)
+
+adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
+adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
+adb shell am force-stop com.miui.securitycenter >nul 2>&1
+
+adb shell input keyevent 224 >nul 2>&1
+adb shell wm dismiss-keyguard >nul 2>&1
+adb shell input keyevent 3 >nul 2>&1
+
+timeout /t 1 /nobreak >nul
+
+exit /b 0
+
+
+:wait_for_instrumentation
+
+for /L %%I in (1,1,15) do (
+    adb shell pm list instrumentation 2>nul ^
+        | findstr /C:"instrumentation:%TEST_COMPONENT% (target=%TARGET_PACKAGE%)" >nul
+
+    if not errorlevel 1 (
+        exit /b 0
+    )
+
+    timeout /t 1 /nobreak >nul
+)
+
 exit /b 1
 
 
-:ui_report_missing
-echo.
-echo ============================================================
-echo COMPOSE UI INSTRUMENTATION REPORT WAS NOT GENERATED
-echo ============================================================
-echo.
-echo Expected report:
-echo %UI_REPORT_FILE%
-echo.
-exit /b 1
+:append_report
 
+set "APPEND_TEST_NAME=%~1"
+set "APPEND_TARGET_FILE=%~2"
+set "APPEND_SOURCE_FILE=%~3"
 
-:selected_report_missing
-echo.
-echo ============================================================
-echo SELECTED INSTRUMENTATION REPORT WAS NOT GENERATED
-echo ============================================================
-echo.
-echo Expected report:
-echo %SELECTED_REPORT_FILE%
-echo.
-exit /b 1
+>> "%APPEND_TARGET_FILE%" echo.
+>> "%APPEND_TARGET_FILE%" echo ============================================================
+>> "%APPEND_TARGET_FILE%" echo TEST: %APPEND_TEST_NAME%
+>> "%APPEND_TARGET_FILE%" echo ============================================================
+>> "%APPEND_TARGET_FILE%" echo.
+
+type "%APPEND_SOURCE_FILE%" >> "%APPEND_TARGET_FILE%"
+
+exit /b 0
 
 
 :non_ui_tests_failed
+
 echo.
 echo ============================================================
-echo NON-UI INSTRUMENTED TESTS FAILED
+echo NON-COMPOSE INSTRUMENTED TESTS FAILED
 echo ============================================================
 echo.
-echo Validator exit code:
-echo %NON_UI_VALIDATION_EXIT_CODE%
+echo Failed filter:
+echo %LAST_FILTER_VALUE%
 echo.
 echo Report:
-echo %NON_UI_REPORT_FILE%
+echo %LAST_REPORT_FILE%
 echo.
+
 exit /b 1
 
 
 :ui_tests_failed
+
 echo.
 echo ============================================================
-echo COMPOSE UI INSTRUMENTED TESTS FAILED
+echo COMPOSE UI INSTRUMENTED TEST FAILED
 echo ============================================================
 echo.
-echo Validator exit code:
-echo %UI_VALIDATION_EXIT_CODE%
+echo Failed filter:
+echo %LAST_FILTER_VALUE%
 echo.
-echo Report:
+echo Individual report:
+echo %LAST_REPORT_FILE%
+echo.
+echo Aggregate report:
 echo %UI_REPORT_FILE%
 echo.
+
 exit /b 1
 
 
 :selected_test_failed
+
 echo.
 echo ============================================================
 echo SELECTED INSTRUMENTED TEST FAILED
 echo ============================================================
 echo.
-echo Validator exit code:
-echo %SELECTED_VALIDATION_EXIT_CODE%
+echo Failed filter:
+echo %LAST_FILTER_VALUE%
 echo.
 echo Report:
-echo %SELECTED_REPORT_FILE%
+echo %LAST_REPORT_FILE%
 echo.
+
 exit /b 1
 
 
 :full_suite_passed
+
 echo.
 echo ============================================================
 echo ALL INSTRUMENTED TESTS PASSED
 echo ============================================================
 echo.
-echo Non-UI report:
+echo Non-Compose report:
 echo %NON_UI_REPORT_FILE%
 echo.
-echo Compose UI report:
+echo Isolated Compose report:
 echo %UI_REPORT_FILE%
 echo.
-echo The full suite was intentionally executed in two isolated
-echo instrumentation sessions.
-echo.
+
 exit /b 0
 
 
 :selected_test_passed
+
 echo.
 echo ============================================================
 echo SELECTED INSTRUMENTED TESTS PASSED
@@ -470,4 +639,5 @@ echo.
 echo Report:
 echo %SELECTED_REPORT_FILE%
 echo.
+
 exit /b 0

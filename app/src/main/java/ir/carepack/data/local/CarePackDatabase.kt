@@ -32,4 +32,7 @@ abstract class CarePackDatabase : RoomDatabase() {
 
     abstract fun caregiverReportDao():
             CaregiverReportDao
+
+    abstract fun reportingDao():
+            ReportingDao
 }

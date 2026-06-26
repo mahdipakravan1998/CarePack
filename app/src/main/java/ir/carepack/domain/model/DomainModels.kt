@@ -26,6 +26,17 @@ enum class MedicationStatus {
     STOPPED,
 }
 
+enum class TemporalPhase {
+    UPCOMING,
+    DUE,
+    PAST,
+}
+
+enum class TodayEmptyState {
+    NO_MEDICATIONS,
+    NO_OCCURRENCES,
+}
+
 data class ScheduleDefinition(
     val scheduleVersionId: String,
     val scheduleSeriesId: String,
@@ -49,6 +60,16 @@ data class TodayItem(
     val medicationInstruction: String,
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
+    val scheduledAt: Instant = Instant.EPOCH,
+    val temporalPhase: TemporalPhase =
+        TemporalPhase.UPCOMING,
+    val isOverdue: Boolean = false,
+)
+
+data class TodayModel(
+    val localDate: LocalDate,
+    val items: List<TodayItem>,
+    val emptyState: TodayEmptyState?,
 )
 
 data class OccurrenceDetail(
@@ -60,4 +81,28 @@ data class OccurrenceDetail(
     val medicationInstruction: String,
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
+    val zoneId: String = "UTC",
+    val temporalPhase: TemporalPhase =
+        TemporalPhase.UPCOMING,
+    val isOverdue: Boolean = false,
+    val cancellationReason:
+    OccurrenceCancellationReason? = null,
+)
+
+data class HistoryItem(
+    val occurrenceId: String,
+    val localDate: LocalDate,
+    val localTime: LocalTime,
+    val scheduledAt: Instant,
+    val medicationName: String,
+    val medicationInstruction: String,
+    val lifecycle: OccurrenceLifecycle,
+    val reportState: CaregiverReportState?,
+    val temporalPhase: TemporalPhase,
+    val isOverdue: Boolean,
+)
+
+data class HistoryDay(
+    val localDate: LocalDate,
+    val items: List<HistoryItem>,
 )
