@@ -7,9 +7,11 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.espresso.Espresso.closeSoftKeyboard
@@ -40,20 +42,34 @@ import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.today.RoomTodayQueryService
+import ir.carepack.feature.careplan.CarePlanRoute
+import ir.carepack.feature.careplan.CarePlanViewModel
+import ir.carepack.feature.careplan.ScheduleEditRoute
+import ir.carepack.feature.careplan.ScheduleEditViewModel
+import ir.carepack.feature.setup.MedicationScheduleRoute
+import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.Clock
+import java.time.DayOfWeek
 import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.ArrayDeque
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,6 +85,18 @@ class CarePackComposeTest {
     private lateinit var database:
             CarePackDatabase
 
+    private lateinit var testClock:
+            ComposeTestClock
+
+    private lateinit var testIdSource:
+            ComposeTestIdSource
+
+    private lateinit var occurrenceGenerator:
+            RoomOccurrenceGenerator
+
+    private lateinit var carePlanService:
+            RoomCarePlanService
+
     private val fixedClock: Clock =
         Clock.fixed(
             Instant.parse(
@@ -79,12 +107,16 @@ class CarePackComposeTest {
 
     private val tehranZoneProvider =
         ZoneProvider {
-            ZoneId.of("Asia/Tehran")
+            ZoneId.of(
+                "Asia/Tehran",
+            )
         }
 
     @Before
     fun setUp() {
-        logStep("SETUP_START")
+        logStep(
+            "SETUP_START",
+        )
 
         val context =
             ApplicationProvider
@@ -98,23 +130,61 @@ class CarePackComposeTest {
                 )
                 .build()
 
-        logStep("SETUP_FINISHED")
+        testClock =
+            ComposeTestClock(
+                instant =
+                    Instant.parse(
+                        "2026-06-24T06:00:00Z",
+                    ),
+            )
+
+        testIdSource =
+            ComposeTestIdSource()
+
+        occurrenceGenerator =
+            RoomOccurrenceGenerator(
+                database = database,
+                idSource = testIdSource,
+                candidateResolver =
+                    OccurrenceCandidateResolver(),
+            )
+
+        carePlanService =
+            RoomCarePlanService(
+                database = database,
+                occurrenceGenerator =
+                    occurrenceGenerator,
+                clock = testClock,
+                idSource = testIdSource,
+            )
+
+        logStep(
+            "SETUP_FINISHED",
+        )
     }
 
     @After
     fun tearDown() {
-        logStep("TEARDOWN_START")
+        logStep(
+            "TEARDOWN_START",
+        )
 
-        if (::database.isInitialized) {
+        if (
+            ::database.isInitialized
+        ) {
             database.close()
         }
 
-        logStep("TEARDOWN_FINISHED")
+        logStep(
+            "TEARDOWN_FINISHED",
+        )
     }
 
     @Test
     fun fullSetup_navigatesToToday_andRecordsGiven() {
-        logStep("TEST_START")
+        logStep(
+            "TEST_START",
+        )
 
         val ids =
             UiSequenceIdSource(
@@ -134,7 +204,7 @@ class CarePackComposeTest {
                     OccurrenceCandidateResolver(),
             )
 
-        val carePlanService =
+        val service =
             RoomCarePlanService(
                 database = database,
                 occurrenceGenerator =
@@ -160,8 +230,7 @@ class CarePackComposeTest {
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
-                    carePlanService =
-                        carePlanService,
+                    carePlanService = service,
                     todayQueryService =
                         todayQueryService,
                     caregiverReportService =
@@ -176,7 +245,8 @@ class CarePackComposeTest {
         }
 
         waitForTag(
-            tag = "onboarding_local_summary",
+            tag =
+                "onboarding_local_summary",
         )
 
         composeRule
@@ -205,7 +275,8 @@ class CarePackComposeTest {
         runQueuedMainTasks()
 
         waitForTag(
-            tag = "recipient_name",
+            tag =
+                "recipient_name",
         )
 
         composeRule
@@ -227,14 +298,11 @@ class CarePackComposeTest {
             .assertIsDisplayed()
             .performClick()
 
-        /*
-         * createRecipient() is launched in viewModelScope.
-         * Compose testing v2 queues it on the test main dispatcher.
-         */
         runQueuedMainTasks()
 
         waitForTag(
-            tag = "medication_name",
+            tag =
+                "medication_name",
         )
 
         composeRule
@@ -255,10 +323,6 @@ class CarePackComposeTest {
                 "Take after meal",
             )
 
-        /*
-         * The keyboard reduces the visible viewport and the save button
-         * is located below the currently visible portion of the form.
-         */
         closeSoftKeyboard()
 
         composeRule
@@ -268,7 +332,9 @@ class CarePackComposeTest {
             .performScrollTo()
             .assertIsDisplayed()
 
-        logStep("BEFORE_MEDICATION_SAVE")
+        logStep(
+            "BEFORE_MEDICATION_SAVE",
+        )
 
         composeRule
             .onNodeWithTag(
@@ -276,17 +342,16 @@ class CarePackComposeTest {
             )
             .performClick()
 
-        /*
-         * Start the ViewModel save coroutine. It suspends while Room
-         * performs the transaction and resumes later on test Main.
-         */
         runQueuedMainTasks()
 
         waitForTag(
-            tag = TODAY_OCCURRENCE_TAG,
+            tag =
+                TODAY_OCCURRENCE_TAG,
         )
 
-        logStep("TODAY_SCREEN_READY")
+        logStep(
+            "TODAY_SCREEN_READY",
+        )
 
         composeRule
             .onNodeWithTag(
@@ -298,10 +363,13 @@ class CarePackComposeTest {
         runQueuedMainTasks()
 
         waitForTag(
-            tag = "record_given",
+            tag =
+                "record_given",
         )
 
-        logStep("DETAIL_SCREEN_READY")
+        logStep(
+            "DETAIL_SCREEN_READY",
+        )
 
         composeRule
             .onNodeWithTag(
@@ -313,7 +381,8 @@ class CarePackComposeTest {
         runQueuedMainTasks()
 
         waitForTag(
-            tag = "given_status",
+            tag =
+                "given_status",
         )
 
         composeRule
@@ -322,13 +391,17 @@ class CarePackComposeTest {
             )
             .assertExists()
 
-        logStep("TEST_FINISHED")
+        logStep(
+            "TEST_FINISHED",
+        )
     }
 
     @Test
     fun storageFailure_doesNotNavigateOrShowSuccess() {
         val continueInvoked =
-            AtomicBoolean(false)
+            AtomicBoolean(
+                false,
+            )
 
         val viewModel =
             RecipientSetupViewModel(
@@ -350,7 +423,8 @@ class CarePackComposeTest {
         }
 
         waitForTag(
-            tag = "recipient_name",
+            tag =
+                "recipient_name",
         )
 
         composeRule
@@ -375,7 +449,8 @@ class CarePackComposeTest {
         runQueuedMainTasks()
 
         waitForTag(
-            tag = "recipient_error",
+            tag =
+                "recipient_error",
         )
 
         composeRule
@@ -399,8 +474,524 @@ class CarePackComposeTest {
             .assertExists()
     }
 
+    @Test
+    fun invalidMedicationForm_showsFieldErrors_andWritesNothing() {
+        val recipientId =
+            createRecipient()
+
+        val viewModel =
+            MedicationScheduleViewModel(
+                recipientId =
+                    recipientId,
+                carePlanService =
+                    carePlanService,
+                setupPreferenceStore =
+                    InMemorySetupPreferenceStore(),
+                completeInitialSetup =
+                    false,
+                clock =
+                    testClock,
+                zoneProvider =
+                    tehranZoneProvider,
+            )
+
+        composeRule.setContent {
+            CarePackTheme {
+                MedicationScheduleRoute(
+                    viewModel = viewModel,
+                    onCompleted = {},
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "medication_schedule_save",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "medication_schedule_save",
+            )
+            .performScrollTo()
+            .performClick()
+
+        runQueuedMainTasks()
+
+        composeRule
+            .onNodeWithText(
+                "نام دارو نمی‌تواند خالی باشد.",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithText(
+                "دستور مصرف یا توضیح مراقبت نمی‌تواند خالی باشد.",
+            )
+            .assertIsDisplayed()
+
+        runBlocking {
+            assertEquals(
+                0,
+                database
+                    .medicationDao()
+                    .count(),
+            )
+
+            assertEquals(
+                0,
+                database
+                    .scheduleDao()
+                    .countVersions(),
+            )
+
+            assertEquals(
+                0,
+                database
+                    .occurrenceDao()
+                    .count(),
+            )
+        }
+    }
+
+    @Test
+    fun invalidRecipientRename_staysOpen_showsFieldError_andKeepsValue() {
+        val plan =
+            createPlan()
+
+        val viewModel =
+            CarePlanViewModel(
+                carePlanService =
+                    carePlanService,
+            )
+
+        composeRule.setContent {
+            CarePackTheme {
+                CarePlanRoute(
+                    viewModel = viewModel,
+                    onBack = {},
+                    onAddMedication = {},
+                    onEditMedicationText = {},
+                    onEditSchedule = {},
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "edit_recipient_button",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "edit_recipient_button",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "recipient_rename_field",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_rename_field",
+            )
+            .performClick()
+            .performTextReplacement(
+                "",
+            )
+
+        closeSoftKeyboard()
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_rename_save",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "recipient_rename_error",
+            useUnmergedTree =
+                true,
+        )
+
+        composeRule
+            .onNodeWithTag(
+                testTag =
+                    "recipient_rename_error",
+                useUnmergedTree =
+                    true,
+            )
+            .assertIsDisplayed()
+            .assertTextEquals(
+                "نام فرد تحت مراقبت نمی‌تواند خالی باشد.",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_rename_field",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "recipient_rename_save",
+            )
+            .assertIsDisplayed()
+
+        runBlocking {
+            assertEquals(
+                "فرد نمونه",
+                database
+                    .careRecipientDao()
+                    .getSingleton()
+                    ?.displayName,
+            )
+
+            assertNotNull(
+                database
+                    .medicationDao()
+                    .getById(
+                        plan.medicationId,
+                    ),
+            )
+        }
+    }
+
+    @Test
+    fun scheduleEdit_supportsMultipleTimesAndOptionalDates() {
+        val plan =
+            createPlan()
+
+        val completed =
+            AtomicBoolean(
+                false,
+            )
+
+        val viewModel =
+            ScheduleEditViewModel(
+                medicationId =
+                    plan.medicationId,
+                carePlanService =
+                    carePlanService,
+                zoneProvider =
+                    tehranZoneProvider,
+            )
+
+        composeRule.setContent {
+            CarePackTheme {
+                ScheduleEditRoute(
+                    viewModel = viewModel,
+                    onBack = {},
+                    onCompleted = {
+                        completed.set(
+                            true,
+                        )
+                    },
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "schedule_time_draft",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "schedule_time_draft",
+            )
+            .performTextInput(
+                "14:30",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "schedule_time_add",
+            )
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "schedule_start_date",
+            )
+            .performTextReplacement(
+                "2026-06-24",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "schedule_end_date",
+            )
+            .performTextReplacement(
+                "2026-07-01",
+            )
+
+        closeSoftKeyboard()
+
+        composeRule
+            .onNodeWithText(
+                "ذخیره تغییرات",
+            )
+            .performScrollTo()
+            .performClick()
+
+        waitUntil {
+            completed.get()
+        }
+
+        val editor =
+            runBlocking {
+                carePlanService
+                    .getMedicationEditor(
+                        plan.medicationId,
+                    )
+            }
+
+        assertEquals(
+            listOf(
+                LocalTime.of(
+                    12,
+                    0,
+                ),
+                LocalTime.of(
+                    14,
+                    30,
+                ),
+            ),
+            editor
+                ?.schedule
+                ?.times,
+        )
+
+        assertEquals(
+            LocalDate.parse(
+                "2026-06-24",
+            ),
+            editor
+                ?.schedule
+                ?.startDate,
+        )
+
+        assertEquals(
+            LocalDate.parse(
+                "2026-07-01",
+            ),
+            editor
+                ?.schedule
+                ?.endDate,
+        )
+    }
+
+    @Test
+    fun activeMedication_cannotArchive_thenStopAndArchiveHidesIt() {
+        val plan =
+            createPlan()
+
+        val occurrenceCountBefore =
+            runBlocking {
+                database
+                    .occurrenceDao()
+                    .count()
+            }
+
+        val viewModel =
+            CarePlanViewModel(
+                carePlanService =
+                    carePlanService,
+            )
+
+        composeRule.setContent {
+            CarePackTheme {
+                CarePlanRoute(
+                    viewModel = viewModel,
+                    onBack = {},
+                    onAddMedication = {},
+                    onEditMedicationText = {},
+                    onEditSchedule = {},
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "medication_card_${plan.medicationId}",
+        )
+
+        assertTagDoesNotExist(
+            tag =
+                "archive_medication_${plan.medicationId}",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "stop_medication_${plan.medicationId}",
+            )
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "confirm_stop_${plan.medicationId}",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "archive_medication_${plan.medicationId}",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "archive_medication_${plan.medicationId}",
+            )
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "confirm_archive_${plan.medicationId}",
+            )
+            .performClick()
+
+        waitUntil {
+            composeRule
+                .onAllNodesWithTag(
+                    "medication_card_${plan.medicationId}",
+                )
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
+                .isEmpty()
+        }
+
+        runBlocking {
+            val medication =
+                database
+                    .medicationDao()
+                    .getById(
+                        plan.medicationId,
+                    )
+
+            assertNotNull(
+                medication
+                    ?.stoppedAtEpochMillis,
+            )
+
+            assertNotNull(
+                medication
+                    ?.archivedAtEpochMillis,
+            )
+
+            assertEquals(
+                occurrenceCountBefore,
+                database
+                    .occurrenceDao()
+                    .count(),
+            )
+        }
+    }
+
+    private fun createRecipient():
+            String {
+        return runBlocking {
+            when (
+                val outcome =
+                    carePlanService
+                        .createRecipient(
+                            CreateRecipientCommand(
+                                displayName =
+                                    "فرد نمونه",
+                            ),
+                        )
+            ) {
+                is CreateRecipientOutcome.Created ->
+                    outcome.recipientId
+
+                is CreateRecipientOutcome.AlreadyExists ->
+                    outcome.recipientId
+
+                is CreateRecipientOutcome.Invalid ->
+                    error(
+                        "Recipient creation failed.",
+                    )
+            }
+        }
+    }
+
+    private fun createPlan():
+            ComposeTestPlan {
+        val recipientId =
+            createRecipient()
+
+        return runBlocking {
+            val outcome =
+                carePlanService
+                    .createMedicationAndSchedule(
+                        CreateMedicationScheduleCommand(
+                            recipientId =
+                                recipientId,
+                            medicationName =
+                                "داروی نمونه",
+                            instruction =
+                                "دستور نمونه",
+                            weekdays =
+                                setOf(
+                                    DayOfWeek.WEDNESDAY,
+                                ),
+                            minutesOfDay =
+                                listOf(
+                                    12 * 60,
+                                ),
+                            startDate =
+                                LocalDate.parse(
+                                    "2026-06-24",
+                                ),
+                            endDate =
+                                LocalDate.parse(
+                                    "2026-07-01",
+                                ),
+                            zoneId =
+                                "Asia/Tehran",
+                        ),
+                    )
+
+            val created =
+                outcome as?
+                        CreateMedicationScheduleOutcome.Created
+                    ?: error(
+                        "Medication schedule creation failed.",
+                    )
+
+            ComposeTestPlan(
+                medicationId =
+                    created.medicationId,
+            )
+        }
+    }
+
+    private fun assertTagDoesNotExist(
+        tag: String,
+    ) {
+        val nodes =
+            composeRule
+                .onAllNodesWithTag(
+                    tag,
+                )
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
+
+        assertTrue(
+            nodes.isEmpty(),
+        )
+    }
+
     private fun waitForTag(
         tag: String,
+        useUnmergedTree: Boolean = false,
     ) {
         logStep(
             "WAIT_FOR_TAG:$tag",
@@ -410,19 +1001,14 @@ class CarePackComposeTest {
             timeoutMillis =
                 TEST_TIMEOUT_MILLIS,
         ) {
-            /*
-             * Start or resume ViewModel coroutines that have returned
-             * from Room or another background dispatcher.
-             *
-             * Do not advance Compose frames here. Advancing frames while
-             * Navigation is changing its back stack can disturb lifecycle
-             * ordering during test teardown.
-             */
             runQueuedMainTasks()
 
             composeRule
                 .onAllNodesWithTag(
-                    tag,
+                    testTag =
+                        tag,
+                    useUnmergedTree =
+                        useUnmergedTree,
                 )
                 .fetchSemanticsNodes(
                     atLeastOneRootRequired =
@@ -434,6 +1020,18 @@ class CarePackComposeTest {
         logStep(
             "FOUND_TAG:$tag",
         )
+    }
+
+    private fun waitUntil(
+        condition: () -> Boolean,
+    ) {
+        composeRule.waitUntil(
+            timeoutMillis =
+                TEST_TIMEOUT_MILLIS,
+        ) {
+            runQueuedMainTasks()
+            condition()
+        }
     }
 
     private fun runQueuedMainTasks() {
@@ -453,6 +1051,7 @@ class CarePackComposeTest {
     }
 
     private companion object {
+
         const val TEST_TIMEOUT_MILLIS =
             20_000L
 
@@ -463,6 +1062,10 @@ class CarePackComposeTest {
             "CarePackComposeTest"
     }
 }
+
+private data class ComposeTestPlan(
+    val medicationId: String,
+)
 
 private class FailingCarePlanService :
     CarePlanService {
@@ -527,7 +1130,9 @@ private class FailingCarePlanService :
 
     override fun observeCarePlan():
             Flow<CarePlanOverview?> {
-        return flowOf(null)
+        return flowOf(
+            null,
+        )
     }
 
     override suspend fun getMedicationEditor(
@@ -541,7 +1146,9 @@ private class InMemorySetupPreferenceStore :
     SetupPreferenceStore {
 
     private val mutableSetupComplete =
-        MutableStateFlow(false)
+        MutableStateFlow(
+            false,
+        )
 
     override val setupComplete:
             Flow<Boolean> =
@@ -580,5 +1187,39 @@ private class UiSequenceIdSource(
             1
 
         return generatedId
+    }
+}
+
+private class ComposeTestIdSource :
+    IdSource {
+
+    private val counter =
+        AtomicInteger(
+            0,
+        )
+
+    override fun nextId(): String {
+        return "compose-test-${counter.incrementAndGet()}"
+    }
+}
+
+private class ComposeTestClock(
+    private val instant: Instant,
+) : Clock() {
+
+    override fun getZone():
+            ZoneId {
+        return ZoneOffset.UTC
+    }
+
+    override fun withZone(
+        zone: ZoneId,
+    ): Clock {
+        return this
+    }
+
+    override fun instant():
+            Instant {
+        return instant
     }
 }
