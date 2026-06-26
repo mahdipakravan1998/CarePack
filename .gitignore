@@ -36,5 +36,8 @@ Thumbs.db
 *.apk
 *.aab
 
+# Local Xiaomi UI automation diagnostics
+tools/xiaomi-ui-artifacts/
+
 # Do not ignore exported Room schemas.
 # app/schemas must remain committed.

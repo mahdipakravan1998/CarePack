@@ -13,17 +13,23 @@ import androidx.room.RoomDatabase
         OccurrenceEntity::class,
         CaregiverReportEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class CarePackDatabase : RoomDatabase() {
-    abstract fun careRecipientDao(): CareRecipientDao
 
-    abstract fun medicationDao(): MedicationDao
+    abstract fun careRecipientDao():
+            CareRecipientDao
 
-    abstract fun scheduleDao(): ScheduleDao
+    abstract fun medicationDao():
+            MedicationDao
 
-    abstract fun occurrenceDao(): OccurrenceDao
+    abstract fun scheduleDao():
+            ScheduleDao
 
-    abstract fun caregiverReportDao(): CaregiverReportDao
+    abstract fun occurrenceDao():
+            OccurrenceDao
+
+    abstract fun caregiverReportDao():
+            CaregiverReportDao
 }

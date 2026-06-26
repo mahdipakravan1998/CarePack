@@ -8,7 +8,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +30,12 @@ import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.SetupProgress
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.feature.careplan.CarePlanRoute
+import ir.carepack.feature.careplan.CarePlanViewModel
+import ir.carepack.feature.careplan.MedicationTextEditRoute
+import ir.carepack.feature.careplan.MedicationTextEditViewModel
+import ir.carepack.feature.careplan.ScheduleEditRoute
+import ir.carepack.feature.careplan.ScheduleEditViewModel
 import ir.carepack.feature.detail.OccurrenceDetailRoute
 import ir.carepack.feature.detail.OccurrenceDetailViewModel
 import ir.carepack.feature.onboarding.OnboardingScreen
@@ -47,18 +52,38 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private object Routes {
-    const val Onboarding = "onboarding"
-    const val Recipient = "recipient"
-    const val Today = "today"
+    const val Onboarding =
+        "onboarding"
+
+    const val Recipient =
+        "recipient"
+
+    const val Today =
+        "today"
+
+    const val CarePlan =
+        "care-plan"
 
     const val RecipientIdArgument =
         "recipientId"
+
+    const val MedicationIdArgument =
+        "medicationId"
 
     const val OccurrenceIdArgument =
         "occurrenceId"
 
     const val MedicationSchedulePattern =
         "medication-schedule/{$RecipientIdArgument}"
+
+    const val AddMedicationPattern =
+        "add-medication/{$RecipientIdArgument}"
+
+    const val EditMedicationTextPattern =
+        "edit-medication/{$MedicationIdArgument}"
+
+    const val EditSchedulePattern =
+        "edit-schedule/{$MedicationIdArgument}"
 
     const val OccurrenceDetailPattern =
         "occurrence/{$OccurrenceIdArgument}"
@@ -69,6 +94,24 @@ private object Routes {
         return "medication-schedule/$recipientId"
     }
 
+    fun addMedication(
+        recipientId: String,
+    ): String {
+        return "add-medication/$recipientId"
+    }
+
+    fun editMedicationText(
+        medicationId: String,
+    ): String {
+        return "edit-medication/$medicationId"
+    }
+
+    fun editSchedule(
+        medicationId: String,
+    ): String {
+        return "edit-schedule/$medicationId"
+    }
+
     fun occurrenceDetail(
         occurrenceId: String,
     ): String {
@@ -77,7 +120,9 @@ private object Routes {
 }
 
 sealed interface AppLaunchState {
-    data object Loading : AppLaunchState
+
+    data object Loading :
+        AppLaunchState
 
     data class Ready(
         val startRoute: String,
@@ -89,7 +134,8 @@ sealed interface AppLaunchState {
 }
 
 class AppViewModel(
-    private val carePlanService: CarePlanService,
+    private val carePlanService:
+    CarePlanService,
     private val setupPreferenceStore:
     SetupPreferenceStore,
 ) : ViewModel() {
@@ -99,7 +145,8 @@ class AppViewModel(
             AppLaunchState.Loading,
         )
 
-    val state = mutableState.asStateFlow()
+    val state =
+        mutableState.asStateFlow()
 
     init {
         refresh()
@@ -117,34 +164,43 @@ class AppViewModel(
                         .first()
 
                 val progress =
-                    carePlanService.getSetupProgress()
+                    carePlanService
+                        .getSetupProgress()
 
-                val startRoute = when (progress) {
-                    SetupProgress.Empty -> {
-                        Routes.Onboarding
-                    }
-
-                    is SetupProgress.RecipientOnly -> {
-                        Routes.medicationSchedule(
-                            progress.recipientId,
-                        )
-                    }
-
-                    SetupProgress.Complete -> {
-                        if (!preferenceWasComplete) {
-                            runCatching {
-                                setupPreferenceStore
-                                    .markSetupComplete()
-                            }
+                val startRoute =
+                    when (progress) {
+                        SetupProgress.Empty -> {
+                            Routes.Onboarding
                         }
 
-                        Routes.Today
+                        is SetupProgress
+                        .RecipientOnly -> {
+                            Routes
+                                .medicationSchedule(
+                                    progress
+                                        .recipientId,
+                                )
+                        }
+
+                        SetupProgress
+                            .Complete -> {
+                            if (
+                                !preferenceWasComplete
+                            ) {
+                                runCatching {
+                                    setupPreferenceStore
+                                        .markSetupComplete()
+                                }
+                            }
+
+                            Routes.Today
+                        }
                     }
-                }
 
                 mutableState.value =
                     AppLaunchState.Ready(
-                        startRoute = startRoute,
+                        startRoute =
+                            startRoute,
                     )
             } catch (_: Exception) {
                 mutableState.value =
@@ -158,7 +214,8 @@ class AppViewModel(
 
     companion object {
         fun factory(
-            carePlanService: CarePlanService,
+            carePlanService:
+            CarePlanService,
             setupPreferenceStore:
             SetupPreferenceStore,
         ): ViewModelProvider.Factory {
@@ -179,7 +236,8 @@ class AppViewModel(
 @Composable
 fun CarePackApp(
     carePlanService: CarePlanService,
-    todayQueryService: TodayQueryService,
+    todayQueryService:
+    TodayQueryService,
     caregiverReportService:
     CaregiverReportService,
     setupPreferenceStore:
@@ -187,26 +245,37 @@ fun CarePackApp(
     clock: Clock,
     zoneProvider: ZoneProvider,
 ) {
-    val appViewModel: AppViewModel = viewModel(
-        factory = AppViewModel.factory(
-            carePlanService = carePlanService,
-            setupPreferenceStore =
-                setupPreferenceStore,
-        ),
-    )
+    val appViewModel:
+            AppViewModel =
+        viewModel(
+            factory =
+                AppViewModel.factory(
+                    carePlanService =
+                        carePlanService,
+                    setupPreferenceStore =
+                        setupPreferenceStore,
+                ),
+        )
 
     val launchState by
-    appViewModel.state.collectAsStateWithLifecycle()
+    appViewModel
+        .state
+        .collectAsStateWithLifecycle()
 
-    when (val currentState = launchState) {
+    when (
+        val currentState =
+            launchState
+    ) {
         AppLaunchState.Loading -> {
             LoadingScreen()
         }
 
         is AppLaunchState.Error -> {
             LaunchErrorScreen(
-                message = currentState.message,
-                onRetry = appViewModel::refresh,
+                message =
+                    currentState.message,
+                onRetry =
+                    appViewModel::refresh,
             )
         }
 
@@ -223,7 +292,8 @@ fun CarePackApp(
                 setupPreferenceStore =
                     setupPreferenceStore,
                 clock = clock,
-                zoneProvider = zoneProvider,
+                zoneProvider =
+                    zoneProvider,
             )
         }
     }
@@ -233,7 +303,8 @@ fun CarePackApp(
 private fun CarePackNavigation(
     startRoute: String,
     carePlanService: CarePlanService,
-    todayQueryService: TodayQueryService,
+    todayQueryService:
+    TodayQueryService,
     caregiverReportService:
     CaregiverReportService,
     setupPreferenceStore:
@@ -241,13 +312,16 @@ private fun CarePackNavigation(
     clock: Clock,
     zoneProvider: ZoneProvider,
 ) {
-    val navController = rememberNavController()
+    val navController =
+        rememberNavController()
 
     NavHost(
         navController = navController,
         startDestination = startRoute,
     ) {
-        composable(Routes.Onboarding) {
+        composable(
+            Routes.Onboarding,
+        ) {
             OnboardingScreen(
                 onContinue = {
                     navController.navigate(
@@ -257,23 +331,30 @@ private fun CarePackNavigation(
             )
         }
 
-        composable(Routes.Recipient) {
+        composable(
+            Routes.Recipient,
+        ) {
             val recipientViewModel:
-                    RecipientSetupViewModel = viewModel(
-                factory =
-                    RecipientSetupViewModel.factory(
-                        carePlanService =
-                            carePlanService,
-                    ),
-            )
+                    RecipientSetupViewModel =
+                viewModel(
+                    factory =
+                        RecipientSetupViewModel
+                            .factory(
+                                carePlanService =
+                                    carePlanService,
+                            ),
+                )
 
             RecipientSetupRoute(
-                viewModel = recipientViewModel,
-                onContinue = { recipientId ->
+                viewModel =
+                    recipientViewModel,
+                onContinue = {
+                        recipientId ->
                     navController.navigate(
-                        Routes.medicationSchedule(
-                            recipientId,
-                        ),
+                        Routes
+                            .medicationSchedule(
+                                recipientId,
+                            ),
                     )
                 },
             )
@@ -281,24 +362,29 @@ private fun CarePackNavigation(
 
         composable(
             route =
-                Routes.MedicationSchedulePattern,
+                Routes
+                    .MedicationSchedulePattern,
             arguments = listOf(
                 navArgument(
-                    Routes.RecipientIdArgument,
+                    Routes
+                        .RecipientIdArgument,
                 ) {
-                    type = NavType.StringType
+                    type =
+                        NavType.StringType
                 },
             ),
         ) { backStackEntry ->
             val recipientId =
                 checkNotNull(
-                    backStackEntry.arguments
+                    backStackEntry
+                        .arguments
                         ?.getString(
-                            Routes.RecipientIdArgument,
+                            Routes
+                                .RecipientIdArgument,
                         ),
                 )
 
-            val scheduleViewModel:
+            val viewModel:
                     MedicationScheduleViewModel =
                 viewModel(
                     factory =
@@ -310,6 +396,8 @@ private fun CarePackNavigation(
                                     carePlanService,
                                 setupPreferenceStore =
                                     setupPreferenceStore,
+                                completeInitialSetup =
+                                    true,
                                 clock = clock,
                                 zoneProvider =
                                     zoneProvider,
@@ -317,7 +405,7 @@ private fun CarePackNavigation(
                 )
 
             MedicationScheduleRoute(
-                viewModel = scheduleViewModel,
+                viewModel = viewModel,
                 onCompleted = {
                     navController.navigate(
                         Routes.Today,
@@ -330,30 +418,93 @@ private fun CarePackNavigation(
                             inclusive = true
                         }
 
-                        launchSingleTop = true
+                        launchSingleTop =
+                            true
                     }
                 },
             )
         }
 
-        composable(Routes.Today) {
+        composable(
+            Routes.Today,
+        ) {
             val todayViewModel:
-                    TodayViewModel = viewModel(
-                factory = TodayViewModel.factory(
-                    todayQueryService =
-                        todayQueryService,
-                    clock = clock,
-                    zoneProvider = zoneProvider,
-                ),
-            )
+                    TodayViewModel =
+                viewModel(
+                    factory =
+                        TodayViewModel
+                            .factory(
+                                todayQueryService =
+                                    todayQueryService,
+                                clock = clock,
+                                zoneProvider =
+                                    zoneProvider,
+                            ),
+                )
 
             TodayRoute(
-                viewModel = todayViewModel,
+                viewModel =
+                    todayViewModel,
                 onOccurrenceSelected = {
                         occurrenceId ->
                     navController.navigate(
-                        Routes.occurrenceDetail(
-                            occurrenceId,
+                        Routes
+                            .occurrenceDetail(
+                                occurrenceId,
+                            ),
+                    )
+                },
+                onManageCarePlan = {
+                    navController.navigate(
+                        Routes.CarePlan,
+                    )
+                },
+            )
+        }
+
+        composable(
+            Routes.CarePlan,
+        ) {
+            val carePlanViewModel:
+                    CarePlanViewModel =
+                viewModel(
+                    factory =
+                        CarePlanViewModel
+                            .factory(
+                                carePlanService =
+                                    carePlanService,
+                            ),
+                )
+
+            CarePlanRoute(
+                viewModel =
+                    carePlanViewModel,
+                onBack = {
+                    navController
+                        .popBackStack()
+                },
+                onAddMedication = {
+                        recipientId ->
+                    navController.navigate(
+                        Routes.addMedication(
+                            recipientId,
+                        ),
+                    )
+                },
+                onEditMedicationText = {
+                        medicationId ->
+                    navController.navigate(
+                        Routes
+                            .editMedicationText(
+                                medicationId,
+                            ),
+                    )
+                },
+                onEditSchedule = {
+                        medicationId ->
+                    navController.navigate(
+                        Routes.editSchedule(
+                            medicationId,
                         ),
                     )
                 },
@@ -362,24 +513,184 @@ private fun CarePackNavigation(
 
         composable(
             route =
-                Routes.OccurrenceDetailPattern,
+                Routes
+                    .AddMedicationPattern,
             arguments = listOf(
                 navArgument(
-                    Routes.OccurrenceIdArgument,
+                    Routes
+                        .RecipientIdArgument,
                 ) {
-                    type = NavType.StringType
+                    type =
+                        NavType.StringType
+                },
+            ),
+        ) { backStackEntry ->
+            val recipientId =
+                checkNotNull(
+                    backStackEntry
+                        .arguments
+                        ?.getString(
+                            Routes
+                                .RecipientIdArgument,
+                        ),
+                )
+
+            val viewModel:
+                    MedicationScheduleViewModel =
+                viewModel(
+                    factory =
+                        MedicationScheduleViewModel
+                            .factory(
+                                recipientId =
+                                    recipientId,
+                                carePlanService =
+                                    carePlanService,
+                                setupPreferenceStore =
+                                    setupPreferenceStore,
+                                completeInitialSetup =
+                                    false,
+                                clock = clock,
+                                zoneProvider =
+                                    zoneProvider,
+                            ),
+                )
+
+            MedicationScheduleRoute(
+                viewModel = viewModel,
+                onCompleted = {
+                    navController
+                        .popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route =
+                Routes
+                    .EditMedicationTextPattern,
+            arguments = listOf(
+                navArgument(
+                    Routes
+                        .MedicationIdArgument,
+                ) {
+                    type =
+                        NavType.StringType
+                },
+            ),
+        ) { backStackEntry ->
+            val medicationId =
+                checkNotNull(
+                    backStackEntry
+                        .arguments
+                        ?.getString(
+                            Routes
+                                .MedicationIdArgument,
+                        ),
+                )
+
+            val viewModel:
+                    MedicationTextEditViewModel =
+                viewModel(
+                    factory =
+                        MedicationTextEditViewModel
+                            .factory(
+                                medicationId =
+                                    medicationId,
+                                carePlanService =
+                                    carePlanService,
+                            ),
+                )
+
+            MedicationTextEditRoute(
+                viewModel = viewModel,
+                onBack = {
+                    navController
+                        .popBackStack()
+                },
+                onCompleted = {
+                    navController
+                        .popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route =
+                Routes
+                    .EditSchedulePattern,
+            arguments = listOf(
+                navArgument(
+                    Routes
+                        .MedicationIdArgument,
+                ) {
+                    type =
+                        NavType.StringType
+                },
+            ),
+        ) { backStackEntry ->
+            val medicationId =
+                checkNotNull(
+                    backStackEntry
+                        .arguments
+                        ?.getString(
+                            Routes
+                                .MedicationIdArgument,
+                        ),
+                )
+
+            val viewModel:
+                    ScheduleEditViewModel =
+                viewModel(
+                    factory =
+                        ScheduleEditViewModel
+                            .factory(
+                                medicationId =
+                                    medicationId,
+                                carePlanService =
+                                    carePlanService,
+                                zoneProvider =
+                                    zoneProvider,
+                            ),
+                )
+
+            ScheduleEditRoute(
+                viewModel = viewModel,
+                onBack = {
+                    navController
+                        .popBackStack()
+                },
+                onCompleted = {
+                    navController
+                        .popBackStack()
+                },
+            )
+        }
+
+        composable(
+            route =
+                Routes
+                    .OccurrenceDetailPattern,
+            arguments = listOf(
+                navArgument(
+                    Routes
+                        .OccurrenceIdArgument,
+                ) {
+                    type =
+                        NavType.StringType
                 },
             ),
         ) { backStackEntry ->
             val occurrenceId =
                 checkNotNull(
-                    backStackEntry.arguments
+                    backStackEntry
+                        .arguments
                         ?.getString(
-                            Routes.OccurrenceIdArgument,
+                            Routes
+                                .OccurrenceIdArgument,
                         ),
                 )
 
-            val detailViewModel:
+            val viewModel:
                     OccurrenceDetailViewModel =
                 viewModel(
                     factory =
@@ -395,9 +706,10 @@ private fun CarePackNavigation(
                 )
 
             OccurrenceDetailRoute(
-                viewModel = detailViewModel,
+                viewModel = viewModel,
                 onBack = {
-                    navController.popBackStack()
+                    navController
+                        .popBackStack()
                 },
             )
         }
@@ -410,7 +722,8 @@ private fun LoadingScreen() {
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement =
+            Arrangement.Center,
         horizontalAlignment =
             Alignment.CenterHorizontally,
     ) {
@@ -427,7 +740,8 @@ private fun LaunchErrorScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement =
+            Arrangement.Center,
         horizontalAlignment =
             Alignment.CenterHorizontally,
     ) {
@@ -435,9 +749,14 @@ private fun LaunchErrorScreen(
 
         Button(
             onClick = onRetry,
-            modifier = Modifier.padding(top = 16.dp),
+            modifier =
+                Modifier.padding(
+                    top = 16.dp,
+                ),
         ) {
-            Text(text = "تلاش دوباره")
+            Text(
+                text = "تلاش دوباره",
+            )
         }
     }
 }

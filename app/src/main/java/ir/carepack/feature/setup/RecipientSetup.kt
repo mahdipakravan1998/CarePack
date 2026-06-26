@@ -57,16 +57,20 @@ class RecipientSetupViewModel(
 ) : ViewModel() {
 
     private val mutableState =
-        MutableStateFlow(RecipientSetupUiState())
+        MutableStateFlow(
+            RecipientSetupUiState(),
+        )
 
-    val state = mutableState.asStateFlow()
+    val state =
+        mutableState.asStateFlow()
 
     private val eventChannel =
         Channel<RecipientSetupEvent>(
             capacity = Channel.BUFFERED,
         )
 
-    val events = eventChannel.receiveAsFlow()
+    val events =
+        eventChannel.receiveAsFlow()
 
     fun onDisplayNameChanged(
         newValue: String,
@@ -93,15 +97,18 @@ class RecipientSetupViewModel(
             }
 
             try {
-                when (
-                    val outcome =
-                        carePlanService.createRecipient(
+                val outcome =
+                    carePlanService
+                        .createRecipient(
                             CreateRecipientCommand(
                                 displayName =
-                                    mutableState.value.displayName,
+                                    mutableState
+                                        .value
+                                        .displayName,
                             ),
                         )
-                ) {
+
+                when (outcome) {
                     is CreateRecipientOutcome.Created -> {
                         eventChannel.send(
                             RecipientSetupEvent.Continue(
@@ -121,10 +128,17 @@ class RecipientSetupViewModel(
                     }
 
                     is CreateRecipientOutcome.Invalid -> {
+                        val errorMessage =
+                            outcome
+                                .errors
+                                .firstOrNull()
+                                ?.message
+                                ?: "نام واردشده معتبر نیست."
+
                         mutableState.update {
                             it.copy(
                                 errorMessage =
-                                    outcome.reason,
+                                    errorMessage,
                             )
                         }
                     }
@@ -138,7 +152,9 @@ class RecipientSetupViewModel(
                 }
             } finally {
                 mutableState.update {
-                    it.copy(isSaving = false)
+                    it.copy(
+                        isSaving = false,
+                    )
                 }
             }
         }
@@ -166,7 +182,9 @@ fun RecipientSetupRoute(
     onContinue: (String) -> Unit,
 ) {
     val state by
-    viewModel.state.collectAsStateWithLifecycle()
+    viewModel
+        .state
+        .collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
         viewModel.events.collect { event ->
@@ -197,83 +215,123 @@ fun RecipientSetupScreen(
         modifier = modifier.fillMaxSize(),
     ) { contentPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .imePadding()
-                .verticalScroll(
-                    rememberScrollState(),
-                )
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Top,
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(contentPadding)
+                    .imePadding()
+                    .verticalScroll(
+                        rememberScrollState(),
+                    )
+                    .padding(24.dp),
+            verticalArrangement =
+                Arrangement.Top,
         ) {
             Text(
-                text = stringResource(
-                    R.string.recipient_title,
-                ),
+                text =
+                    stringResource(
+                        R.string.recipient_title,
+                    ),
                 style =
-                    MaterialTheme.typography.headlineMedium,
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp),
+            )
 
             Text(
-                text = stringResource(
-                    R.string.recipient_description,
-                ),
+                text =
+                    stringResource(
+                        R.string
+                            .recipient_description,
+                    ),
                 style =
-                    MaterialTheme.typography.bodyLarge,
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(24.dp),
+            )
 
             OutlinedTextField(
                 value = state.displayName,
-                onValueChange = onDisplayNameChanged,
+                onValueChange =
+                    onDisplayNameChanged,
                 label = {
                     Text(
-                        text = stringResource(
-                            R.string.recipient_name_label,
-                        ),
+                        text =
+                            stringResource(
+                                R.string
+                                    .recipient_name_label,
+                            ),
                     )
                 },
                 singleLine = true,
-                isError = state.errorMessage != null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("recipient_name"),
+                isError =
+                    state.errorMessage != null,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "recipient_name",
+                        ),
             )
 
-            state.errorMessage?.let { errorMessage ->
-                Spacer(modifier = Modifier.height(8.dp))
+            state.errorMessage?.let {
+                    errorMessage ->
+                Spacer(
+                    modifier =
+                        Modifier.height(8.dp),
+                )
 
                 Text(
                     text = errorMessage,
                     color =
-                        MaterialTheme.colorScheme.error,
+                        MaterialTheme
+                            .colorScheme
+                            .error,
                     style =
-                        MaterialTheme.typography.bodyMedium,
+                        MaterialTheme
+                            .typography
+                            .bodyMedium,
                     modifier =
-                        Modifier.testTag("recipient_error"),
+                        Modifier.testTag(
+                            "recipient_error",
+                        ),
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(24.dp),
+            )
 
             Button(
                 onClick = onSave,
                 enabled = !state.isSaving,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("recipient_save"),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "recipient_save",
+                        ),
             ) {
                 if (state.isSaving) {
                     CircularProgressIndicator()
                 } else {
                     Text(
-                        text = stringResource(
-                            R.string.save_and_continue,
-                        ),
+                        text =
+                            stringResource(
+                                R.string
+                                    .save_and_continue,
+                            ),
                     )
                 }
             }

@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,12 +45,15 @@ import kotlinx.coroutines.flow.update
 data class TodayUiState(
     val localDate: LocalDate,
     val isLoading: Boolean = true,
-    val items: List<TodayItem> = emptyList(),
+    val items:
+    List<TodayItem> =
+        emptyList(),
     val errorMessage: String? = null,
 )
 
 class TodayViewModel(
-    todayQueryService: TodayQueryService,
+    todayQueryService:
+    TodayQueryService,
     clock: Clock,
     zoneProvider: ZoneProvider,
 ) : ViewModel() {
@@ -69,7 +73,8 @@ class TodayViewModel(
             ),
         )
 
-    val state = mutableState
+    val state =
+        mutableState
 
     init {
         todayQueryService
@@ -97,9 +102,11 @@ class TodayViewModel(
 
     companion object {
         fun factory(
-            todayQueryService: TodayQueryService,
+            todayQueryService:
+            TodayQueryService,
             clock: Clock,
-            zoneProvider: ZoneProvider,
+            zoneProvider:
+            ZoneProvider,
         ): ViewModelProvider.Factory {
             return viewModelFactory {
                 initializer {
@@ -119,7 +126,9 @@ class TodayViewModel(
 @Composable
 fun TodayRoute(
     viewModel: TodayViewModel,
-    onOccurrenceSelected: (String) -> Unit,
+    onOccurrenceSelected:
+        (String) -> Unit,
+    onManageCarePlan: () -> Unit,
 ) {
     val state by
     viewModel
@@ -130,17 +139,22 @@ fun TodayRoute(
         state = state,
         onOccurrenceSelected =
             onOccurrenceSelected,
+        onManageCarePlan =
+            onManageCarePlan,
     )
 }
 
 @Composable
 fun TodayScreen(
     state: TodayUiState,
-    onOccurrenceSelected: (String) -> Unit,
+    onOccurrenceSelected:
+        (String) -> Unit,
+    onManageCarePlan: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) { contentPadding ->
         Column(
             modifier = Modifier
@@ -164,7 +178,8 @@ fun TodayScreen(
             )
 
             Text(
-                text = state.localDate.toString(),
+                text =
+                    state.localDate.toString(),
                 style =
                     MaterialTheme
                         .typography
@@ -173,7 +188,28 @@ fun TodayScreen(
 
             Spacer(
                 modifier =
-                    Modifier.height(24.dp),
+                    Modifier.height(12.dp),
+            )
+
+            OutlinedButton(
+                onClick = onManageCarePlan,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "manage_care_plan",
+                    ),
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string
+                            .manage_care_plan,
+                    ),
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(20.dp),
             )
 
             when {
@@ -204,7 +240,8 @@ fun TodayScreen(
                 state.items.isEmpty() -> {
                     Text(
                         text = stringResource(
-                            R.string.today_empty_title,
+                            R.string
+                                .today_empty_title,
                         ),
                         style =
                             MaterialTheme
@@ -219,7 +256,8 @@ fun TodayScreen(
 
                     Text(
                         text = stringResource(
-                            R.string.today_empty_body,
+                            R.string
+                                .today_empty_body,
                         ),
                     )
                 }
@@ -235,15 +273,16 @@ fun TodayScreen(
                     ) {
                         items(
                             items = state.items,
-                            key = { item ->
-                                item.occurrenceId
+                            key = {
+                                it.occurrenceId
                             },
                         ) { item ->
                             TodayOccurrenceCard(
                                 item = item,
                                 onClick = {
                                     onOccurrenceSelected(
-                                        item.occurrenceId,
+                                        item
+                                            .occurrenceId,
                                     )
                                 },
                             )
@@ -306,22 +345,30 @@ private fun TodayOccurrenceCard(
 
             Text(
                 text =
-                    when (item.reportState) {
-                        CaregiverReportState.GIVEN -> {
+                    when (
+                        item.reportState
+                    ) {
+                        CaregiverReportState
+                            .GIVEN -> {
                             stringResource(
-                                R.string.report_given,
+                                R.string
+                                    .report_given,
                             )
                         }
 
                         else -> {
                             stringResource(
-                                R.string.report_not_recorded,
+                                R.string
+                                    .report_not_recorded,
                             )
                         }
                     },
                 color =
-                    when (item.reportState) {
-                        CaregiverReportState.GIVEN -> {
+                    when (
+                        item.reportState
+                    ) {
+                        CaregiverReportState
+                            .GIVEN -> {
                             MaterialTheme
                                 .colorScheme
                                 .primary
@@ -339,4 +386,6 @@ private fun TodayOccurrenceCard(
 }
 
 private val HOUR_MINUTE_FORMATTER =
-    DateTimeFormatter.ofPattern("HH:mm")
+    DateTimeFormatter.ofPattern(
+        "HH:mm",
+    )

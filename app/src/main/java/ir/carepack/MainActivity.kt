@@ -9,17 +9,22 @@ import ir.carepack.app.CarePackApp
 import ir.carepack.ui.theme.CarePackTheme
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+class MainActivity :
+    ComponentActivity() {
 
     private val container
         get() =
-            (application as CarePackApplication)
-                .container
+            (
+                    application as
+                            CarePackApplication
+                    ).container
 
     override fun onCreate(
         savedInstanceState: Bundle?,
     ) {
-        super.onCreate(savedInstanceState)
+        super.onCreate(
+            savedInstanceState,
+        )
 
         enableEdgeToEdge()
 
@@ -27,16 +32,22 @@ class MainActivity : ComponentActivity() {
             CarePackTheme {
                 CarePackApp(
                     carePlanService =
-                        container.carePlanService,
+                        container
+                            .carePlanService,
                     todayQueryService =
-                        container.todayQueryService,
+                        container
+                            .todayQueryService,
                     caregiverReportService =
-                        container.caregiverReportService,
+                        container
+                            .caregiverReportService,
                     setupPreferenceStore =
-                        container.setupPreferenceStore,
-                    clock = container.clock,
+                        container
+                            .setupPreferenceStore,
+                    clock =
+                        container.clock,
                     zoneProvider =
-                        container.zoneProvider,
+                        container
+                            .zoneProvider,
                 )
             }
         }
@@ -48,7 +59,9 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launch {
             runCatching {
                 val now =
-                    container.clock.instant()
+                    container
+                        .clock
+                        .instant()
 
                 val deviceDate =
                     now
@@ -61,8 +74,9 @@ class MainActivity : ComponentActivity() {
 
                 container
                     .occurrenceGenerator
-                    .guaranteeForEffectiveSchedules(
-                        anchorDate = deviceDate,
+                    .guaranteeWindowForAll(
+                        anchorDate =
+                            deviceDate,
                         now = now,
                     )
             }

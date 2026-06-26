@@ -9,10 +9,21 @@ enum class OccurrenceLifecycle {
     CANCELLED,
 }
 
+enum class OccurrenceCancellationReason {
+    SCHEDULE_REPLACED,
+    MEDICATION_UPDATED,
+    MEDICATION_STOPPED,
+}
+
 enum class CaregiverReportState {
     GIVEN,
     NOT_GIVEN,
     UNKNOWN,
+}
+
+enum class MedicationStatus {
+    ACTIVE,
+    STOPPED,
 }
 
 data class ScheduleDefinition(

@@ -1,7 +1,6 @@
 package ir.carepack.feature.setup
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,26 +10,18 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -41,14 +32,19 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
+import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
+import ir.carepack.feature.careplan.ScheduleFormCallbacks
+import ir.carepack.feature.careplan.ScheduleFormFields
+import ir.carepack.feature.careplan.ScheduleFormUiState
+import ir.carepack.feature.careplan.parseHourMinute
+import ir.carepack.feature.careplan.parseOptionalDate
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDateTime
 import java.time.LocalTime
-import java.util.Locale
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -59,94 +55,265 @@ import kotlinx.coroutines.launch
 data class MedicationScheduleUiState(
     val medicationName: String = "",
     val instruction: String = "",
-    val weekday: DayOfWeek,
-    val timeText: String,
+    val schedule:
+    ScheduleFormUiState,
+    val errors:
+    Map<CarePlanField, String> =
+        emptyMap(),
     val isSaving: Boolean = false,
-    val errorMessage: String? = null,
+    val generalError: String? = null,
 )
 
 sealed interface MedicationScheduleEvent {
-    data object Completed : MedicationScheduleEvent
+
+    data object Completed :
+        MedicationScheduleEvent
 }
 
 class MedicationScheduleViewModel(
     private val recipientId: String,
-    private val carePlanService: CarePlanService,
+    private val carePlanService:
+    CarePlanService,
     private val setupPreferenceStore:
     SetupPreferenceStore,
-    private val clock: Clock,
-    private val zoneProvider: ZoneProvider,
+    private val completeInitialSetup:
+    Boolean,
+    clock: Clock,
+    zoneProvider: ZoneProvider,
 ) : ViewModel() {
 
-    private val initialDateTime: LocalDateTime =
+    private val initialDateTime:
+            LocalDateTime =
         LocalDateTime
             .ofInstant(
                 clock.instant(),
                 zoneProvider.currentZone(),
             )
-            .plusMinutes(DEFAULT_FUTURE_MINUTES)
+            .plusMinutes(
+                DEFAULT_FUTURE_MINUTES,
+            )
             .withSecond(0)
             .withNano(0)
 
     private val mutableState =
         MutableStateFlow(
             MedicationScheduleUiState(
-                weekday = initialDateTime.dayOfWeek,
-                timeText = initialDateTime
-                    .toLocalTime()
-                    .toHourMinuteText(),
+                schedule =
+                    ScheduleFormUiState(
+                        weekdays =
+                            setOf(
+                                initialDateTime
+                                    .dayOfWeek,
+                            ),
+                        minutesOfDay =
+                            listOf(
+                                initialDateTime
+                                    .toLocalTime()
+                                    .toMinuteOfDay(),
+                            ),
+                        timeDraft = "",
+                        startDateText = "",
+                        endDateText = "",
+                        zoneId =
+                            zoneProvider
+                                .currentZone()
+                                .id,
+                    ),
             ),
         )
 
-    val state = mutableState.asStateFlow()
+    val state =
+        mutableState.asStateFlow()
 
     private val eventChannel =
         Channel<MedicationScheduleEvent>(
             capacity = Channel.BUFFERED,
         )
 
-    val events = eventChannel.receiveAsFlow()
+    val events =
+        eventChannel.receiveAsFlow()
 
     fun onMedicationNameChanged(
-        newValue: String,
+        value: String,
     ) {
         mutableState.update {
             it.copy(
-                medicationName = newValue,
-                errorMessage = null,
+                medicationName = value,
+                errors =
+                    it.errors -
+                            CarePlanField
+                                .MEDICATION_NAME,
+                generalError = null,
             )
         }
     }
 
     fun onInstructionChanged(
-        newValue: String,
+        value: String,
     ) {
         mutableState.update {
             it.copy(
-                instruction = newValue,
-                errorMessage = null,
+                instruction = value,
+                errors =
+                    it.errors -
+                            CarePlanField
+                                .INSTRUCTION,
+                generalError = null,
             )
         }
     }
 
-    fun onWeekdayChanged(
-        newValue: DayOfWeek,
+    fun onWeekdayToggled(
+        day: DayOfWeek,
     ) {
-        mutableState.update {
-            it.copy(
-                weekday = newValue,
-                errorMessage = null,
+        mutableState.update { current ->
+            val weekdays =
+                current
+                    .schedule
+                    .weekdays
+                    .toMutableSet()
+
+            if (!weekdays.add(day)) {
+                weekdays.remove(day)
+            }
+
+            current.copy(
+                schedule =
+                    current
+                        .schedule
+                        .copy(
+                            weekdays =
+                                weekdays,
+                        ),
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .WEEKDAYS,
+                generalError = null,
             )
         }
     }
 
-    fun onTimeChanged(
-        newValue: String,
+    fun onTimeDraftChanged(
+        value: String,
     ) {
         mutableState.update {
             it.copy(
-                timeText = newValue,
-                errorMessage = null,
+                schedule =
+                    it.schedule.copy(
+                        timeDraft = value,
+                    ),
+                errors =
+                    it.errors -
+                            CarePlanField.TIMES,
+                generalError = null,
+            )
+        }
+    }
+
+    fun addTime() {
+        val minuteOfDay =
+            parseHourMinute(
+                mutableState
+                    .value
+                    .schedule
+                    .timeDraft,
+            )
+
+        if (minuteOfDay == null) {
+            setFieldError(
+                field = CarePlanField.TIMES,
+                message =
+                    "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
+            )
+            return
+        }
+
+        if (
+            minuteOfDay in
+            mutableState
+                .value
+                .schedule
+                .minutesOfDay
+        ) {
+            setFieldError(
+                field = CarePlanField.TIMES,
+                message =
+                    "این زمان قبلاً اضافه شده است.",
+            )
+            return
+        }
+
+        mutableState.update {
+            it.copy(
+                schedule =
+                    it.schedule.copy(
+                        minutesOfDay =
+                            (
+                                    it.schedule
+                                        .minutesOfDay +
+                                            minuteOfDay
+                                    ).sorted(),
+                        timeDraft = "",
+                    ),
+                errors =
+                    it.errors -
+                            CarePlanField.TIMES,
+            )
+        }
+    }
+
+    fun removeTime(
+        minuteOfDay: Int,
+    ) {
+        mutableState.update {
+            it.copy(
+                schedule =
+                    it.schedule.copy(
+                        minutesOfDay =
+                            it.schedule
+                                .minutesOfDay -
+                                    minuteOfDay,
+                    ),
+                errors =
+                    it.errors -
+                            CarePlanField.TIMES,
+            )
+        }
+    }
+
+    fun onStartDateChanged(
+        value: String,
+    ) {
+        mutableState.update {
+            it.copy(
+                schedule =
+                    it.schedule.copy(
+                        startDateText =
+                            value,
+                    ),
+                errors =
+                    it.errors -
+                            CarePlanField.START_DATE,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onEndDateChanged(
+        value: String,
+    ) {
+        mutableState.update {
+            it.copy(
+                schedule =
+                    it.schedule.copy(
+                        endDateText =
+                            value,
+                    ),
+                errors =
+                    it.errors -
+                            CarePlanField.END_DATE,
+                generalError = null,
             )
         }
     }
@@ -156,14 +323,61 @@ class MedicationScheduleViewModel(
             return
         }
 
-        val localTime =
-            parseHourMinute(mutableState.value.timeText)
+        val current =
+            mutableState.value
 
-        if (localTime == null) {
+        val startDate =
+            parseOptionalDate(
+                current
+                    .schedule
+                    .startDateText,
+            )
+
+        val endDate =
+            parseOptionalDate(
+                current
+                    .schedule
+                    .endDateText,
+            )
+
+        val localErrors =
+            mutableMapOf<
+                    CarePlanField,
+                    String,
+                    >()
+
+        if (
+            current
+                .schedule
+                .startDateText
+                .isNotBlank() &&
+            startDate == null
+        ) {
+            localErrors[
+                CarePlanField.START_DATE
+            ] =
+                "تاریخ شروع باید به شکل YYYY-MM-DD باشد."
+        }
+
+        if (
+            current
+                .schedule
+                .endDateText
+                .isNotBlank() &&
+            endDate == null
+        ) {
+            localErrors[
+                CarePlanField.END_DATE
+            ] =
+                "تاریخ پایان باید به شکل YYYY-MM-DD باشد."
+        }
+
+        if (localErrors.isNotEmpty()) {
             mutableState.update {
                 it.copy(
-                    errorMessage =
-                        "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
+                    errors =
+                        it.errors +
+                                localErrors,
                 )
             }
             return
@@ -173,50 +387,84 @@ class MedicationScheduleViewModel(
             mutableState.update {
                 it.copy(
                     isSaving = true,
-                    errorMessage = null,
+                    errors = emptyMap(),
+                    generalError = null,
                 )
             }
 
             try {
-                val outcome =
-                    carePlanService
-                        .createMedicationAndSchedule(
-                            CreateMedicationScheduleCommand(
-                                recipientId = recipientId,
-                                medicationName =
-                                    mutableState.value
-                                        .medicationName,
-                                instruction =
-                                    mutableState.value
-                                        .instruction,
-                                weekday =
-                                    mutableState.value
-                                        .weekday,
-                                localTime = localTime,
-                                zoneId =
-                                    zoneProvider
-                                        .currentZone()
-                                        .id,
-                            ),
-                        )
+                val state =
+                    mutableState.value
 
-                when (outcome) {
-                    is CreateMedicationScheduleOutcome.Created -> {
-                        runCatching {
+                when (
+                    val outcome =
+                        carePlanService
+                            .createMedicationAndSchedule(
+                                CreateMedicationScheduleCommand(
+                                    recipientId =
+                                        recipientId,
+                                    medicationName =
+                                        state
+                                            .medicationName,
+                                    instruction =
+                                        state
+                                            .instruction,
+                                    weekdays =
+                                        state
+                                            .schedule
+                                            .weekdays,
+                                    minutesOfDay =
+                                        state
+                                            .schedule
+                                            .minutesOfDay,
+                                    startDate =
+                                        startDate,
+                                    endDate =
+                                        endDate,
+                                    zoneId =
+                                        state
+                                            .schedule
+                                            .zoneId,
+                                ),
+                            )
+                ) {
+                    is CreateMedicationScheduleOutcome
+                    .Created -> {
+                        if (
+                            completeInitialSetup
+                        ) {
                             setupPreferenceStore
                                 .markSetupComplete()
                         }
 
                         eventChannel.send(
-                            MedicationScheduleEvent.Completed,
+                            MedicationScheduleEvent
+                                .Completed,
                         )
                     }
 
-                    is CreateMedicationScheduleOutcome.Invalid -> {
+                    is CreateMedicationScheduleOutcome
+                    .Invalid -> {
                         mutableState.update {
                             it.copy(
-                                errorMessage =
-                                    outcome.reason,
+                                errors =
+                                    outcome
+                                        .errors
+                                        .associate {
+                                                error ->
+                                            error.field to
+                                                    error.message
+                                        },
+                            )
+                        }
+                    }
+
+                    CreateMedicationScheduleOutcome
+                        .RecipientNotFound -> {
+                        mutableState.update {
+                            it.copy(
+                                generalError =
+                                    "فرد تحت مراقبت پیدا نشد.",
                             )
                         }
                     }
@@ -224,59 +472,87 @@ class MedicationScheduleViewModel(
             } catch (_: Exception) {
                 mutableState.update {
                     it.copy(
-                        errorMessage =
+                        generalError =
                             "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
                     )
                 }
             } finally {
                 mutableState.update {
-                    it.copy(isSaving = false)
+                    it.copy(
+                        isSaving = false,
+                    )
                 }
             }
+        }
+    }
+
+    private fun setFieldError(
+        field: CarePlanField,
+        message: String,
+    ) {
+        mutableState.update {
+            it.copy(
+                errors =
+                    it.errors +
+                            (field to message),
+            )
         }
     }
 
     companion object {
         fun factory(
             recipientId: String,
-            carePlanService: CarePlanService,
+            carePlanService:
+            CarePlanService,
             setupPreferenceStore:
             SetupPreferenceStore,
+            completeInitialSetup:
+            Boolean,
             clock: Clock,
             zoneProvider: ZoneProvider,
         ): ViewModelProvider.Factory {
             return viewModelFactory {
                 initializer {
                     MedicationScheduleViewModel(
-                        recipientId = recipientId,
+                        recipientId =
+                            recipientId,
                         carePlanService =
                             carePlanService,
                         setupPreferenceStore =
                             setupPreferenceStore,
+                        completeInitialSetup =
+                            completeInitialSetup,
                         clock = clock,
-                        zoneProvider = zoneProvider,
+                        zoneProvider =
+                            zoneProvider,
                     )
                 }
             }
         }
 
-        private const val DEFAULT_FUTURE_MINUTES =
+        private const val
+                DEFAULT_FUTURE_MINUTES =
             2L
     }
 }
 
 @Composable
 fun MedicationScheduleRoute(
-    viewModel: MedicationScheduleViewModel,
+    viewModel:
+    MedicationScheduleViewModel,
     onCompleted: () -> Unit,
 ) {
     val state by
-    viewModel.state.collectAsStateWithLifecycle()
+    viewModel
+        .state
+        .collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
+        viewModel.events.collect {
+                event ->
             when (event) {
-                MedicationScheduleEvent.Completed -> {
+                MedicationScheduleEvent
+                    .Completed -> {
                     onCompleted()
                 }
             }
@@ -286,32 +562,54 @@ fun MedicationScheduleRoute(
     MedicationScheduleScreen(
         state = state,
         onMedicationNameChanged =
-            viewModel::onMedicationNameChanged,
+            viewModel::
+            onMedicationNameChanged,
         onInstructionChanged =
-            viewModel::onInstructionChanged,
-        onWeekdayChanged =
-            viewModel::onWeekdayChanged,
-        onTimeChanged =
-            viewModel::onTimeChanged,
-        onSave = viewModel::save,
+            viewModel::
+            onInstructionChanged,
+        onWeekdayToggled =
+            viewModel::onWeekdayToggled,
+        onTimeDraftChanged =
+            viewModel::
+            onTimeDraftChanged,
+        onAddTime =
+            viewModel::addTime,
+        onRemoveTime =
+            viewModel::removeTime,
+        onStartDateChanged =
+            viewModel::
+            onStartDateChanged,
+        onEndDateChanged =
+            viewModel::
+            onEndDateChanged,
+        onSave =
+            viewModel::save,
     )
 }
 
 @Composable
 fun MedicationScheduleScreen(
     state: MedicationScheduleUiState,
-    onMedicationNameChanged: (String) -> Unit,
-    onInstructionChanged: (String) -> Unit,
-    onWeekdayChanged: (DayOfWeek) -> Unit,
-    onTimeChanged: (String) -> Unit,
+    onMedicationNameChanged:
+        (String) -> Unit,
+    onInstructionChanged:
+        (String) -> Unit,
+    onWeekdayToggled:
+        (DayOfWeek) -> Unit,
+    onTimeDraftChanged:
+        (String) -> Unit,
+    onAddTime: () -> Unit,
+    onRemoveTime: (Int) -> Unit,
+    onStartDateChanged:
+        (String) -> Unit,
+    onEndDateChanged:
+        (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var weekdayMenuExpanded by
-    remember { mutableStateOf(false) }
-
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier.fillMaxSize(),
     ) { contentPadding ->
         Column(
             modifier = Modifier
@@ -322,164 +620,171 @@ fun MedicationScheduleScreen(
                     rememberScrollState(),
                 )
                 .padding(24.dp),
-            verticalArrangement = Arrangement.Top,
+            verticalArrangement =
+                Arrangement.Top,
         ) {
             Text(
                 text = stringResource(
-                    R.string.medication_schedule_title,
+                    R.string
+                        .medication_schedule_title,
                 ),
                 style =
-                    MaterialTheme.typography.headlineMedium,
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(24.dp),
+            )
 
             OutlinedTextField(
-                value = state.medicationName,
+                value =
+                    state.medicationName,
                 onValueChange =
                     onMedicationNameChanged,
+                enabled =
+                    !state.isSaving,
                 label = {
                     Text(
                         text = stringResource(
-                            R.string.medication_name_label,
+                            R.string
+                                .medication_name_label,
                         ),
                     )
                 },
                 singleLine = true,
+                isError =
+                    state.errors.containsKey(
+                        CarePlanField
+                            .MEDICATION_NAME,
+                    ),
+                supportingText = {
+                    state.errors[
+                        CarePlanField
+                            .MEDICATION_NAME
+                    ]?.let {
+                        Text(it)
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("medication_name"),
+                    .testTag(
+                        "medication_name",
+                    ),
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp),
+            )
 
             OutlinedTextField(
-                value = state.instruction,
-                onValueChange = onInstructionChanged,
+                value =
+                    state.instruction,
+                onValueChange =
+                    onInstructionChanged,
+                enabled =
+                    !state.isSaving,
                 label = {
                     Text(
                         text = stringResource(
-                            R.string.instruction_label,
+                            R.string
+                                .instruction_label,
                         ),
                     )
                 },
                 minLines = 3,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("medication_instruction"),
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = stringResource(
-                    R.string.weekday_label,
-                ),
-                style =
-                    MaterialTheme.typography.labelLarge,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                OutlinedButton(
-                    onClick = {
-                        weekdayMenuExpanded = true
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("weekday_selector"),
-                ) {
-                    Text(
-                        text = weekdayPersianName(
-                            state.weekday,
-                        ),
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = weekdayMenuExpanded,
-                    onDismissRequest = {
-                        weekdayMenuExpanded = false
-                    },
-                ) {
-                    DayOfWeek.entries.forEach {
-                            dayOfWeek ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(
-                                    text =
-                                        weekdayPersianName(
-                                            dayOfWeek,
-                                        ),
-                                )
-                            },
-                            onClick = {
-                                weekdayMenuExpanded =
-                                    false
-
-                                onWeekdayChanged(
-                                    dayOfWeek,
-                                )
-                            },
-                        )
+                isError =
+                    state.errors.containsKey(
+                        CarePlanField
+                            .INSTRUCTION,
+                    ),
+                supportingText = {
+                    state.errors[
+                        CarePlanField
+                            .INSTRUCTION
+                    ]?.let {
+                        Text(it)
                     }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = state.timeText,
-                onValueChange = onTimeChanged,
-                label = {
-                    Text(
-                        text = stringResource(
-                            R.string.time_label,
-                        ),
-                    )
                 },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType =
-                        KeyboardType.Number,
-                ),
-                singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("schedule_time"),
+                    .testTag(
+                        "medication_instruction",
+                    ),
             )
 
-            state.errorMessage?.let { errorMessage ->
-                Spacer(modifier = Modifier.height(8.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(20.dp),
+            )
+
+            ScheduleFormFields(
+                state = state.schedule,
+                errors = state.errors,
+                callbacks =
+                    ScheduleFormCallbacks(
+                        onWeekdayToggled =
+                            onWeekdayToggled,
+                        onTimeDraftChanged =
+                            onTimeDraftChanged,
+                        onAddTime =
+                            onAddTime,
+                        onRemoveTime =
+                            onRemoveTime,
+                        onStartDateChanged =
+                            onStartDateChanged,
+                        onEndDateChanged =
+                            onEndDateChanged,
+                    ),
+                enabled =
+                    !state.isSaving,
+            )
+
+            state.generalError?.let {
+                    error ->
+                Spacer(
+                    modifier =
+                        Modifier.height(12.dp),
+                )
 
                 Text(
-                    text = errorMessage,
+                    text = error,
                     color =
-                        MaterialTheme.colorScheme.error,
-                    style =
-                        MaterialTheme.typography.bodyMedium,
+                        MaterialTheme
+                            .colorScheme
+                            .error,
                     modifier =
-                        Modifier.testTag("schedule_error"),
+                        Modifier.testTag(
+                            "schedule_error",
+                        ),
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(24.dp),
+            )
 
             Button(
                 onClick = onSave,
-                enabled = !state.isSaving,
+                enabled =
+                    !state.isSaving,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag("medication_schedule_save"),
+                    .testTag(
+                        "medication_schedule_save",
+                    ),
             ) {
                 if (state.isSaving) {
                     CircularProgressIndicator()
                 } else {
                     Text(
                         text = stringResource(
-                            R.string.create_care_plan,
+                            R.string
+                                .create_care_plan,
                         ),
                     )
                 }
@@ -488,57 +793,11 @@ fun MedicationScheduleScreen(
     }
 }
 
-@Composable
-private fun weekdayPersianName(
-    dayOfWeek: DayOfWeek,
-): String {
-    return when (dayOfWeek) {
-        DayOfWeek.SATURDAY ->
-            stringResource(R.string.saturday)
-
-        DayOfWeek.SUNDAY ->
-            stringResource(R.string.sunday)
-
-        DayOfWeek.MONDAY ->
-            stringResource(R.string.monday)
-
-        DayOfWeek.TUESDAY ->
-            stringResource(R.string.tuesday)
-
-        DayOfWeek.WEDNESDAY ->
-            stringResource(R.string.wednesday)
-
-        DayOfWeek.THURSDAY ->
-            stringResource(R.string.thursday)
-
-        DayOfWeek.FRIDAY ->
-            stringResource(R.string.friday)
-    }
+private fun LocalTime.toMinuteOfDay():
+        Int {
+    return hour * MINUTES_PER_HOUR +
+            minute
 }
 
-private fun parseHourMinute(
-    value: String,
-): LocalTime? {
-    val match = HOUR_MINUTE_REGEX.matchEntire(
-        value.trim(),
-    ) ?: return null
-
-    val hour = match.groupValues[1].toInt()
-    val minute = match.groupValues[2].toInt()
-
-    return runCatching {
-        LocalTime.of(hour, minute)
-    }.getOrNull()
-}
-
-private fun LocalTime.toHourMinuteText(): String {
-    return String.format(
-        Locale.ROOT,
-        "%02d:%02d",
-        hour,
-        minute,
-    )
-}
-
-private val HOUR_MINUTE_REGEX =
-    Regex("""^([01]\d|2[0-3]):([0-5]\d)$""")
+private const val MINUTES_PER_HOUR =
+    60
