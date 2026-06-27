@@ -35,15 +35,16 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.domain.careplan.ArchiveMedicationOutcome
-import ir.carepack.domain.careplan.CarePlanLimits
 import ir.carepack.domain.careplan.CarePlanOverview
 import ir.carepack.domain.careplan.CarePlanService
+import ir.carepack.domain.careplan.CarePlanValidation
 import ir.carepack.domain.careplan.MedicationPlanItem
 import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.domain.careplan.UpdateRecipientNameCommand
 import ir.carepack.domain.careplan.UpdateRecipientNameOutcome
+import ir.carepack.domain.careplan.errorsOrEmpty
+import ir.carepack.domain.careplan.valueOrNull
 import ir.carepack.domain.model.MedicationStatus
-import java.time.DayOfWeek
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
@@ -63,13 +64,11 @@ class CarePlanViewModel(
     private val carePlanService: CarePlanService,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
-            CarePlanUiState(),
-        )
+    private val mutableState = MutableStateFlow(
+        CarePlanUiState(),
+    )
 
-    val state =
-        mutableState
+    val state = mutableState
 
     init {
         carePlanService
@@ -87,55 +86,36 @@ class CarePlanViewModel(
                 mutableState.update { currentState ->
                     currentState.copy(
                         isLoading = false,
-                        errorMessage =
-                            "خواندن برنامه مراقبت انجام نشد.",
+                        errorMessage = "خواندن برنامه مراقبت انجام نشد.",
                     )
                 }
             }
-            .launchIn(
-                viewModelScope,
-            )
+            .launchIn(viewModelScope)
     }
 
-    fun updateRecipientName(
-        displayName: String,
-    ) {
-        val recipientId =
-            mutableState
-                .value
-                .overview
-                ?.recipientId
-                ?: return
+    fun updateRecipientName(displayName: String) {
+        val recipientId = mutableState.value.overview?.recipientId ?: return
 
         runOperation {
             when (
-                val outcome =
-                    carePlanService
-                        .updateRecipientName(
-                            UpdateRecipientNameCommand(
-                                recipientId =
-                                    recipientId,
-                                displayName =
-                                    displayName,
-                            ),
-                        )
+                val outcome = carePlanService.updateRecipientName(
+                    UpdateRecipientNameCommand(
+                        recipientId = recipientId,
+                        displayName = displayName,
+                    ),
+                )
             ) {
                 UpdateRecipientNameOutcome.Updated,
                 UpdateRecipientNameOutcome.Unchanged,
                     -> Unit
 
                 UpdateRecipientNameOutcome.NotFound -> {
-                    showError(
-                        "فرد تحت مراقبت پیدا نشد.",
-                    )
+                    showError("فرد تحت مراقبت پیدا نشد.")
                 }
 
                 is UpdateRecipientNameOutcome.Invalid -> {
                     showError(
-                        outcome
-                            .errors
-                            .firstOrNull()
-                            ?.message
+                        outcome.errors.firstOrNull()?.message
                             ?: "نام واردشده معتبر نیست.",
                     )
                 }
@@ -143,66 +123,40 @@ class CarePlanViewModel(
         }
     }
 
-    fun stopMedication(
-        medicationId: String,
-    ) {
+    fun stopMedication(medicationId: String) {
         runOperation {
-            when (
-                carePlanService
-                    .stopMedication(
-                        medicationId,
-                    )
-            ) {
+            when (carePlanService.stopMedication(medicationId)) {
                 StopMedicationOutcome.Stopped,
                 StopMedicationOutcome.AlreadyStopped,
                     -> Unit
 
                 StopMedicationOutcome.NotFound -> {
-                    showError(
-                        "دارو پیدا نشد.",
-                    )
+                    showError("دارو پیدا نشد.")
                 }
             }
         }
     }
 
-    fun archiveMedication(
-        medicationId: String,
-    ) {
+    fun archiveMedication(medicationId: String) {
         runOperation {
-            when (
-                carePlanService
-                    .archiveMedication(
-                        medicationId,
-                    )
-            ) {
+            when (carePlanService.archiveMedication(medicationId)) {
                 ArchiveMedicationOutcome.Archived,
                 ArchiveMedicationOutcome.AlreadyArchived,
                     -> Unit
 
                 ArchiveMedicationOutcome.MustStopFirst -> {
-                    showError(
-                        "پیش از بایگانی، دارو را متوقف کنید.",
-                    )
+                    showError("پیش از بایگانی، دارو را متوقف کنید.")
                 }
 
                 ArchiveMedicationOutcome.NotFound -> {
-                    showError(
-                        "دارو پیدا نشد.",
-                    )
+                    showError("دارو پیدا نشد.")
                 }
             }
         }
     }
 
-    private fun runOperation(
-        operation: suspend () -> Unit,
-    ) {
-        if (
-            mutableState
-                .value
-                .isWorking
-        ) {
+    private fun runOperation(operation: suspend () -> Unit) {
+        if (mutableState.value.isWorking) {
             return
         }
 
@@ -217,41 +171,29 @@ class CarePlanViewModel(
             try {
                 operation()
             } catch (_: Exception) {
-                showError(
-                    "انجام عملیات ممکن نشد. دوباره تلاش کنید.",
-                )
+                showError("انجام عملیات ممکن نشد. دوباره تلاش کنید.")
             } finally {
                 mutableState.update { currentState ->
-                    currentState.copy(
-                        isWorking = false,
-                    )
+                    currentState.copy(isWorking = false)
                 }
             }
         }
     }
 
-    private fun showError(
-        message: String,
-    ) {
+    private fun showError(message: String) {
         mutableState.update { currentState ->
-            currentState.copy(
-                errorMessage = message,
-            )
+            currentState.copy(errorMessage = message)
         }
     }
 
     companion object {
-
         fun factory(
             carePlanService: CarePlanService,
-        ): ViewModelProvider.Factory {
-            return viewModelFactory {
-                initializer {
-                    CarePlanViewModel(
-                        carePlanService =
-                            carePlanService,
-                    )
-                }
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                CarePlanViewModel(
+                    carePlanService = carePlanService,
+                )
             }
         }
     }
@@ -265,25 +207,17 @@ fun CarePlanRoute(
     onEditMedicationText: (String) -> Unit,
     onEditSchedule: (String) -> Unit,
 ) {
-    val state by
-    viewModel
-        .state
-        .collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     CarePlanScreen(
         state = state,
         onBack = onBack,
         onAddMedication = onAddMedication,
-        onEditMedicationText =
-            onEditMedicationText,
-        onEditSchedule =
-            onEditSchedule,
-        onUpdateRecipientName =
-            viewModel::updateRecipientName,
-        onStopMedication =
-            viewModel::stopMedication,
-        onArchiveMedication =
-            viewModel::archiveMedication,
+        onEditMedicationText = onEditMedicationText,
+        onEditSchedule = onEditSchedule,
+        onUpdateRecipientName = viewModel::updateRecipientName,
+        onStopMedication = viewModel::stopMedication,
+        onArchiveMedication = viewModel::archiveMedication,
     )
 }
 
@@ -299,57 +233,27 @@ fun CarePlanScreen(
     onArchiveMedication: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val dialogState =
-        remember {
-            mutableStateOf<CarePlanDialogState?>(
-                null,
-            )
-        }
+    val dialogState = remember {
+        mutableStateOf<CarePlanDialogState?>(null)
+    }
 
-    Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize(),
-    ) { contentPadding ->
+    Scaffold(modifier = modifier.fillMaxSize()) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
-                        contentPadding,
-                    )
-                    .padding(
-                        24.dp,
-                    ),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(contentPadding)
+                .padding(24.dp),
         ) {
-            TextButton(
-                onClick = onBack,
-            ) {
-                Text(
-                    text =
-                        stringResource(
-                            R.string.back,
-                        ),
-                )
+            TextButton(onClick = onBack) {
+                Text(stringResource(R.string.back))
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string.care_plan_title,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
+                text = stringResource(R.string.care_plan_title),
+                style = MaterialTheme.typography.headlineMedium,
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        20.dp,
-                    ),
-            )
+            Spacer(Modifier.height(20.dp))
 
             when {
                 state.isLoading -> {
@@ -357,196 +261,93 @@ fun CarePlanScreen(
                 }
 
                 state.overview == null -> {
-                    Text(
-                        text =
-                            "برنامه مراقبت پیدا نشد.",
-                    )
+                    Text("برنامه مراقبت پیدا نشد.")
                 }
 
                 else -> {
-                    val overview =
-                        state.overview
+                    val overview = state.overview
 
-                    Card(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier.padding(
-                                    20.dp,
-                                ),
-                        ) {
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(20.dp)) {
                             Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .recipient_title,
-                                    ),
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .labelLarge,
+                                text = stringResource(R.string.recipient_title),
+                                style = MaterialTheme.typography.labelLarge,
                             )
 
                             Text(
-                                text =
-                                    overview
-                                        .recipientDisplayName,
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .titleLarge,
+                                text = overview.recipientDisplayName,
+                                style = MaterialTheme.typography.titleLarge,
                             )
 
                             TextButton(
                                 onClick = {
                                     dialogState.value =
-                                        CarePlanDialogState
-                                            .RenameRecipient(
-                                                draft =
-                                                    overview
-                                                        .recipientDisplayName,
-                                                errorMessage =
-                                                    null,
-                                            )
+                                        CarePlanDialogState.RenameRecipient(
+                                            draft = overview.recipientDisplayName,
+                                            errorMessage = null,
+                                        )
                                 },
-                                enabled =
-                                    !state.isWorking,
-                                modifier =
-                                    Modifier.testTag(
-                                        "edit_recipient_button",
-                                    ),
+                                enabled = !state.isWorking,
+                                modifier = Modifier.testTag("edit_recipient_button"),
                             ) {
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string
-                                                .edit_recipient,
-                                        ),
-                                )
+                                Text(stringResource(R.string.edit_recipient))
                             }
                         }
                     }
 
-                    Spacer(
-                        modifier =
-                            Modifier.height(
-                                16.dp,
-                            ),
-                    )
+                    Spacer(Modifier.height(16.dp))
 
                     Button(
                         onClick = {
-                            onAddMedication(
-                                overview.recipientId,
-                            )
+                            onAddMedication(overview.recipientId)
                         },
-                        enabled =
-                            !state.isWorking,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
+                        enabled = !state.isWorking,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
+                        Text(stringResource(R.string.add_medication))
+                    }
+
+                    state.errorMessage?.let { error ->
+                        Spacer(Modifier.height(12.dp))
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .add_medication,
-                                ),
+                            text = error,
+                            color = MaterialTheme.colorScheme.error,
                         )
                     }
 
-                    state
-                        .errorMessage
-                        ?.let { error ->
-                            Spacer(
-                                modifier =
-                                    Modifier.height(
-                                        12.dp,
-                                    ),
-                            )
+                    Spacer(Modifier.height(16.dp))
 
-                            Text(
-                                text = error,
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .error,
-                            )
-                        }
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(
-                                16.dp,
-                            ),
-                    )
-
-                    if (
-                        overview
-                            .medications
-                            .isEmpty()
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .no_medications,
-                                ),
-                        )
+                    if (overview.medications.isEmpty()) {
+                        Text(stringResource(R.string.no_medications))
                     } else {
                         LazyColumn(
-                            verticalArrangement =
-                                Arrangement
-                                    .spacedBy(
-                                        12.dp,
-                                    ),
-                            modifier =
-                                Modifier
-                                    .fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.fillMaxSize(),
                         ) {
                             items(
-                                items =
-                                    overview
-                                        .medications,
-                                key = {
-                                    it.medicationId
-                                },
+                                items = overview.medications,
+                                key = { it.medicationId },
                             ) { medication ->
                                 MedicationPlanCard(
-                                    medication =
-                                        medication,
-                                    enabled =
-                                        !state.isWorking,
+                                    medication = medication,
+                                    enabled = !state.isWorking,
                                     onEditText = {
-                                        onEditMedicationText(
-                                            medication
-                                                .medicationId,
-                                        )
+                                        onEditMedicationText(medication.medicationId)
                                     },
                                     onEditSchedule = {
-                                        onEditSchedule(
-                                            medication
-                                                .medicationId,
-                                        )
+                                        onEditSchedule(medication.medicationId)
                                     },
                                     onStop = {
                                         dialogState.value =
-                                            CarePlanDialogState
-                                                .StopMedication(
-                                                    medication =
-                                                        medication,
-                                                )
+                                            CarePlanDialogState.StopMedication(
+                                                medication = medication,
+                                            )
                                     },
                                     onArchive = {
                                         dialogState.value =
-                                            CarePlanDialogState
-                                                .ArchiveMedication(
-                                                    medication =
-                                                        medication,
-                                                )
+                                            CarePlanDialogState.ArchiveMedication(
+                                                medication = medication,
+                                            )
                                     },
                                 )
                             }
@@ -557,293 +358,164 @@ fun CarePlanScreen(
         }
     }
 
-    when (
-        val currentDialog =
-            dialogState.value
-    ) {
+    when (val currentDialog = dialogState.value) {
         is CarePlanDialogState.RenameRecipient -> {
             AlertDialog(
                 onDismissRequest = {
-                    dialogState.value =
-                        null
+                    dialogState.value = null
                 },
                 title = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .edit_recipient,
-                            ),
-                    )
+                    Text(stringResource(R.string.edit_recipient))
                 },
                 text = {
                     OutlinedTextField(
-                        value =
-                            currentDialog.draft,
+                        value = currentDialog.draft,
                         onValueChange = { value ->
                             val updatedError =
-                                if (
-                                    currentDialog
-                                        .errorMessage != null
-                                ) {
-                                    validateRecipientName(
-                                        value,
-                                    )
+                                if (currentDialog.errorMessage != null) {
+                                    recipientNameError(value)
                                 } else {
                                     null
                                 }
 
-                            dialogState.value =
-                                currentDialog.copy(
-                                    draft = value,
-                                    errorMessage =
-                                        updatedError,
-                                )
-                        },
-                        label = {
-                            Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .recipient_name_label,
-                                    ),
+                            dialogState.value = currentDialog.copy(
+                                draft = value,
+                                errorMessage = updatedError,
                             )
                         },
-                        singleLine = true,
-                        isError =
-                            currentDialog
-                                .errorMessage != null,
-                        supportingText = {
-                            currentDialog
-                                .errorMessage
-                                ?.let { error ->
-                                    Text(
-                                        text = error,
-                                        color =
-                                            MaterialTheme
-                                                .colorScheme
-                                                .error,
-                                        modifier =
-                                            Modifier.testTag(
-                                                "recipient_rename_error",
-                                            ),
-                                    )
-                                }
+                        label = {
+                            Text(stringResource(R.string.recipient_name_label))
                         },
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .testTag(
-                                    "recipient_rename_field",
-                                ),
+                        singleLine = true,
+                        isError = currentDialog.errorMessage != null,
+                        supportingText = {
+                            currentDialog.errorMessage?.let { error ->
+                                Text(
+                                    text = error,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.testTag("recipient_rename_error"),
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("recipient_rename_field"),
                     )
                 },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            val validationError =
-                                validateRecipientName(
-                                    currentDialog
-                                        .draft,
-                                )
+                            val validation = CarePlanValidation.validateRecipientName(
+                                currentDialog.draft,
+                            )
+                            val validationError = validation.errorsOrEmpty()
+                                .firstOrNull()
+                                ?.message
 
-                            if (
-                                validationError != null
-                            ) {
-                                dialogState.value =
-                                    currentDialog.copy(
-                                        errorMessage =
-                                            validationError,
-                                    )
+                            if (validationError != null) {
+                                dialogState.value = currentDialog.copy(
+                                    errorMessage = validationError,
+                                )
                             } else {
                                 onUpdateRecipientName(
-                                    currentDialog
-                                        .draft
-                                        .trim(),
+                                    checkNotNull(validation.valueOrNull()),
                                 )
-
-                                dialogState.value =
-                                    null
+                                dialogState.value = null
                             }
                         },
-                        enabled =
-                            !state.isWorking,
-                        modifier =
-                            Modifier.testTag(
-                                "recipient_rename_save",
-                            ),
+                        enabled = !state.isWorking,
+                        modifier = Modifier.testTag("recipient_rename_save"),
                     ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .save_changes,
-                                ),
-                        )
+                        Text(stringResource(R.string.save_changes))
                     }
                 },
                 dismissButton = {
                     TextButton(
                         onClick = {
-                            dialogState.value =
-                                null
+                            dialogState.value = null
                         },
                     ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string.cancel,
-                                ),
-                        )
+                        Text(stringResource(R.string.cancel))
                     }
                 },
             )
         }
 
         is CarePlanDialogState.StopMedication -> {
-            AlertDialog(
-                onDismissRequest = {
-                    dialogState.value =
-                        null
+            val medication = currentDialog.medication
+            MedicationConfirmationDialog(
+                title = stringResource(R.string.confirm_stop_title),
+                body = stringResource(
+                    R.string.confirm_stop_body,
+                    medication.name,
+                ),
+                confirmLabel = stringResource(R.string.stop_medication),
+                confirmTestTag = "confirm_stop_${medication.medicationId}",
+                onConfirm = {
+                    onStopMedication(medication.medicationId)
+                    dialogState.value = null
                 },
-                title = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .confirm_stop_title,
-                            ),
-                    )
-                },
-                text = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .confirm_stop_body,
-                                currentDialog
-                                    .medication
-                                    .name,
-                            ),
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            onStopMedication(
-                                currentDialog
-                                    .medication
-                                    .medicationId,
-                            )
-
-                            dialogState.value =
-                                null
-                        },
-                        modifier =
-                            Modifier.testTag(
-                                "confirm_stop_${currentDialog.medication.medicationId}",
-                            ),
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .stop_medication,
-                                ),
-                        )
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            dialogState.value =
-                                null
-                        },
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string.cancel,
-                                ),
-                        )
-                    }
+                onDismiss = {
+                    dialogState.value = null
                 },
             )
         }
 
         is CarePlanDialogState.ArchiveMedication -> {
-            AlertDialog(
-                onDismissRequest = {
-                    dialogState.value =
-                        null
+            val medication = currentDialog.medication
+            MedicationConfirmationDialog(
+                title = stringResource(R.string.confirm_archive_title),
+                body = stringResource(
+                    R.string.confirm_archive_body,
+                    medication.name,
+                ),
+                confirmLabel = stringResource(R.string.archive_medication),
+                confirmTestTag = "confirm_archive_${medication.medicationId}",
+                onConfirm = {
+                    onArchiveMedication(medication.medicationId)
+                    dialogState.value = null
                 },
-                title = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .confirm_archive_title,
-                            ),
-                    )
-                },
-                text = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .confirm_archive_body,
-                                currentDialog
-                                    .medication
-                                    .name,
-                            ),
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            onArchiveMedication(
-                                currentDialog
-                                    .medication
-                                    .medicationId,
-                            )
-
-                            dialogState.value =
-                                null
-                        },
-                        modifier =
-                            Modifier.testTag(
-                                "confirm_archive_${currentDialog.medication.medicationId}",
-                            ),
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .archive_medication,
-                                ),
-                        )
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = {
-                            dialogState.value =
-                                null
-                        },
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string.cancel,
-                                ),
-                        )
-                    }
+                onDismiss = {
+                    dialogState.value = null
                 },
             )
         }
 
         null -> Unit
     }
+}
+
+@Composable
+private fun MedicationConfirmationDialog(
+    title: String,
+    body: String,
+    confirmLabel: String,
+    confirmTestTag: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(title)
+        },
+        text = {
+            Text(body)
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                modifier = Modifier.testTag(confirmTestTag),
+            ) {
+                Text(confirmLabel)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        },
+    )
 }
 
 @Composable
@@ -856,272 +528,136 @@ private fun MedicationPlanCard(
     onArchive: () -> Unit,
 ) {
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
-                    "medication_card_${medication.medicationId}",
-                ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("medication_card_${medication.medicationId}"),
     ) {
-        Column(
-            modifier =
-                Modifier.padding(
-                    20.dp,
-                ),
-        ) {
+        Column(modifier = Modifier.padding(20.dp)) {
             Text(
-                text =
-                    medication.name,
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleLarge,
+                text = medication.name,
+                style = MaterialTheme.typography.titleLarge,
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        6.dp,
-                    ),
-            )
+            Spacer(Modifier.height(6.dp))
+
+            Text(medication.instruction)
+
+            Spacer(Modifier.height(10.dp))
 
             Text(
-                text =
-                    medication.instruction,
+                text = when (medication.status) {
+                    MedicationStatus.ACTIVE -> {
+                        stringResource(R.string.status_active)
+                    }
+
+                    MedicationStatus.STOPPED -> {
+                        stringResource(R.string.status_stopped)
+                    }
+                },
+                color = when (medication.status) {
+                    MedicationStatus.ACTIVE -> {
+                        MaterialTheme.colorScheme.primary
+                    }
+
+                    MedicationStatus.STOPPED -> {
+                        MaterialTheme.colorScheme.secondary
+                    }
+                },
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        10.dp,
-                    ),
-            )
+            medication.schedule?.let { schedule ->
+                val weekdayNames = schedule.weekdays
+                    .sortedBy { it.value }
+                    .map { dayOfWeek ->
+                        stringResource(
+                            weekdayPersianNameResource(dayOfWeek),
+                        )
+                    }
+                    .joinToString(separator = "، ")
 
-            Text(
-                text =
-                    when (
-                        medication.status
-                    ) {
-                        MedicationStatus.ACTIVE -> {
-                            stringResource(
-                                R.string
-                                    .status_active,
-                            )
-                        }
-
-                        MedicationStatus.STOPPED -> {
-                            stringResource(
-                                R.string
-                                    .status_stopped,
-                            )
-                        }
-                    },
-                color =
-                    when (
-                        medication.status
-                    ) {
-                        MedicationStatus.ACTIVE -> {
-                            MaterialTheme
-                                .colorScheme
-                                .primary
-                        }
-
-                        MedicationStatus.STOPPED -> {
-                            MaterialTheme
-                                .colorScheme
-                                .secondary
-                        }
-                    },
-            )
-
-            medication
-                .schedule
-                ?.let { schedule ->
-                    val weekdayNames =
-                        schedule
-                            .weekdays
-                            .sortedBy {
-                                it.value
-                            }
-                            .joinToString(
-                                separator =
-                                    "، ",
-                                transform =
-                                    ::weekdayPersianLabel,
-                            )
-
-                    val timeNames =
-                        schedule
-                            .times
-                            .joinToString(
-                                separator =
-                                    "، ",
-                            ) { time ->
-                                time.format(
-                                    TIME_FORMATTER,
-                                )
-                            }
-
-                    val startDateText =
-                        schedule
-                            .startDate
-                            ?.toString()
-                            ?: stringResource(
-                                R.string
-                                    .open_ended,
-                            )
-
-                    val endDateText =
-                        schedule
-                            .endDate
-                            ?.toString()
-                            ?: stringResource(
-                                R.string
-                                    .open_ended,
-                            )
-
-                    Spacer(
-                        modifier =
-                            Modifier.height(
-                                12.dp,
-                            ),
-                    )
-
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .schedule_weekdays,
-                            ) +
-                                    " " +
-                                    weekdayNames,
-                    )
-
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .schedule_times,
-                            ) +
-                                    " " +
-                                    timeNames,
-                    )
-
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .schedule_zone,
-                            ) +
-                                    " " +
-                                    schedule.zoneId,
-                    )
-
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .schedule_dates,
-                            ) +
-                                    " " +
-                                    startDateText +
-                                    " — " +
-                                    endDateText,
-                    )
+                val timeNames = schedule.times.joinToString(
+                    separator = "، ",
+                ) { time ->
+                    time.format(TIME_FORMATTER)
                 }
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        14.dp,
-                    ),
-            )
+                val startDateText = schedule.startDate?.toString()
+                    ?: stringResource(R.string.open_ended)
 
-            if (
-                medication.status ==
-                MedicationStatus.ACTIVE
-            ) {
+                val endDateText = schedule.endDate?.toString()
+                    ?: stringResource(R.string.open_ended)
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    text = stringResource(R.string.schedule_weekdays) +
+                            " " +
+                            weekdayNames,
+                )
+
+                Text(
+                    text = stringResource(R.string.schedule_times) +
+                            " " +
+                            timeNames,
+                )
+
+                Text(
+                    text = stringResource(R.string.schedule_zone) +
+                            " " +
+                            schedule.zoneId,
+                )
+
+                Text(
+                    text = stringResource(R.string.schedule_dates) +
+                            " " +
+                            startDateText +
+                            " — " +
+                            endDateText,
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            if (medication.status == MedicationStatus.ACTIVE) {
                 Column(
-                    verticalArrangement =
-                        Arrangement.spacedBy(
-                            8.dp,
-                        ),
-                    modifier =
-                        Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
                     OutlinedButton(
-                        onClick =
-                            onEditText,
-                        enabled =
-                            enabled,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
+                        onClick = onEditText,
+                        enabled = enabled,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .edit_medication_text,
-                                ),
-                        )
+                        Text(stringResource(R.string.edit_medication_text))
                     }
 
                     OutlinedButton(
-                        onClick =
-                            onEditSchedule,
-                        enabled =
-                            enabled,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth(),
+                        onClick = onEditSchedule,
+                        enabled = enabled,
+                        modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .edit_schedule,
-                                ),
-                        )
+                        Text(stringResource(R.string.edit_schedule))
                     }
                 }
 
                 TextButton(
-                    onClick =
-                        onStop,
-                    enabled =
-                        enabled,
-                    modifier =
-                        Modifier.testTag(
-                            "stop_medication_${medication.medicationId}",
-                        ),
+                    onClick = onStop,
+                    enabled = enabled,
+                    modifier = Modifier.testTag(
+                        "stop_medication_${medication.medicationId}",
+                    ),
                 ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .stop_medication,
-                            ),
-                    )
+                    Text(stringResource(R.string.stop_medication))
                 }
             } else {
                 TextButton(
-                    onClick =
-                        onArchive,
-                    enabled =
-                        enabled,
-                    modifier =
-                        Modifier.testTag(
-                            "archive_medication_${medication.medicationId}",
-                        ),
+                    onClick = onArchive,
+                    enabled = enabled,
+                    modifier = Modifier.testTag(
+                        "archive_medication_${medication.medicationId}",
+                    ),
                 ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .archive_medication,
-                            ),
-                    )
+                    Text(stringResource(R.string.archive_medication))
                 }
             }
         }
@@ -1129,7 +665,6 @@ private fun MedicationPlanCard(
 }
 
 private sealed interface CarePlanDialogState {
-
     data class RenameRecipient(
         val draft: String,
         val errorMessage: String?,
@@ -1144,66 +679,10 @@ private sealed interface CarePlanDialogState {
     ) : CarePlanDialogState
 }
 
-private fun validateRecipientName(
-    value: String,
-): String? {
-    val normalizedValue =
-        value.trim()
+private fun recipientNameError(value: String): String? =
+    CarePlanValidation.validateRecipientName(value)
+        .errorsOrEmpty()
+        .firstOrNull()
+        ?.message
 
-    if (
-        normalizedValue.isEmpty()
-    ) {
-        return "نام فرد تحت مراقبت نمی‌تواند خالی باشد."
-    }
-
-    val characterCount =
-        normalizedValue.codePointCount(
-            0,
-            normalizedValue.length,
-        )
-
-    if (
-        characterCount >
-        CarePlanLimits.RECIPIENT_NAME_MAX_LENGTH
-    ) {
-        return "نام فرد تحت مراقبت نباید بیشتر از " +
-                "${CarePlanLimits.RECIPIENT_NAME_MAX_LENGTH} " +
-                "نویسه باشد."
-    }
-
-    return null
-}
-
-private fun weekdayPersianLabel(
-    dayOfWeek: DayOfWeek,
-): String {
-    return when (
-        dayOfWeek
-    ) {
-        DayOfWeek.MONDAY ->
-            "دوشنبه"
-
-        DayOfWeek.TUESDAY ->
-            "سه‌شنبه"
-
-        DayOfWeek.WEDNESDAY ->
-            "چهارشنبه"
-
-        DayOfWeek.THURSDAY ->
-            "پنجشنبه"
-
-        DayOfWeek.FRIDAY ->
-            "جمعه"
-
-        DayOfWeek.SATURDAY ->
-            "شنبه"
-
-        DayOfWeek.SUNDAY ->
-            "یکشنبه"
-    }
-}
-
-private val TIME_FORMATTER =
-    DateTimeFormatter.ofPattern(
-        "HH:mm",
-    )
+private val TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")

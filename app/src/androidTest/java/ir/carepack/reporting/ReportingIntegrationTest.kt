@@ -1,27 +1,14 @@
 package ir.carepack.reporting
 
-import android.content.Context
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.data.local.CarePackDatabase
-import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
-import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
-import ir.carepack.domain.careplan.CreateRecipientCommand
-import ir.carepack.domain.careplan.CreateRecipientOutcome
-import ir.carepack.domain.careplan.RoomCarePlanService
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceCancellationReason
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.model.TodayEmptyState
-import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
-import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
-import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
-import ir.carepack.domain.today.RoomTodayQueryService
-import ir.carepack.testing.IncrementingIdSource
-import ir.carepack.testing.MutableTestClock
+import ir.carepack.testing.CarePlanRoomTestFixture
+import ir.carepack.testing.CreatedTestPlan
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -31,7 +18,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -41,861 +27,300 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ReportingIntegrationTest {
 
-    private lateinit var database:
-            CarePackDatabase
-
-    private lateinit var clock:
-            MutableTestClock
-
-    private lateinit var idSource:
-            IncrementingIdSource
-
-    private lateinit var generator:
-            RoomOccurrenceGenerator
-
-    private lateinit var carePlanService:
-            RoomCarePlanService
-
-    private lateinit var reportService:
-            RoomCaregiverReportService
-
-    private lateinit var todayQueryService:
-            RoomTodayQueryService
-
-    private lateinit var recipientId:
-            String
+    private lateinit var fixture: CarePlanRoomTestFixture
 
     @Before
     fun setUp() {
-        val context =
-            ApplicationProvider
-                .getApplicationContext<
-                        Context
-                        >()
-
-        database =
-            Room
-                .inMemoryDatabaseBuilder(
-                    context,
-                    CarePackDatabase::class.java,
-                )
-                .build()
-
-        clock =
-            MutableTestClock(
-                initialInstant =
-                    HISTORY_START_INSTANT,
-            )
-
-        idSource =
-            IncrementingIdSource(
-                prefix = "reporting-id",
-            )
-
-        generator =
-            RoomOccurrenceGenerator(
-                database = database,
-                idSource = idSource,
-                candidateResolver =
-                    OccurrenceCandidateResolver(),
-            )
-
-        carePlanService =
-            RoomCarePlanService(
-                database = database,
-                occurrenceGenerator =
-                    generator,
-                clock = clock,
-                idSource = idSource,
-            )
-
-        reportService =
-            RoomCaregiverReportService(
-                database = database,
-                clock = clock,
-            )
-
-        todayQueryService =
-            RoomTodayQueryService(
-                database = database,
-            )
-
-        runBlocking {
-            val outcome =
-                carePlanService
-                    .createRecipient(
-                        CreateRecipientCommand(
-                            displayName =
-                                "فرد نمونه",
-                        ),
-                    )
-
-            recipientId =
-                (
-                        outcome as
-                                CreateRecipientOutcome
-                                .Created
-                        ).recipientId
-        }
+        fixture = CarePlanRoomTestFixture.create(
+            initialInstant = HISTORY_START_INSTANT,
+            idPrefix = "reporting-id",
+        )
     }
 
     @After
     fun tearDown() {
-        database.close()
+        fixture.close()
     }
 
     @Test
-    fun noReportAndExplicitUnknown_areDifferentRepresentations() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun noReportAndExplicitUnknown_areDifferentRepresentations() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        val before = fixture.todayQueryService.observeOccurrence(
+            occurrenceId = occurrence.id,
+            now = flowOf(fixture.clock.instant()),
+        ).first()
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        assertNull(before?.reportState)
 
-            val before =
-                todayQueryService
-                    .observeOccurrence(
-                        occurrenceId =
-                            occurrence.id,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
+        val outcome = fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.UNKNOWN,
+        )
 
-            assertNull(
-                before?.reportState,
-            )
+        assertTrue(outcome is SetReportOutcome.Changed)
 
-            val outcome =
-                reportService.setReport(
-                    occurrenceId =
-                        occurrence.id,
-                    newState =
-                        CaregiverReportState
-                            .UNKNOWN,
-                )
+        val after = fixture.todayQueryService.observeOccurrence(
+            occurrenceId = occurrence.id,
+            now = flowOf(fixture.clock.instant()),
+        ).first()
 
-            assertTrue(
-                outcome is
-                        SetReportOutcome
-                        .Changed,
-            )
-
-            val after =
-                todayQueryService
-                    .observeOccurrence(
-                        occurrenceId =
-                            occurrence.id,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
-
-            assertEquals(
-                CaregiverReportState.UNKNOWN,
-                after?.reportState,
-            )
-
-            assertEquals(
-                1,
-                database
-                    .reportingDao()
-                    .countReportsForOccurrence(
-                        occurrence.id,
-                    ),
-            )
-        }
+        assertEquals(CaregiverReportState.UNKNOWN, after?.reportState)
+        assertEquals(
+            1,
+            fixture.database.reportingDao().countReportsForOccurrence(occurrence.id),
+        )
+    }
 
     @Test
-    fun explicitTransitions_keepOneRowAndPreserveRecordedAt() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun explicitTransitions_keepOneRowAndPreserveRecordedAt() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        )
+        val firstReport = checkNotNull(
+            fixture.database.reportingDao().getReport(occurrence.id),
+        )
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        fixture.moveTo(fixture.clock.instant().plusMillis(1))
+        fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.NOT_GIVEN,
+        )
+        fixture.moveTo(fixture.clock.instant().plusMillis(1))
+        fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.UNKNOWN,
+        )
 
-            reportService.setReport(
-                occurrenceId =
-                    occurrence.id,
-                newState =
-                    CaregiverReportState.GIVEN,
-            )
+        val finalReport = checkNotNull(
+            fixture.database.reportingDao().getReport(occurrence.id),
+        )
 
-            val firstReport =
-                checkNotNull(
-                    database
-                        .reportingDao()
-                        .getReport(
-                            occurrence.id,
-                        ),
-                )
-
-            reportService.setReport(
-                occurrenceId =
-                    occurrence.id,
-                newState =
-                    CaregiverReportState
-                        .NOT_GIVEN,
-            )
-
-            reportService.setReport(
-                occurrenceId =
-                    occurrence.id,
-                newState =
-                    CaregiverReportState
-                        .UNKNOWN,
-            )
-
-            val finalReport =
-                checkNotNull(
-                    database
-                        .reportingDao()
-                        .getReport(
-                            occurrence.id,
-                        ),
-                )
-
-            assertEquals(
-                CaregiverReportState
-                    .UNKNOWN
-                    .name,
-                finalReport.state,
-            )
-
-            assertEquals(
-                firstReport
-                    .recordedAtEpochMillis,
-                finalReport
-                    .recordedAtEpochMillis,
-            )
-
-            assertTrue(
-                finalReport
-                    .updatedAtEpochMillis >
-                        firstReport
-                            .updatedAtEpochMillis,
-            )
-
-            assertEquals(
-                1,
-                database
-                    .reportingDao()
-                    .countReportsForOccurrence(
-                        occurrence.id,
-                    ),
-            )
-        }
+        assertEquals(CaregiverReportState.UNKNOWN.name, finalReport.state)
+        assertEquals(firstReport.recordedAtEpochMillis, finalReport.recordedAtEpochMillis)
+        assertTrue(finalReport.updatedAtEpochMillis > firstReport.updatedAtEpochMillis)
+        assertEquals(
+            1,
+            fixture.database.reportingDao().countReportsForOccurrence(occurrence.id),
+        )
+    }
 
     @Test
-    fun sameStateSelection_isIdempotent() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun sameStateSelection_isIdempotent() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        )
+        val persistedBefore = checkNotNull(
+            fixture.database.reportingDao().getReport(occurrence.id),
+        )
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        val outcome = fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        )
 
-            reportService.setReport(
-                occurrenceId =
-                    occurrence.id,
-                newState =
-                    CaregiverReportState.GIVEN,
-            )
-
-            val persistedBefore =
-                checkNotNull(
-                    database
-                        .reportingDao()
-                        .getReport(
-                            occurrence.id,
-                        ),
-                )
-
-            val outcome =
-                reportService.setReport(
-                    occurrenceId =
-                        occurrence.id,
-                    newState =
-                        CaregiverReportState.GIVEN,
-                )
-
-            assertTrue(
-                outcome is
-                        SetReportOutcome
-                        .Unchanged,
-            )
-
-            val persistedAfter =
-                checkNotNull(
-                    database
-                        .reportingDao()
-                        .getReport(
-                            occurrence.id,
-                        ),
-                )
-
-            assertEquals(
-                persistedBefore,
-                persistedAfter,
-            )
-
-            assertEquals(
-                1,
-                database
-                    .reportingDao()
-                    .countReportsForOccurrence(
-                        occurrence.id,
-                    ),
-            )
-        }
+        assertTrue(outcome is SetReportOutcome.Unchanged)
+        assertEquals(
+            persistedBefore,
+            fixture.database.reportingDao().getReport(occurrence.id),
+        )
+        assertEquals(
+            1,
+            fixture.database.reportingDao().countReportsForOccurrence(occurrence.id),
+        )
+    }
 
     @Test
-    fun undoToNoReport_removesOnlyReportRow() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun undoToNoReport_removesOnlyReportRow() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        val changed = fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        ) as SetReportOutcome.Changed
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        val undoOutcome = fixture.reportService.restorePrevious(changed.change)
 
-            val changed =
-                reportService.setReport(
-                    occurrenceId =
-                        occurrence.id,
-                    newState =
-                        CaregiverReportState.GIVEN,
-                ) as
-                        SetReportOutcome
-                        .Changed
-
-            val undoOutcome =
-                reportService
-                    .restorePrevious(
-                        changed.change,
-                    )
-
-            assertEquals(
-                UndoReportOutcome.Restored(
-                    occurrenceId =
-                        occurrence.id,
-                    restoredState = null,
-                ),
-                undoOutcome,
-            )
-
-            assertNull(
-                database
-                    .reportingDao()
-                    .getReport(
-                        occurrence.id,
-                    ),
-            )
-
-            assertNotNull(
-                database
-                    .occurrenceDao()
-                    .getById(
-                        occurrence.id,
-                    ),
-            )
-        }
+        assertEquals(
+            UndoReportOutcome.Restored(
+                occurrenceId = occurrence.id,
+                restoredState = null,
+            ),
+            undoOutcome,
+        )
+        assertNull(fixture.database.reportingDao().getReport(occurrence.id))
+        assertTrue(fixture.database.occurrenceDao().getById(occurrence.id) != null)
+    }
 
     @Test
-    fun staleUndo_cannotOverwriteNewerReport() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun staleUndo_cannotOverwriteNewerReport() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        val firstChange = fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        ) as SetReportOutcome.Changed
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        fixture.moveTo(fixture.clock.instant().plusMillis(1))
+        fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.UNKNOWN,
+        )
 
-            val firstChange =
-                reportService.setReport(
-                    occurrenceId =
-                        occurrence.id,
-                    newState =
-                        CaregiverReportState.GIVEN,
-                ) as
-                        SetReportOutcome
-                        .Changed
-
-            reportService.setReport(
-                occurrenceId =
-                    occurrence.id,
-                newState =
-                    CaregiverReportState.UNKNOWN,
-            )
-
-            val undoOutcome =
-                reportService
-                    .restorePrevious(
-                        firstChange.change,
-                    )
-
-            assertEquals(
-                UndoReportOutcome
-                    .NoLongerCurrent,
-                undoOutcome,
-            )
-
-            assertEquals(
-                CaregiverReportState
-                    .UNKNOWN
-                    .name,
-                database
-                    .reportingDao()
-                    .getReport(
-                        occurrence.id,
-                    )
-                    ?.state,
-            )
-        }
+        assertEquals(
+            UndoReportOutcome.NoLongerCurrent,
+            fixture.reportService.restorePrevious(firstChange.change),
+        )
+        assertEquals(
+            CaregiverReportState.UNKNOWN.name,
+            fixture.database.reportingDao().getReport(occurrence.id)?.state,
+        )
+    }
 
     @Test
-    fun cancelledOccurrence_rejectsNewReport() =
-        runBlocking {
-            val plan =
-                createPlan(
-                    minutesOfDay =
-                        listOf(9 * 60),
-                )
+    fun cancelledOccurrence_rejectsNewReport() = runBlocking {
+        val plan = createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val occurrence = fixture.occurrenceForDate(plan.scheduleVersionId, ANCHOR_DATE)
 
-            moveToAnchorAndGuarantee()
+        fixture.database.occurrenceDao().cancelFutureUnreportedForVersion(
+            scheduleVersionId = plan.scheduleVersionId,
+            nowEpochMillis = fixture.clock.instant().minusSeconds(1).toEpochMilli(),
+            cancelledAtEpochMillis = fixture.clock.instant().toEpochMilli(),
+            cancellationReason = OccurrenceCancellationReason.SCHEDULE_REPLACED.name,
+        )
 
-            val occurrence =
-                occurrenceForDate(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    date = ANCHOR_DATE,
-                )
+        val outcome = fixture.reportService.setReport(
+            occurrenceId = occurrence.id,
+            newState = CaregiverReportState.GIVEN,
+        )
 
-            database
-                .occurrenceDao()
-                .cancelFutureUnreportedForVersion(
-                    scheduleVersionId =
-                        plan
-                            .scheduleVersionId,
-                    nowEpochMillis =
-                        clock
-                            .instant()
-                            .minusSeconds(1)
-                            .toEpochMilli(),
-                    cancelledAtEpochMillis =
-                        clock
-                            .instant()
-                            .toEpochMilli(),
-                    cancellationReason =
-                        OccurrenceCancellationReason
-                            .SCHEDULE_REPLACED
-                            .name,
-                )
-
-            val outcome =
-                reportService.setReport(
-                    occurrenceId =
-                        occurrence.id,
-                    newState =
-                        CaregiverReportState.GIVEN,
-                )
-
-            assertEquals(
-                SetReportOutcome
-                    .CancelledOccurrenceRejected,
-                outcome,
-            )
-
-            assertNull(
-                database
-                    .reportingDao()
-                    .getReport(
-                        occurrence.id,
-                    ),
-            )
-        }
+        assertEquals(SetReportOutcome.CancelledOccurrenceRejected, outcome)
+        assertNull(fixture.database.reportingDao().getReport(occurrence.id))
+    }
 
     @Test
-    fun today_isOrderedAndExcludesCancelledOccurrences() =
-        runBlocking {
-            val activePlan =
-                createPlan(
-                    medicationName =
-                        "داروی فعال",
-                    minutesOfDay =
-                        listOf(
-                            11 * 60,
-                            9 * 60,
-                        ),
-                )
+    fun today_isOrderedAndExcludesCancelledOccurrences() = runBlocking {
+        val activePlan = createPlan(
+            medicationName = "داروی فعال",
+            minutesOfDay = listOf(11 * 60, 9 * 60),
+        )
+        val cancelledPlan = createPlan(
+            medicationName = "داروی لغوشده",
+            minutesOfDay = listOf(10 * 60),
+        )
+        moveToAnchorAndGuarantee()
 
-            val cancelledPlan =
-                createPlan(
-                    medicationName =
-                        "داروی لغوشده",
-                    minutesOfDay =
-                        listOf(10 * 60),
-                )
+        fixture.database.occurrenceDao().cancelFutureUnreportedForVersion(
+            scheduleVersionId = cancelledPlan.scheduleVersionId,
+            nowEpochMillis = fixture.clock.instant().minusSeconds(1).toEpochMilli(),
+            cancelledAtEpochMillis = fixture.clock.instant().toEpochMilli(),
+            cancellationReason = OccurrenceCancellationReason.SCHEDULE_REPLACED.name,
+        )
 
-            moveToAnchorAndGuarantee()
+        val model = fixture.todayQueryService.observeToday(
+            localDate = ANCHOR_DATE,
+            now = flowOf(fixture.clock.instant()),
+        ).first()
 
-            database
-                .occurrenceDao()
-                .cancelFutureUnreportedForVersion(
-                    scheduleVersionId =
-                        cancelledPlan
-                            .scheduleVersionId,
-                    nowEpochMillis =
-                        clock
-                            .instant()
-                            .minusSeconds(1)
-                            .toEpochMilli(),
-                    cancelledAtEpochMillis =
-                        clock
-                            .instant()
-                            .toEpochMilli(),
-                    cancellationReason =
-                        OccurrenceCancellationReason
-                            .SCHEDULE_REPLACED
-                            .name,
-                )
-
-            val model =
-                todayQueryService
-                    .observeToday(
-                        localDate =
-                            ANCHOR_DATE,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
-
-            assertEquals(
-                listOf(
-                    9 * 60,
-                    11 * 60,
-                ),
-                model.items.map {
-                    it.localTime.hour * 60 +
-                            it.localTime.minute
-                },
-            )
-
-            assertTrue(
-                model.items.all {
-                    it.lifecycle ==
-                            OccurrenceLifecycle
-                                .ACTIVE
-                },
-            )
-
-            assertTrue(
-                model.items.all {
-                    it.medicationName ==
-                            "داروی فعال"
-                },
-            )
-
-            assertNull(
-                model.emptyState,
-            )
-
-            assertEquals(
-                2,
-                database
-                    .occurrenceDao()
-                    .getForVersion(
-                        activePlan
-                            .scheduleVersionId,
-                    )
-                    .count {
-                        it.localDateEpochDay ==
-                                ANCHOR_DATE
-                                    .toEpochDay()
-                    },
-            )
-        }
+        assertEquals(
+            listOf(9 * 60, 11 * 60),
+            model.items.map { it.localTime.hour * 60 + it.localTime.minute },
+        )
+        assertTrue(model.items.all { it.lifecycle == OccurrenceLifecycle.ACTIVE })
+        assertTrue(model.items.all { it.medicationName == "داروی فعال" })
+        assertNull(model.emptyState)
+        assertEquals(
+            2,
+            fixture.database.occurrenceDao()
+                .getForVersion(activePlan.scheduleVersionId)
+                .count { it.localDateEpochDay == ANCHOR_DATE.toEpochDay() },
+        )
+    }
 
     @Test
-    fun today_distinguishesNoMedicationsFromNoOccurrences() =
-        runBlocking {
-            val dateWithoutOccurrences =
-                ANCHOR_DATE.plusDays(30)
+    fun today_distinguishesNoMedicationsFromNoOccurrences() = runBlocking {
+        createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
 
-            createPlan(
-                minutesOfDay =
-                    listOf(9 * 60),
-            )
+        val noOccurrences = fixture.todayQueryService.observeToday(
+            localDate = ANCHOR_DATE.plusDays(30),
+            now = flowOf(fixture.clock.instant()),
+        ).first()
 
-            moveToAnchorAndGuarantee()
+        assertEquals(TodayEmptyState.NO_OCCURRENCES, noOccurrences.emptyState)
 
-            val noOccurrences =
-                todayQueryService
-                    .observeToday(
-                        localDate =
-                            dateWithoutOccurrences,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
+        fixture.database.clearAllTables()
 
-            assertEquals(
-                TodayEmptyState
-                    .NO_OCCURRENCES,
-                noOccurrences.emptyState,
-            )
+        val noMedications = fixture.todayQueryService.observeToday(
+            localDate = ANCHOR_DATE,
+            now = flowOf(fixture.clock.instant()),
+        ).first()
 
-            database.clearAllTables()
-
-            val noMedications =
-                todayQueryService
-                    .observeToday(
-                        localDate =
-                            ANCHOR_DATE,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
-
-            assertEquals(
-                TodayEmptyState
-                    .NO_MEDICATIONS,
-                noMedications.emptyState,
-            )
-        }
+        assertEquals(TodayEmptyState.NO_MEDICATIONS, noMedications.emptyState)
+    }
 
     @Test
-    fun recentHistory_isInclusiveEightDaysAndDoesNotDeleteOlderRows() =
-        runBlocking {
-            createPlan(
-                minutesOfDay =
-                    listOf(9 * 60),
-            )
+    fun recentHistory_isInclusiveEightDaysAndDoesNotDeleteOlderRows() = runBlocking {
+        createPlan(minutesOfDay = listOf(9 * 60))
+        moveToAnchorAndGuarantee()
+        val totalBefore = fixture.database.occurrenceDao().count()
 
-            moveToAnchorAndGuarantee()
+        val history = fixture.todayQueryService.observeRecentHistory(
+            anchorDate = ANCHOR_DATE,
+            now = flowOf(fixture.clock.instant()),
+        ).first()
+        val dates = history.map { it.localDate }
 
-            val totalBefore =
-                database
-                    .occurrenceDao()
-                    .count()
-
-            val history =
-                todayQueryService
-                    .observeRecentHistory(
-                        anchorDate =
-                            ANCHOR_DATE,
-                        now =
-                            flowOf(
-                                clock.instant(),
-                            ),
-                    )
-                    .first()
-
-            val dates =
-                history.map {
-                    it.localDate
-                }
-
-            assertTrue(
-                dates.contains(
-                    ANCHOR_DATE,
-                ),
-            )
-
-            assertTrue(
-                dates.contains(
-                    ANCHOR_DATE
-                        .minusDays(7),
-                ),
-            )
-
-            assertFalse(
-                dates.contains(
-                    ANCHOR_DATE
-                        .minusDays(8),
-                ),
-            )
-
-            assertEquals(
-                totalBefore,
-                database
-                    .occurrenceDao()
-                    .count(),
-            )
-
-            assertTrue(
-                database
-                    .occurrenceDao()
-                    .countBetweenDates(
-                        startEpochDay =
-                            ANCHOR_DATE
-                                .minusDays(8)
-                                .toEpochDay(),
-                        endEpochDay =
-                            ANCHOR_DATE
-                                .minusDays(8)
-                                .toEpochDay(),
-                    ) > 0,
-            )
-        }
+        assertTrue(dates.contains(ANCHOR_DATE))
+        assertTrue(dates.contains(ANCHOR_DATE.minusDays(7)))
+        assertFalse(dates.contains(ANCHOR_DATE.minusDays(8)))
+        assertEquals(totalBefore, fixture.database.occurrenceDao().count())
+        assertTrue(
+            fixture.database.occurrenceDao().countBetweenDates(
+                startEpochDay = ANCHOR_DATE.minusDays(8).toEpochDay(),
+                endEpochDay = ANCHOR_DATE.minusDays(8).toEpochDay(),
+            ) > 0,
+        )
+    }
 
     private suspend fun createPlan(
-        medicationName: String =
-            "داروی نمونه",
+        medicationName: String = "داروی نمونه",
         minutesOfDay: List<Int>,
-    ): CreatedReportingPlan {
-        val outcome =
-            carePlanService
-                .createMedicationAndSchedule(
-                    CreateMedicationScheduleCommand(
-                        recipientId =
-                            recipientId,
-                        medicationName =
-                            medicationName,
-                        instruction =
-                            "دستور نمونه",
-                        weekdays =
-                            DayOfWeek
-                                .entries
-                                .toSet(),
-                        minutesOfDay =
-                            minutesOfDay,
-                        startDate =
-                            HISTORY_START_DATE,
-                        endDate = null,
-                        zoneId = "UTC",
-                    ),
-                )
-
-        val created =
-            outcome as
-                    CreateMedicationScheduleOutcome
-                    .Created
-
-        return CreatedReportingPlan(
-            medicationId =
-                created.medicationId,
-            scheduleVersionId =
-                created.scheduleVersionId,
-        )
-    }
+    ): CreatedTestPlan = fixture.createPlan(
+        medicationName = medicationName,
+        weekdays = DayOfWeek.entries.toSet(),
+        minutesOfDay = minutesOfDay,
+        startDate = HISTORY_START_DATE,
+        endDate = null,
+        zoneId = "UTC",
+    )
 
     private suspend fun moveToAnchorAndGuarantee() {
-        clock.currentInstant =
-            ANCHOR_INSTANT
-
-        generator.guaranteeWindowForAll(
-            anchorDate =
-                ANCHOR_DATE,
-            now = ANCHOR_INSTANT,
-        )
+        fixture.moveTo(ANCHOR_INSTANT)
+        fixture.guaranteeWindow(ANCHOR_DATE)
     }
-
-    private suspend fun occurrenceForDate(
-        scheduleVersionId: String,
-        date: LocalDate,
-    ) =
-        checkNotNull(
-            database
-                .occurrenceDao()
-                .getForVersion(
-                    scheduleVersionId,
-                )
-                .firstOrNull {
-                    it.localDateEpochDay ==
-                            date.toEpochDay()
-                },
-        )
 
     private companion object {
-        val HISTORY_START_DATE:
-                LocalDate =
-            LocalDate.parse(
-                "2026-06-16",
-            )
-
-        val HISTORY_START_INSTANT:
-                Instant =
-            Instant.parse(
-                "2026-06-16T08:00:00Z",
-            )
-
-        val ANCHOR_DATE:
-                LocalDate =
-            LocalDate.parse(
-                "2026-06-24",
-            )
-
-        val ANCHOR_INSTANT:
-                Instant =
-            Instant.parse(
-                "2026-06-24T08:00:00Z",
-            )
+        val HISTORY_START_DATE: LocalDate = LocalDate.parse("2026-06-16")
+        val HISTORY_START_INSTANT: Instant = Instant.parse("2026-06-16T08:00:00Z")
+        val ANCHOR_DATE: LocalDate = LocalDate.parse("2026-06-24")
+        val ANCHOR_INSTANT: Instant = Instant.parse("2026-06-24T08:00:00Z")
     }
 }
-
-private data class CreatedReportingPlan(
-    val medicationId: String,
-    val scheduleVersionId: String,
-)

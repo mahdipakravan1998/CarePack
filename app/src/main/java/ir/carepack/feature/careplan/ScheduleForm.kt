@@ -1,5 +1,6 @@
 package ir.carepack.feature.careplan
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,7 +39,6 @@ data class ScheduleFormCallbacks(
 @Composable
 fun ScheduleFormFields(
     state: ScheduleFormUiState,
-    errors: Map<CarePlanField, String>,
     callbacks: ScheduleFormCallbacks,
     enabled: Boolean,
     modifier: Modifier = Modifier,
@@ -61,12 +61,16 @@ fun ScheduleFormFields(
                     selected = dayOfWeek in state.weekdays,
                     onClick = { callbacks.onWeekdayToggled(dayOfWeek) },
                     enabled = enabled,
-                    label = { Text(weekdayPersianName(dayOfWeek)) },
+                    label = {
+                        Text(stringResource(weekdayPersianNameResource(dayOfWeek)))
+                    },
                     modifier = Modifier.testTag("weekday_${dayOfWeek.name}"),
                 )
             }
         }
-        errors[CarePlanField.WEEKDAYS]?.let { message -> FormErrorText(message) }
+        state.errors[CarePlanField.WEEKDAYS]?.let { message ->
+            FormErrorText(message)
+        }
 
         Spacer(Modifier.height(20.dp))
         Text(
@@ -118,7 +122,7 @@ fun ScheduleFormFields(
                 Text(stringResource(R.string.add_time))
             }
         }
-        errors[CarePlanField.TIMES]?.let { message ->
+        state.errors[CarePlanField.TIMES]?.let { message ->
             FormErrorText(message = message, testTag = "schedule_times_error")
         }
 
@@ -131,8 +135,10 @@ fun ScheduleFormFields(
             placeholder = { Text("2026-06-24") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-            isError = errors.containsKey(CarePlanField.START_DATE),
-            supportingText = { errors[CarePlanField.START_DATE]?.let { Text(it) } },
+            isError = state.errors.containsKey(CarePlanField.START_DATE),
+            supportingText = {
+                state.errors[CarePlanField.START_DATE]?.let { Text(it) }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("schedule_start_date"),
@@ -147,8 +153,10 @@ fun ScheduleFormFields(
             placeholder = { Text("2026-07-24") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-            isError = errors.containsKey(CarePlanField.END_DATE),
-            supportingText = { errors[CarePlanField.END_DATE]?.let { Text(it) } },
+            isError = state.errors.containsKey(CarePlanField.END_DATE),
+            supportingText = {
+                state.errors[CarePlanField.END_DATE]?.let { Text(it) }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("schedule_end_date"),
@@ -160,8 +168,10 @@ fun ScheduleFormFields(
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.fixed_zone_label)) },
-            isError = errors.containsKey(CarePlanField.ZONE_ID),
-            supportingText = { errors[CarePlanField.ZONE_ID]?.let { Text(it) } },
+            isError = state.errors.containsKey(CarePlanField.ZONE_ID),
+            supportingText = {
+                state.errors[CarePlanField.ZONE_ID]?.let { Text(it) }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("schedule_zone"),
@@ -181,6 +191,7 @@ private fun FormErrorText(
             .padding(top = 4.dp)
             .testTag(testTag)
     }
+
     Text(
         text = message,
         color = MaterialTheme.colorScheme.error,
@@ -189,13 +200,13 @@ private fun FormErrorText(
     )
 }
 
-@Composable
-fun weekdayPersianName(dayOfWeek: DayOfWeek): String = when (dayOfWeek) {
-    DayOfWeek.SATURDAY -> stringResource(R.string.saturday)
-    DayOfWeek.SUNDAY -> stringResource(R.string.sunday)
-    DayOfWeek.MONDAY -> stringResource(R.string.monday)
-    DayOfWeek.TUESDAY -> stringResource(R.string.tuesday)
-    DayOfWeek.WEDNESDAY -> stringResource(R.string.wednesday)
-    DayOfWeek.THURSDAY -> stringResource(R.string.thursday)
-    DayOfWeek.FRIDAY -> stringResource(R.string.friday)
+@StringRes
+internal fun weekdayPersianNameResource(dayOfWeek: DayOfWeek): Int = when (dayOfWeek) {
+    DayOfWeek.SATURDAY -> R.string.saturday
+    DayOfWeek.SUNDAY -> R.string.sunday
+    DayOfWeek.MONDAY -> R.string.monday
+    DayOfWeek.TUESDAY -> R.string.tuesday
+    DayOfWeek.WEDNESDAY -> R.string.wednesday
+    DayOfWeek.THURSDAY -> R.string.thursday
+    DayOfWeek.FRIDAY -> R.string.friday
 }

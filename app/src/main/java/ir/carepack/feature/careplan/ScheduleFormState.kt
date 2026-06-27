@@ -1,6 +1,10 @@
 package ir.carepack.feature.careplan
 
 import ir.carepack.domain.careplan.CarePlanField
+import ir.carepack.domain.careplan.CarePlanValidation
+import ir.carepack.domain.careplan.ValidationResult
+import ir.carepack.domain.careplan.errorsOrEmpty
+import ir.carepack.domain.careplan.valueOrNull
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -13,12 +17,8 @@ data class ScheduleFormUiState(
     val startDateText: String,
     val endDateText: String,
     val zoneId: String,
+    val errors: Map<CarePlanField, String> = emptyMap(),
 )
-
-internal sealed interface AddScheduleTimeResult {
-    data class Updated(val state: ScheduleFormUiState) : AddScheduleTimeResult
-    data class Invalid(val message: String) : AddScheduleTimeResult
-}
 
 internal data class ParsedScheduleDates(
     val startDate: LocalDate?,
@@ -27,69 +27,80 @@ internal data class ParsedScheduleDates(
 )
 
 internal fun ScheduleFormUiState.toggleWeekday(day: DayOfWeek): ScheduleFormUiState {
-    val updated = weekdays.toMutableSet()
-    if (!updated.add(day)) {
-        updated.remove(day)
+    val updatedWeekdays = weekdays.toMutableSet()
+    if (!updatedWeekdays.add(day)) {
+        updatedWeekdays.remove(day)
     }
-    return copy(weekdays = updated)
-}
-
-internal fun ScheduleFormUiState.withTimeDraft(value: String): ScheduleFormUiState =
-    copy(timeDraft = value)
-
-internal fun ScheduleFormUiState.addDraftTime(): AddScheduleTimeResult {
-    val minuteOfDay = parseHourMinute(timeDraft)
-        ?: return AddScheduleTimeResult.Invalid(INVALID_TIME_MESSAGE)
-
-    if (minuteOfDay in minutesOfDay) {
-        return AddScheduleTimeResult.Invalid(DUPLICATE_TIME_MESSAGE)
-    }
-
-    return AddScheduleTimeResult.Updated(
-        copy(
-            minutesOfDay = (minutesOfDay + minuteOfDay).sorted(),
-            timeDraft = "",
-        ),
+    return copy(
+        weekdays = updatedWeekdays,
+        errors = errors - CarePlanField.WEEKDAYS,
     )
 }
 
-internal fun ScheduleFormUiState.removeTime(minuteOfDay: Int): ScheduleFormUiState =
-    copy(minutesOfDay = minutesOfDay - minuteOfDay)
+internal fun ScheduleFormUiState.withTimeDraft(value: String): ScheduleFormUiState = copy(
+    timeDraft = value,
+    errors = errors - CarePlanField.TIMES,
+)
 
-internal fun ScheduleFormUiState.withStartDate(value: String): ScheduleFormUiState =
-    copy(startDateText = value)
+internal fun ScheduleFormUiState.addDraftTime(): ScheduleFormUiState = when (
+    val result = CarePlanValidation.validateScheduleTime(
+        rawValue = timeDraft,
+        existingMinutesOfDay = minutesOfDay,
+    )
+) {
+    is ValidationResult.Valid -> copy(
+        minutesOfDay = (minutesOfDay + result.value).sorted(),
+        timeDraft = "",
+        errors = errors - CarePlanField.TIMES,
+    )
 
-internal fun ScheduleFormUiState.withEndDate(value: String): ScheduleFormUiState =
-    copy(endDateText = value)
+    is ValidationResult.Invalid -> copy(
+        errors = errors + result.errors.toFieldErrors(),
+    )
+}
+
+internal fun ScheduleFormUiState.removeTime(minuteOfDay: Int): ScheduleFormUiState = copy(
+    minutesOfDay = minutesOfDay - minuteOfDay,
+    errors = errors - CarePlanField.TIMES,
+)
+
+internal fun ScheduleFormUiState.withStartDate(value: String): ScheduleFormUiState = copy(
+    startDateText = value,
+    errors = errors - CarePlanField.START_DATE,
+)
+
+internal fun ScheduleFormUiState.withEndDate(value: String): ScheduleFormUiState = copy(
+    endDateText = value,
+    errors = errors - CarePlanField.END_DATE,
+)
 
 internal fun ScheduleFormUiState.parseDates(): ParsedScheduleDates {
-    val startDate = parseOptionalDate(startDateText)
-    val endDate = parseOptionalDate(endDateText)
-    val errors = buildMap {
-        if (startDateText.isNotBlank() && startDate == null) {
-            put(CarePlanField.START_DATE, INVALID_START_DATE_MESSAGE)
-        }
-        if (endDateText.isNotBlank() && endDate == null) {
-            put(CarePlanField.END_DATE, INVALID_END_DATE_MESSAGE)
-        }
-    }
-    return ParsedScheduleDates(startDate, endDate, errors)
+    val result = CarePlanValidation.parseScheduleDates(
+        rawStartDate = startDateText,
+        rawEndDate = endDateText,
+    )
+    val value = result.valueOrNull()
+
+    return ParsedScheduleDates(
+        startDate = value?.startDate,
+        endDate = value?.endDate,
+        errors = result.errorsOrEmpty().toFieldErrors(),
+    )
 }
+
+internal fun ScheduleFormUiState.withValidationErrors(
+    validationErrors: Map<CarePlanField, String>,
+): ScheduleFormUiState = copy(
+    errors = validationErrors.filterKeys { it in SCHEDULE_FIELDS },
+)
+
+internal fun ScheduleFormUiState.withDateErrors(
+    dateErrors: Map<CarePlanField, String>,
+): ScheduleFormUiState = copy(errors = errors + dateErrors)
+
+internal fun ScheduleFormUiState.clearErrors(): ScheduleFormUiState = copy(errors = emptyMap())
 
 internal fun LocalTime.toMinuteOfDay(): Int = hour * MINUTES_PER_HOUR + minute
-
-internal fun parseHourMinute(value: String): Int? {
-    val match = HOUR_MINUTE_REGEX.matchEntire(value.trim()) ?: return null
-    return match.groupValues[1].toInt() * MINUTES_PER_HOUR + match.groupValues[2].toInt()
-}
-
-internal fun parseOptionalDate(value: String): LocalDate? {
-    val normalized = value.trim()
-    if (normalized.isEmpty()) {
-        return null
-    }
-    return runCatching { LocalDate.parse(normalized) }.getOrNull()
-}
 
 internal fun Int.toHourMinuteText(): String {
     require(this in 0 until MINUTES_PER_DAY)
@@ -101,11 +112,13 @@ internal fun Int.toHourMinuteText(): String {
     )
 }
 
-private val HOUR_MINUTE_REGEX = Regex("""^([01]\d|2[0-3]):([0-5]\d)$""")
+private val SCHEDULE_FIELDS = setOf(
+    CarePlanField.WEEKDAYS,
+    CarePlanField.TIMES,
+    CarePlanField.START_DATE,
+    CarePlanField.END_DATE,
+    CarePlanField.ZONE_ID,
+)
+
 private const val MINUTES_PER_HOUR = 60
 private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
-private const val INVALID_TIME_MESSAGE =
-    "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد."
-private const val DUPLICATE_TIME_MESSAGE = "این زمان قبلاً اضافه شده است."
-private const val INVALID_START_DATE_MESSAGE = "تاریخ شروع باید به شکل YYYY-MM-DD باشد."
-private const val INVALID_END_DATE_MESSAGE = "تاریخ پایان باید به شکل YYYY-MM-DD باشد."

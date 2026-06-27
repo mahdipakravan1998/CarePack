@@ -30,7 +30,6 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
-import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.UpdateScheduleCommand
 import ir.carepack.domain.careplan.UpdateScheduleOutcome
@@ -46,91 +45,42 @@ import kotlinx.coroutines.launch
 data class ScheduleEditUiState(
     val isLoading: Boolean = true,
     val originalZoneId: String? = null,
-    val schedule:
-    ScheduleFormUiState? = null,
-    val errors:
-    Map<CarePlanField, String> =
-        emptyMap(),
+    val schedule: ScheduleFormUiState? = null,
     val isSaving: Boolean = false,
     val generalError: String? = null,
 )
 
 sealed interface ScheduleEditEvent {
-
-    data object Completed :
-        ScheduleEditEvent
+    data object Completed : ScheduleEditEvent
 }
 
 class ScheduleEditViewModel(
     private val medicationId: String,
-    private val carePlanService:
-    CarePlanService,
-    private val zoneProvider:
-    ZoneProvider,
+    private val carePlanService: CarePlanService,
+    private val zoneProvider: ZoneProvider,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
-            ScheduleEditUiState(),
-        )
+    private val mutableState = MutableStateFlow(ScheduleEditUiState())
+    val state = mutableState.asStateFlow()
 
-    val state =
-        mutableState.asStateFlow()
-
-    private val eventChannel =
-        Channel<ScheduleEditEvent>(
-            capacity = Channel.BUFFERED,
-        )
-
-    val events =
-        eventChannel.receiveAsFlow()
+    private val eventChannel = Channel<ScheduleEditEvent>(Channel.BUFFERED)
+    val events = eventChannel.receiveAsFlow()
 
     init {
         load()
     }
 
-    fun onWeekdayToggled(day: DayOfWeek) = updateSchedule(
-        fieldToClear = CarePlanField.WEEKDAYS,
-    ) { schedule ->
-        schedule.toggleWeekday(day)
-    }
+    fun onWeekdayToggled(day: DayOfWeek) = updateSchedule { it.toggleWeekday(day) }
 
-    fun onTimeDraftChanged(value: String) = updateSchedule(
-        fieldToClear = CarePlanField.TIMES,
-    ) { schedule ->
-        schedule.withTimeDraft(value)
-    }
+    fun onTimeDraftChanged(value: String) = updateSchedule { it.withTimeDraft(value) }
 
-    fun addTime() {
-        val schedule = mutableState.value.schedule ?: return
-        when (val result = schedule.addDraftTime()) {
-            is AddScheduleTimeResult.Invalid -> setError(
-                field = CarePlanField.TIMES,
-                message = result.message,
-            )
-            is AddScheduleTimeResult.Updated -> updateSchedule(
-                fieldToClear = CarePlanField.TIMES,
-            ) { result.state }
-        }
-    }
+    fun addTime() = updateSchedule(clearGeneralError = false) { it.addDraftTime() }
 
-    fun removeTime(minuteOfDay: Int) = updateSchedule(
-        fieldToClear = CarePlanField.TIMES,
-    ) { schedule ->
-        schedule.removeTime(minuteOfDay)
-    }
+    fun removeTime(minuteOfDay: Int) = updateSchedule { it.removeTime(minuteOfDay) }
 
-    fun onStartDateChanged(value: String) = updateSchedule(
-        fieldToClear = CarePlanField.START_DATE,
-    ) { schedule ->
-        schedule.withStartDate(value)
-    }
+    fun onStartDateChanged(value: String) = updateSchedule { it.withStartDate(value) }
 
-    fun onEndDateChanged(value: String) = updateSchedule(
-        fieldToClear = CarePlanField.END_DATE,
-    ) { schedule ->
-        schedule.withEndDate(value)
-    }
+    fun onEndDateChanged(value: String) = updateSchedule { it.withEndDate(value) }
 
     fun save() {
         val schedule = mutableState.value.schedule ?: return
@@ -141,7 +91,9 @@ class ScheduleEditViewModel(
         val parsedDates = schedule.parseDates()
         if (parsedDates.errors.isNotEmpty()) {
             mutableState.update { current ->
-                current.copy(errors = current.errors + parsedDates.errors)
+                current.copy(
+                    schedule = current.schedule?.withDateErrors(parsedDates.errors),
+                )
             }
             return
         }
@@ -150,7 +102,7 @@ class ScheduleEditViewModel(
             mutableState.update { current ->
                 current.copy(
                     isSaving = true,
-                    errors = emptyMap(),
+                    schedule = current.schedule?.clearErrors(),
                     generalError = null,
                 )
             }
@@ -176,14 +128,21 @@ class ScheduleEditViewModel(
                     UpdateScheduleOutcome.NotEditable -> {
                         showGeneralError("این برنامه قابل ویرایش نیست.")
                     }
-                    is UpdateScheduleOutcome.Invalid -> mutableState.update { current ->
-                        current.copy(errors = outcome.errors.toFieldErrors())
+
+                    is UpdateScheduleOutcome.Invalid -> {
+                        val fieldErrors = outcome.errors.toFieldErrors()
+                        mutableState.update { current ->
+                            current.copy(
+                                schedule = current.schedule
+                                    ?.withValidationErrors(fieldErrors),
+                            )
+                        }
                     }
                 }
             } catch (_: Exception) {
                 showGeneralError("ذخیره‌سازی انجام نشد. دوباره تلاش کنید.")
             } finally {
-                mutableState.update { current -> current.copy(isSaving = false) }
+                mutableState.update { it.copy(isSaving = false) }
             }
         }
     }
@@ -198,8 +157,8 @@ class ScheduleEditViewModel(
                     snapshot.status != MedicationStatus.ACTIVE ||
                     existingSchedule == null
                 ) {
-                    mutableState.update { current ->
-                        current.copy(
+                    mutableState.update {
+                        it.copy(
                             isLoading = false,
                             generalError = "برنامه قابل ویرایش پیدا نشد.",
                         )
@@ -207,13 +166,15 @@ class ScheduleEditViewModel(
                     return@launch
                 }
 
-                mutableState.update { current ->
-                    current.copy(
+                mutableState.update {
+                    it.copy(
                         isLoading = false,
                         originalZoneId = existingSchedule.zoneId,
                         schedule = ScheduleFormUiState(
                             weekdays = existingSchedule.weekdays,
-                            minutesOfDay = existingSchedule.times.map { it.toMinuteOfDay() },
+                            minutesOfDay = existingSchedule.times.map { time ->
+                                time.toMinuteOfDay()
+                            },
                             timeDraft = "",
                             startDateText = existingSchedule.startDate?.toString().orEmpty(),
                             endDateText = existingSchedule.endDate?.toString().orEmpty(),
@@ -222,8 +183,8 @@ class ScheduleEditViewModel(
                     )
                 }
             } catch (_: Exception) {
-                mutableState.update { current ->
-                    current.copy(
+                mutableState.update {
+                    it.copy(
                         isLoading = false,
                         generalError = "خواندن برنامه انجام نشد.",
                     )
@@ -233,51 +194,36 @@ class ScheduleEditViewModel(
     }
 
     private fun updateSchedule(
-        fieldToClear: CarePlanField,
+        clearGeneralError: Boolean = true,
         transform: (ScheduleFormUiState) -> ScheduleFormUiState,
     ) {
         mutableState.update { current ->
             val schedule = current.schedule ?: return@update current
             current.copy(
                 schedule = transform(schedule),
-                errors = current.errors - fieldToClear,
-                generalError = null,
+                generalError = if (clearGeneralError) null else current.generalError,
             )
         }
     }
 
-    private fun setError(field: CarePlanField, message: String) {
-        mutableState.update { current ->
-            current.copy(errors = current.errors + (field to message))
-        }
-    }
-
     private fun showGeneralError(message: String) {
-        mutableState.update { current -> current.copy(generalError = message) }
+        mutableState.update { it.copy(generalError = message) }
     }
 
     companion object {
         fun factory(
             medicationId: String,
-            carePlanService:
-            CarePlanService,
-            zoneProvider:
-            ZoneProvider,
-        ): ViewModelProvider.Factory {
-            return viewModelFactory {
-                initializer {
-                    ScheduleEditViewModel(
-                        medicationId =
-                            medicationId,
-                        carePlanService =
-                            carePlanService,
-                        zoneProvider =
-                            zoneProvider,
-                    )
-                }
+            carePlanService: CarePlanService,
+            zoneProvider: ZoneProvider,
+        ): ViewModelProvider.Factory = viewModelFactory {
+            initializer {
+                ScheduleEditViewModel(
+                    medicationId = medicationId,
+                    carePlanService = carePlanService,
+                    zoneProvider = zoneProvider,
+                )
             }
         }
-
     }
 }
 
@@ -287,18 +233,12 @@ fun ScheduleEditRoute(
     onBack: () -> Unit,
     onCompleted: () -> Unit,
 ) {
-    val state by
-    viewModel
-        .state
-        .collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(viewModel) {
-        viewModel.events.collect {
-                event ->
+        viewModel.events.collect { event ->
             when (event) {
-                ScheduleEditEvent.Completed -> {
-                    onCompleted()
-                }
+                ScheduleEditEvent.Completed -> onCompleted()
             }
         }
     }
@@ -306,23 +246,13 @@ fun ScheduleEditRoute(
     ScheduleEditScreen(
         state = state,
         onBack = onBack,
-        onWeekdayToggled =
-            viewModel::onWeekdayToggled,
-        onTimeDraftChanged =
-            viewModel::
-            onTimeDraftChanged,
-        onAddTime =
-            viewModel::addTime,
-        onRemoveTime =
-            viewModel::removeTime,
-        onStartDateChanged =
-            viewModel::
-            onStartDateChanged,
-        onEndDateChanged =
-            viewModel::
-            onEndDateChanged,
-        onSave =
-            viewModel::save,
+        onWeekdayToggled = viewModel::onWeekdayToggled,
+        onTimeDraftChanged = viewModel::onTimeDraftChanged,
+        onAddTime = viewModel::addTime,
+        onRemoveTime = viewModel::removeTime,
+        onStartDateChanged = viewModel::onStartDateChanged,
+        onEndDateChanged = viewModel::onEndDateChanged,
+        onSave = viewModel::save,
     )
 }
 
@@ -330,148 +260,82 @@ fun ScheduleEditRoute(
 private fun ScheduleEditScreen(
     state: ScheduleEditUiState,
     onBack: () -> Unit,
-    onWeekdayToggled:
-        (DayOfWeek) -> Unit,
-    onTimeDraftChanged:
-        (String) -> Unit,
+    onWeekdayToggled: (DayOfWeek) -> Unit,
+    onTimeDraftChanged: (String) -> Unit,
     onAddTime: () -> Unit,
     onRemoveTime: (Int) -> Unit,
-    onStartDateChanged:
-        (String) -> Unit,
-    onEndDateChanged:
-        (String) -> Unit,
+    onStartDateChanged: (String) -> Unit,
+    onEndDateChanged: (String) -> Unit,
     onSave: () -> Unit,
 ) {
-    Scaffold(
-        modifier =
-            Modifier.fillMaxSize(),
-    ) { contentPadding ->
+    Scaffold(modifier = Modifier.fillMaxSize()) { contentPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(contentPadding)
                 .imePadding()
-                .verticalScroll(
-                    rememberScrollState(),
-                )
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            verticalArrangement =
-                Arrangement.Top,
+            verticalArrangement = Arrangement.Top,
         ) {
-            TextButton(
-                onClick = onBack,
-            ) {
-                Text(
-                    text = stringResource(
-                        R.string.back,
-                    ),
-                )
+            TextButton(onClick = onBack) {
+                Text(stringResource(R.string.back))
             }
 
             Text(
-                text = stringResource(
-                    R.string
-                        .schedule_edit_title,
-                ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
+                text = stringResource(R.string.schedule_edit_title),
+                style = MaterialTheme.typography.headlineMedium,
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(16.dp),
-            )
+            Spacer(Modifier.height(16.dp))
 
             if (state.isLoading) {
                 CircularProgressIndicator()
                 return@Column
             }
 
-            state.originalZoneId?.let {
-                    oldZone ->
+            state.originalZoneId?.let { oldZone ->
                 Text(
-                    text = stringResource(
-                        R.string
-                            .original_zone_value,
-                        oldZone,
-                    ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyMedium,
+                    text = stringResource(R.string.original_zone_value, oldZone),
+                    style = MaterialTheme.typography.bodyMedium,
                 )
-
-                Spacer(
-                    modifier =
-                        Modifier.height(16.dp),
-                )
+                Spacer(Modifier.height(16.dp))
             }
 
-            state.schedule?.let {
-                    schedule ->
+            state.schedule?.let { schedule ->
                 ScheduleFormFields(
                     state = schedule,
-                    errors = state.errors,
-                    callbacks =
-                        ScheduleFormCallbacks(
-                            onWeekdayToggled =
-                                onWeekdayToggled,
-                            onTimeDraftChanged =
-                                onTimeDraftChanged,
-                            onAddTime =
-                                onAddTime,
-                            onRemoveTime =
-                                onRemoveTime,
-                            onStartDateChanged =
-                                onStartDateChanged,
-                            onEndDateChanged =
-                                onEndDateChanged,
-                        ),
-                    enabled =
-                        !state.isSaving,
+                    callbacks = ScheduleFormCallbacks(
+                        onWeekdayToggled = onWeekdayToggled,
+                        onTimeDraftChanged = onTimeDraftChanged,
+                        onAddTime = onAddTime,
+                        onRemoveTime = onRemoveTime,
+                        onStartDateChanged = onStartDateChanged,
+                        onEndDateChanged = onEndDateChanged,
+                    ),
+                    enabled = !state.isSaving,
                 )
             }
 
-            state.generalError?.let {
-                    error ->
-                Spacer(
-                    modifier =
-                        Modifier.height(12.dp),
-                )
-
+            state.generalError?.let { error ->
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = error,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .error,
+                    color = MaterialTheme.colorScheme.error,
                 )
             }
 
-            Spacer(
-                modifier =
-                    Modifier.height(24.dp),
-            )
+            Spacer(Modifier.height(24.dp))
 
             Button(
                 onClick = onSave,
-                enabled =
-                    !state.isSaving &&
-                            state.schedule != null,
-                modifier =
-                    Modifier.fillMaxWidth(),
+                enabled = !state.isSaving && state.schedule != null,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 if (state.isSaving) {
                     CircularProgressIndicator()
                 } else {
-                    Text(
-                        text = stringResource(
-                            R.string
-                                .save_changes,
-                        ),
-                    )
+                    Text(stringResource(R.string.save_changes))
                 }
             }
         }

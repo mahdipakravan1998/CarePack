@@ -22,10 +22,17 @@ internal data class ValidatedScheduleDefinition(
     val endDate: LocalDate?,
 )
 
+internal data class ValidatedScheduleDates(
+    val startDate: LocalDate?,
+    val endDate: LocalDate?,
+)
+
 internal object CarePlanValidation {
-    private const val MINUTES_PER_DAY = 24 * 60
+    private const val MINUTES_PER_HOUR = 60
+    private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
     private const val VALID_WEEKDAY_MASK = 0b1111111
     private val minuteOfDayRange = 0 until MINUTES_PER_DAY
+    private val hourMinutePattern = Regex("""^([01]\d|2[0-3]):([0-5]\d)$""")
 
     fun validateRecipientName(rawValue: String): ValidationResult<String> =
         validateRequiredBoundedText(
@@ -74,6 +81,63 @@ internal object CarePlanValidation {
         }
     }
 
+    fun validateScheduleTime(
+        rawValue: String,
+        existingMinutesOfDay: List<Int>,
+    ): ValidationResult<Int> {
+        val minuteOfDay = parseHourMinute(rawValue)
+            ?: return invalid(
+                field = CarePlanField.TIMES,
+                message = "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
+            )
+
+        return if (hasDuplicateMinutes(existingMinutesOfDay + minuteOfDay)) {
+            invalid(
+                field = CarePlanField.TIMES,
+                message = "این زمان قبلاً اضافه شده است.",
+            )
+        } else {
+            ValidationResult.Valid(minuteOfDay)
+        }
+    }
+
+    fun parseScheduleDates(
+        rawStartDate: String,
+        rawEndDate: String,
+    ): ValidationResult<ValidatedScheduleDates> {
+        val startDate = parseOptionalDate(rawStartDate)
+        val endDate = parseOptionalDate(rawEndDate)
+        val errors = buildList {
+            if (rawStartDate.isNotBlank() && startDate == null) {
+                add(
+                    CarePlanValidationError(
+                        field = CarePlanField.START_DATE,
+                        message = "تاریخ شروع باید به شکل YYYY-MM-DD باشد.",
+                    ),
+                )
+            }
+            if (rawEndDate.isNotBlank() && endDate == null) {
+                add(
+                    CarePlanValidationError(
+                        field = CarePlanField.END_DATE,
+                        message = "تاریخ پایان باید به شکل YYYY-MM-DD باشد.",
+                    ),
+                )
+            }
+        }
+
+        return if (errors.isEmpty()) {
+            ValidationResult.Valid(
+                ValidatedScheduleDates(
+                    startDate = startDate,
+                    endDate = endDate,
+                ),
+            )
+        } else {
+            ValidationResult.Invalid(errors)
+        }
+    }
+
     fun validateSchedule(
         weekdays: Set<DayOfWeek>,
         minutesOfDay: List<Int>,
@@ -106,7 +170,7 @@ internal object CarePlanValidation {
                     ),
                 )
             }
-            if (minutesOfDay.size != minutesOfDay.distinct().size) {
+            if (hasDuplicateMinutes(minutesOfDay)) {
                 add(
                     CarePlanValidationError(
                         field = CarePlanField.TIMES,
@@ -152,6 +216,25 @@ internal object CarePlanValidation {
     fun isValidWeekdayMask(weekdayMask: Int): Boolean =
         weekdayMask != 0 && weekdayMask and VALID_WEEKDAY_MASK == weekdayMask
 
+    private fun parseHourMinute(rawValue: String): Int? {
+        val match = hourMinutePattern.matchEntire(rawValue.trim()) ?: return null
+        val minuteOfDay =
+            match.groupValues[1].toInt() * MINUTES_PER_HOUR +
+                    match.groupValues[2].toInt()
+        return minuteOfDay.takeIf { it in minuteOfDayRange }
+    }
+
+    private fun parseOptionalDate(rawValue: String): LocalDate? {
+        val normalized = rawValue.trim()
+        if (normalized.isEmpty()) {
+            return null
+        }
+        return runCatching { LocalDate.parse(normalized) }.getOrNull()
+    }
+
+    private fun hasDuplicateMinutes(minutesOfDay: List<Int>): Boolean =
+        minutesOfDay.size != minutesOfDay.distinct().size
+
     private fun validateRequiredBoundedText(
         rawValue: String,
         field: CarePlanField,
@@ -162,15 +245,18 @@ internal object CarePlanValidation {
         val normalized = rawValue.trim()
 
         return when {
-            normalized.isEmpty() -> ValidationResult.Invalid(
-                listOf(CarePlanValidationError(field, emptyMessage)),
-            )
-            normalized.characterCount() > maximumLength -> ValidationResult.Invalid(
-                listOf(CarePlanValidationError(field, tooLongMessage)),
-            )
+            normalized.isEmpty() -> invalid(field, emptyMessage)
+            normalized.characterCount() > maximumLength -> invalid(field, tooLongMessage)
             else -> ValidationResult.Valid(normalized)
         }
     }
+
+    private fun invalid(
+        field: CarePlanField,
+        message: String,
+    ): ValidationResult.Invalid = ValidationResult.Invalid(
+        listOf(CarePlanValidationError(field, message)),
+    )
 
     private fun String.characterCount(): Int = codePointCount(0, length)
 }

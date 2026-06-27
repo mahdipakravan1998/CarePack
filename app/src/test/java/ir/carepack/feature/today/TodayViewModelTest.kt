@@ -28,14 +28,11 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModelTest {
 
-    private val dispatcher =
-        StandardTestDispatcher()
+    private val dispatcher = StandardTestDispatcher()
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(
-            dispatcher,
-        )
+        Dispatchers.setMain(dispatcher)
     }
 
     @After
@@ -46,179 +43,88 @@ class TodayViewModelTest {
     @Test
     fun crossingMidnight_rebindsTodayAndHistoryToNewDate() =
         runTest(dispatcher.scheduler) {
-            val now =
-                MutableStateFlow(
-                    BEFORE_MIDNIGHT,
-                )
-
-            val queryService =
-                RecordingTodayQueryService()
-
-            val viewModel =
-                TodayViewModel(
-                    todayQueryService =
-                        queryService,
-                    clock =
-                        Clock.fixed(
-                            BEFORE_MIDNIGHT,
-                            ZoneOffset.UTC,
-                        ),
-                    zoneProvider =
-                        ZoneProvider {
-                            ZoneOffset.UTC
-                        },
-                    now = now,
-                )
+            val now = MutableStateFlow(BEFORE_MIDNIGHT)
+            val queryService = RecordingTodayQueryService()
+            val viewModel = createViewModel(now, queryService)
 
             runCurrent()
 
-            assertEquals(
-                FIRST_DATE,
-                viewModel.state.value.localDate,
-            )
+            assertEquals(FIRST_DATE, viewModel.state.value.localDate)
+            assertEquals(listOf(FIRST_DATE), queryService.todayDates)
+            assertEquals(listOf(FIRST_DATE), queryService.historyDates)
 
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                ),
-                queryService.todayDates,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                ),
-                queryService.historyDates,
-            )
-
-            now.value =
-                AFTER_MIDNIGHT
-
+            now.value = AFTER_MIDNIGHT
             runCurrent()
 
-            assertEquals(
-                SECOND_DATE,
-                viewModel.state.value.localDate,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                    SECOND_DATE,
-                ),
-                queryService.todayDates,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                    SECOND_DATE,
-                ),
-                queryService.historyDates,
-            )
+            assertEquals(SECOND_DATE, viewModel.state.value.localDate)
+            assertEquals(listOf(FIRST_DATE, SECOND_DATE), queryService.todayDates)
+            assertEquals(listOf(FIRST_DATE, SECOND_DATE), queryService.historyDates)
         }
 
     @Test
     fun tickingWithinSameDate_doesNotRestartDateQueries() =
         runTest(dispatcher.scheduler) {
-            val now =
-                MutableStateFlow(
-                    BEFORE_MIDNIGHT,
-                )
-
-            val queryService =
-                RecordingTodayQueryService()
-
-            TodayViewModel(
-                todayQueryService =
-                    queryService,
-                clock =
-                    Clock.fixed(
-                        BEFORE_MIDNIGHT,
-                        ZoneOffset.UTC,
-                    ),
-                zoneProvider =
-                    ZoneProvider {
-                        ZoneOffset.UTC
-                    },
-                now = now,
-            )
+            val now = MutableStateFlow(BEFORE_MIDNIGHT)
+            val queryService = RecordingTodayQueryService()
+            createViewModel(now, queryService)
 
             runCurrent()
-
-            now.value =
-                BEFORE_MIDNIGHT.plusMillis(
-                    500L,
-                )
-
+            now.value = BEFORE_MIDNIGHT.plusMillis(500L)
             runCurrent()
 
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                ),
-                queryService.todayDates,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                ),
-                queryService.historyDates,
-            )
+            assertEquals(listOf(FIRST_DATE), queryService.todayDates)
+            assertEquals(listOf(FIRST_DATE), queryService.historyDates)
         }
 
+    @Test
+    fun retry_restartsBothDateQueriesWithoutChangingSelectedSection() =
+        runTest(dispatcher.scheduler) {
+            val now = MutableStateFlow(BEFORE_MIDNIGHT)
+            val queryService = RecordingTodayQueryService()
+            val viewModel = createViewModel(now, queryService)
+
+            runCurrent()
+            viewModel.showHistory()
+            viewModel.retry()
+            runCurrent()
+
+            assertEquals(TodaySection.HISTORY, viewModel.state.value.selectedSection)
+            assertEquals(listOf(FIRST_DATE, FIRST_DATE), queryService.todayDates)
+            assertEquals(listOf(FIRST_DATE, FIRST_DATE), queryService.historyDates)
+        }
+
+    private fun createViewModel(
+        now: Flow<Instant>,
+        queryService: RecordingTodayQueryService,
+    ): TodayViewModel = TodayViewModel(
+        todayQueryService = queryService,
+        clock = Clock.fixed(BEFORE_MIDNIGHT, ZoneOffset.UTC),
+        zoneProvider = ZoneProvider { ZoneOffset.UTC },
+        now = now,
+    )
+
     private companion object {
-
-        val BEFORE_MIDNIGHT: Instant =
-            Instant.parse(
-                "2026-06-24T23:59:59Z",
-            )
-
-        val AFTER_MIDNIGHT: Instant =
-            Instant.parse(
-                "2026-06-25T00:00:00Z",
-            )
-
-        val FIRST_DATE: LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                24,
-            )
-
-        val SECOND_DATE: LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                25,
-            )
+        val BEFORE_MIDNIGHT: Instant = Instant.parse("2026-06-24T23:59:59Z")
+        val AFTER_MIDNIGHT: Instant = Instant.parse("2026-06-25T00:00:00Z")
+        val FIRST_DATE: LocalDate = LocalDate.of(2026, 6, 24)
+        val SECOND_DATE: LocalDate = LocalDate.of(2026, 6, 25)
     }
 }
 
-private class RecordingTodayQueryService :
-    TodayQueryService {
-
-    val todayDates =
-        mutableListOf<LocalDate>()
-
-    val historyDates =
-        mutableListOf<LocalDate>()
+private class RecordingTodayQueryService : TodayQueryService {
+    val todayDates = mutableListOf<LocalDate>()
+    val historyDates = mutableListOf<LocalDate>()
 
     override fun observeToday(
         localDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<TodayModel> {
-        todayDates +=
-            localDate
-
+        todayDates += localDate
         return flowOf(
             TodayModel(
                 localDate = localDate,
                 items = emptyList(),
-                emptyState =
-                    TodayEmptyState
-                        .NO_MEDICATIONS,
+                emptyState = TodayEmptyState.NO_MEDICATIONS,
             ),
         )
     }
@@ -226,21 +132,13 @@ private class RecordingTodayQueryService :
     override fun observeOccurrence(
         occurrenceId: String,
         now: Flow<Instant>,
-    ): Flow<OccurrenceDetail?> {
-        return flowOf(
-            null,
-        )
-    }
+    ): Flow<OccurrenceDetail?> = flowOf(null)
 
     override fun observeRecentHistory(
         anchorDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<List<HistoryDay>> {
-        historyDates +=
-            anchorDate
-
-        return flowOf(
-            emptyList(),
-        )
+        historyDates += anchorDate
+        return flowOf(emptyList())
     }
 }
