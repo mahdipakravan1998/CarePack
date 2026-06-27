@@ -17,22 +17,9 @@ import androidx.room.RoomDatabase
     exportSchema = true,
 )
 abstract class CarePackDatabase : RoomDatabase() {
-
-    abstract fun careRecipientDao():
-            CareRecipientDao
-
-    abstract fun medicationDao():
-            MedicationDao
-
-    abstract fun scheduleDao():
-            ScheduleDao
-
-    abstract fun occurrenceDao():
-            OccurrenceDao
-
-    abstract fun caregiverReportDao():
-            CaregiverReportDao
-
-    abstract fun reportingDao():
-            ReportingDao
+    abstract fun careRecipientDao(): CareRecipientDao
+    abstract fun medicationDao(): MedicationDao
+    abstract fun scheduleDao(): ScheduleDao
+    abstract fun occurrenceDao(): OccurrenceDao
+    abstract fun reportingDao(): ReportingDao
 }

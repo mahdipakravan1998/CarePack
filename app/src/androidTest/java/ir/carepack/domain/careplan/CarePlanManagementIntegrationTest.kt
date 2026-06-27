@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.core.id.IdSource
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceCancellationReason
@@ -12,13 +11,11 @@ import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
-import java.time.Clock
+import ir.carepack.testing.IncrementingIdSource
+import ir.carepack.testing.MutableTestClock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -28,7 +25,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -359,8 +355,9 @@ class CarePlanManagementIntegrationTest {
                     clock = clock,
                 )
 
-            reportService.recordGiven(
-                earlier.id,
+            reportService.setReport(
+                occurrenceId = earlier.id,
+                newState = CaregiverReportState.GIVEN,
             )
 
             val outcome =
@@ -416,8 +413,8 @@ class CarePlanManagementIntegrationTest {
                     .GIVEN
                     .name,
                 database
-                    .caregiverReportDao()
-                    .getByOccurrenceId(
+                    .reportingDao()
+                    .getReport(
                         earlier.id,
                     )
                     ?.state,
@@ -689,8 +686,8 @@ class CarePlanManagementIntegrationTest {
                                 .CANCELLED
                                 .name ||
                             database
-                                .caregiverReportDao()
-                                .getByOccurrenceId(
+                                .reportingDao()
+                                .getReport(
                                     occurrence.id,
                                 ) != null
                 },
@@ -803,39 +800,3 @@ private data class CreatedPlan(
     val medicationId: String,
     val scheduleVersionId: String,
 )
-
-private class IncrementingIdSource :
-    IdSource {
-
-    private val counter =
-        AtomicInteger(0)
-
-    override fun nextId(): String {
-        return "test-id-${counter.incrementAndGet()}"
-    }
-}
-
-private class MutableTestClock(
-    initialInstant: Instant,
-) : Clock() {
-
-    var currentInstant:
-            Instant =
-        initialInstant
-
-    override fun getZone():
-            ZoneId {
-        return ZoneOffset.UTC
-    }
-
-    override fun withZone(
-        zone: ZoneId,
-    ): Clock {
-        return this
-    }
-
-    override fun instant():
-            Instant {
-        return currentInstant
-    }
-}

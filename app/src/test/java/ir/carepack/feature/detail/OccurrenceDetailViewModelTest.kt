@@ -5,10 +5,8 @@ import ir.carepack.domain.model.HistoryDay
 import ir.carepack.domain.model.OccurrenceDetail
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.model.TemporalPhase
-import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
 import ir.carepack.domain.report.CaregiverReportService
-import ir.carepack.domain.report.RecordGivenOutcome
 import ir.carepack.domain.report.ReportChange
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
@@ -360,13 +358,6 @@ private class FakeCaregiverReportService :
         )
     }
 
-    override suspend fun recordGiven(
-        occurrenceId: String,
-    ): RecordGivenOutcome {
-        return super.recordGiven(
-            occurrenceId,
-        )
-    }
 }
 
 private class FakeTodayQueryService :
@@ -411,12 +402,6 @@ private class FakeTodayQueryService :
 
     override fun observeToday(
         localDate: LocalDate,
-    ): Flow<List<TodayItem>> {
-        return flowOf(emptyList())
-    }
-
-    override fun observeToday(
-        localDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<TodayModel> {
         return flowOf(
@@ -426,12 +411,6 @@ private class FakeTodayQueryService :
                 emptyState = null,
             ),
         )
-    }
-
-    override fun observeOccurrence(
-        occurrenceId: String,
-    ): Flow<OccurrenceDetail?> {
-        return occurrenceFlow
     }
 
     override fun observeOccurrence(

@@ -4,7 +4,6 @@ import ir.carepack.core.time.ZoneProvider
 import ir.carepack.domain.model.HistoryDay
 import ir.carepack.domain.model.OccurrenceDetail
 import ir.carepack.domain.model.TodayEmptyState
-import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
 import ir.carepack.domain.today.TodayQueryService
 import java.time.Clock
@@ -208,14 +207,6 @@ private class RecordingTodayQueryService :
 
     override fun observeToday(
         localDate: LocalDate,
-    ): Flow<List<TodayItem>> {
-        return flowOf(
-            emptyList(),
-        )
-    }
-
-    override fun observeToday(
-        localDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<TodayModel> {
         todayDates +=
@@ -229,14 +220,6 @@ private class RecordingTodayQueryService :
                     TodayEmptyState
                         .NO_MEDICATIONS,
             ),
-        )
-    }
-
-    override fun observeOccurrence(
-        occurrenceId: String,
-    ): Flow<OccurrenceDetail?> {
-        return flowOf(
-            null,
         )
     }
 

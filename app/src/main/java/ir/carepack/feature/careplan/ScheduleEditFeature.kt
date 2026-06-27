@@ -89,199 +89,66 @@ class ScheduleEditViewModel(
         load()
     }
 
-    fun onWeekdayToggled(
-        day: DayOfWeek,
-    ) {
-        updateSchedule { schedule ->
-            val weekdays =
-                schedule
-                    .weekdays
-                    .toMutableSet()
-
-            if (!weekdays.add(day)) {
-                weekdays.remove(day)
-            }
-
-            schedule.copy(
-                weekdays = weekdays,
-            )
-        }
-
-        clearError(
-            CarePlanField.WEEKDAYS,
-        )
+    fun onWeekdayToggled(day: DayOfWeek) = updateSchedule(
+        fieldToClear = CarePlanField.WEEKDAYS,
+    ) { schedule ->
+        schedule.toggleWeekday(day)
     }
 
-    fun onTimeDraftChanged(
-        value: String,
-    ) {
-        updateSchedule {
-            it.copy(
-                timeDraft = value,
-            )
-        }
-
-        clearError(
-            CarePlanField.TIMES,
-        )
+    fun onTimeDraftChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.TIMES,
+    ) { schedule ->
+        schedule.withTimeDraft(value)
     }
 
     fun addTime() {
-        val schedule =
-            mutableState
-                .value
-                .schedule
-                ?: return
-
-        val minuteOfDay =
-            parseHourMinute(
-                schedule.timeDraft,
+        val schedule = mutableState.value.schedule ?: return
+        when (val result = schedule.addDraftTime()) {
+            is AddScheduleTimeResult.Invalid -> setError(
+                field = CarePlanField.TIMES,
+                message = result.message,
             )
-
-        if (minuteOfDay == null) {
-            setError(
-                CarePlanField.TIMES,
-                "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
-            )
-            return
+            is AddScheduleTimeResult.Updated -> updateSchedule(
+                fieldToClear = CarePlanField.TIMES,
+            ) { result.state }
         }
-
-        if (
-            minuteOfDay in
-            schedule.minutesOfDay
-        ) {
-            setError(
-                CarePlanField.TIMES,
-                "این زمان قبلاً اضافه شده است.",
-            )
-            return
-        }
-
-        updateSchedule {
-            it.copy(
-                minutesOfDay =
-                    (
-                            it.minutesOfDay +
-                                    minuteOfDay
-                            ).sorted(),
-                timeDraft = "",
-            )
-        }
-
-        clearError(
-            CarePlanField.TIMES,
-        )
     }
 
-    fun removeTime(
-        minuteOfDay: Int,
-    ) {
-        updateSchedule {
-            it.copy(
-                minutesOfDay =
-                    it.minutesOfDay -
-                            minuteOfDay,
-            )
-        }
-
-        clearError(
-            CarePlanField.TIMES,
-        )
+    fun removeTime(minuteOfDay: Int) = updateSchedule(
+        fieldToClear = CarePlanField.TIMES,
+    ) { schedule ->
+        schedule.removeTime(minuteOfDay)
     }
 
-    fun onStartDateChanged(
-        value: String,
-    ) {
-        updateSchedule {
-            it.copy(
-                startDateText = value,
-            )
-        }
-
-        clearError(
-            CarePlanField.START_DATE,
-        )
+    fun onStartDateChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.START_DATE,
+    ) { schedule ->
+        schedule.withStartDate(value)
     }
 
-    fun onEndDateChanged(
-        value: String,
-    ) {
-        updateSchedule {
-            it.copy(
-                endDateText = value,
-            )
-        }
-
-        clearError(
-            CarePlanField.END_DATE,
-        )
+    fun onEndDateChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.END_DATE,
+    ) { schedule ->
+        schedule.withEndDate(value)
     }
 
     fun save() {
-        val schedule =
-            mutableState
-                .value
-                .schedule
-                ?: return
-
+        val schedule = mutableState.value.schedule ?: return
         if (mutableState.value.isSaving) {
             return
         }
 
-        val startDate =
-            parseOptionalDate(
-                schedule.startDateText,
-            )
-
-        val endDate =
-            parseOptionalDate(
-                schedule.endDateText,
-            )
-
-        val localErrors =
-            mutableMapOf<
-                    CarePlanField,
-                    String,
-                    >()
-
-        if (
-            schedule
-                .startDateText
-                .isNotBlank() &&
-            startDate == null
-        ) {
-            localErrors[
-                CarePlanField.START_DATE
-            ] =
-                "تاریخ شروع باید به شکل YYYY-MM-DD باشد."
-        }
-
-        if (
-            schedule
-                .endDateText
-                .isNotBlank() &&
-            endDate == null
-        ) {
-            localErrors[
-                CarePlanField.END_DATE
-            ] =
-                "تاریخ پایان باید به شکل YYYY-MM-DD باشد."
-        }
-
-        if (localErrors.isNotEmpty()) {
-            mutableState.update {
-                it.copy(
-                    errors =
-                        it.errors +
-                                localErrors,
-                )
+        val parsedDates = schedule.parseDates()
+        if (parsedDates.errors.isNotEmpty()) {
+            mutableState.update { current ->
+                current.copy(errors = current.errors + parsedDates.errors)
             }
             return
         }
 
         viewModelScope.launch {
-            mutableState.update {
-                it.copy(
+            mutableState.update { current ->
+                current.copy(
                     isSaving = true,
                     errors = emptyMap(),
                     generalError = null,
@@ -290,77 +157,33 @@ class ScheduleEditViewModel(
 
             try {
                 when (
-                    val outcome =
-                        carePlanService
-                            .updateSchedule(
-                                UpdateScheduleCommand(
-                                    medicationId =
-                                        medicationId,
-                                    weekdays =
-                                        schedule.weekdays,
-                                    minutesOfDay =
-                                        schedule
-                                            .minutesOfDay,
-                                    startDate =
-                                        startDate,
-                                    endDate =
-                                        endDate,
-                                    zoneId =
-                                        schedule.zoneId,
-                                ),
-                            )
+                    val outcome = carePlanService.updateSchedule(
+                        UpdateScheduleCommand(
+                            medicationId = medicationId,
+                            weekdays = schedule.weekdays,
+                            minutesOfDay = schedule.minutesOfDay,
+                            startDate = parsedDates.startDate,
+                            endDate = parsedDates.endDate,
+                            zoneId = schedule.zoneId,
+                        ),
+                    )
                 ) {
-                    UpdateScheduleOutcome
-                        .Updated,
-                    UpdateScheduleOutcome
-                        .Unchanged,
-                        -> {
-                        eventChannel.send(
-                            ScheduleEditEvent
-                                .Completed,
-                        )
-                    }
+                    UpdateScheduleOutcome.Updated,
+                    UpdateScheduleOutcome.Unchanged,
+                        -> eventChannel.send(ScheduleEditEvent.Completed)
 
-                    UpdateScheduleOutcome
-                        .NotFound -> {
-                        showGeneralError(
-                            "دارو پیدا نشد.",
-                        )
+                    UpdateScheduleOutcome.NotFound -> showGeneralError("دارو پیدا نشد.")
+                    UpdateScheduleOutcome.NotEditable -> {
+                        showGeneralError("این برنامه قابل ویرایش نیست.")
                     }
-
-                    UpdateScheduleOutcome
-                        .NotEditable -> {
-                        showGeneralError(
-                            "این برنامه قابل ویرایش نیست.",
-                        )
-                    }
-
-                    is UpdateScheduleOutcome
-                    .Invalid -> {
-                        mutableState.update {
-                            it.copy(
-                                errors =
-                                    outcome
-                                        .errors
-                                        .associate {
-                                                error ->
-                                            error.field to
-                                                    error.message
-                                        },
-                            )
-                        }
+                    is UpdateScheduleOutcome.Invalid -> mutableState.update { current ->
+                        current.copy(errors = outcome.errors.toFieldErrors())
                     }
                 }
             } catch (_: Exception) {
-                showGeneralError(
-                    "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
-                )
+                showGeneralError("ذخیره‌سازی انجام نشد. دوباره تلاش کنید.")
             } finally {
-                mutableState.update {
-                    it.copy(
-                        isSaving = false,
-                    )
-                }
+                mutableState.update { current -> current.copy(isSaving = false) }
             }
         }
     }
@@ -368,75 +191,41 @@ class ScheduleEditViewModel(
     private fun load() {
         viewModelScope.launch {
             try {
-                val snapshot =
-                    carePlanService
-                        .getMedicationEditor(
-                            medicationId,
-                        )
-
-                val existingSchedule =
-                    snapshot?.schedule
-
+                val snapshot = carePlanService.getMedicationEditor(medicationId)
+                val existingSchedule = snapshot?.schedule
                 if (
                     snapshot == null ||
-                    snapshot.status !=
-                    MedicationStatus.ACTIVE ||
+                    snapshot.status != MedicationStatus.ACTIVE ||
                     existingSchedule == null
                 ) {
-                    mutableState.update {
-                        it.copy(
+                    mutableState.update { current ->
+                        current.copy(
                             isLoading = false,
-                            generalError =
-                                "برنامه قابل ویرایش پیدا نشد.",
+                            generalError = "برنامه قابل ویرایش پیدا نشد.",
                         )
                     }
                     return@launch
                 }
 
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
-                        originalZoneId =
-                            existingSchedule
-                                .zoneId,
-                        schedule =
-                            ScheduleFormUiState(
-                                weekdays =
-                                    existingSchedule
-                                        .weekdays,
-                                minutesOfDay =
-                                    existingSchedule
-                                        .times
-                                        .map {
-                                                time ->
-                                            time.hour *
-                                                    MINUTES_PER_HOUR +
-                                                    time.minute
-                                        },
-                                timeDraft = "",
-                                startDateText =
-                                    existingSchedule
-                                        .startDate
-                                        ?.toString()
-                                        .orEmpty(),
-                                endDateText =
-                                    existingSchedule
-                                        .endDate
-                                        ?.toString()
-                                        .orEmpty(),
-                                zoneId =
-                                    zoneProvider
-                                        .currentZone()
-                                        .id,
-                            ),
+                        originalZoneId = existingSchedule.zoneId,
+                        schedule = ScheduleFormUiState(
+                            weekdays = existingSchedule.weekdays,
+                            minutesOfDay = existingSchedule.times.map { it.toMinuteOfDay() },
+                            timeDraft = "",
+                            startDateText = existingSchedule.startDate?.toString().orEmpty(),
+                            endDateText = existingSchedule.endDate?.toString().orEmpty(),
+                            zoneId = zoneProvider.currentZone().id,
+                        ),
                     )
                 }
             } catch (_: Exception) {
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
-                        generalError =
-                            "خواندن برنامه انجام نشد.",
+                        generalError = "خواندن برنامه انجام نشد.",
                     )
                 }
             }
@@ -444,57 +233,27 @@ class ScheduleEditViewModel(
     }
 
     private fun updateSchedule(
-        transform:
-            (ScheduleFormUiState) ->
-        ScheduleFormUiState,
+        fieldToClear: CarePlanField,
+        transform: (ScheduleFormUiState) -> ScheduleFormUiState,
     ) {
-        mutableState.update {
-                current ->
-            val schedule =
-                current.schedule
-                    ?: return@update current
-
+        mutableState.update { current ->
+            val schedule = current.schedule ?: return@update current
             current.copy(
-                schedule =
-                    transform(schedule),
+                schedule = transform(schedule),
+                errors = current.errors - fieldToClear,
                 generalError = null,
             )
         }
     }
 
-    private fun setError(
-        field: CarePlanField,
-        message: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                errors =
-                    it.errors +
-                            (field to message),
-            )
+    private fun setError(field: CarePlanField, message: String) {
+        mutableState.update { current ->
+            current.copy(errors = current.errors + (field to message))
         }
     }
 
-    private fun clearError(
-        field: CarePlanField,
-    ) {
-        mutableState.update {
-            it.copy(
-                errors =
-                    it.errors - field,
-                generalError = null,
-            )
-        }
-    }
-
-    private fun showGeneralError(
-        message: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                generalError = message,
-            )
-        }
+    private fun showGeneralError(message: String) {
+        mutableState.update { current -> current.copy(generalError = message) }
     }
 
     companion object {
@@ -519,9 +278,6 @@ class ScheduleEditViewModel(
             }
         }
 
-        private const val
-                MINUTES_PER_HOUR =
-            60
     }
 }
 

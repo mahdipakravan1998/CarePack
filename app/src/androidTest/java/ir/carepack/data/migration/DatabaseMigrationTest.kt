@@ -7,10 +7,8 @@ import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.DatabaseMigrations
-import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -109,187 +107,13 @@ class DatabaseMigrationTest {
         )
     }
 
-    /**
-     * Creates a real version-1 SQLite database from Room's exported 1.json
-     * without using MigrationTestHelper.
-     *
-     * This avoids MigrationTestHelper's internal kotlinx.serialization path,
-     * while still testing the real exported version-1 schema and the real
-     * MIGRATION_1_2 implementation.
-     */
     private fun createVersionOneDatabase() {
-        val databaseFile =
-            targetContext.getDatabasePath(TEST_DATABASE_NAME)
-
-        databaseFile.parentFile?.mkdirs()
-
-        val schemaJson = readVersionOneSchema()
-        val schemaRoot = JSONObject(schemaJson)
-        val databaseSchema =
-            schemaRoot.getJSONObject(DATABASE_JSON_KEY)
-
-        assertEquals(
-            1,
-            databaseSchema.getInt(VERSION_JSON_KEY),
+        VersionOneDatabaseFixture(
+            context = targetContext,
+            databaseName = TEST_DATABASE_NAME,
+        ).create(
+            insertData = ::insertSyntheticCareRecipient,
         )
-
-        SQLiteDatabase.openOrCreateDatabase(
-            databaseFile,
-            null,
-        ).use { sqliteDatabase ->
-            sqliteDatabase.beginTransaction()
-
-            try {
-                createEntities(
-                    sqliteDatabase = sqliteDatabase,
-                    databaseSchema = databaseSchema,
-                )
-
-                createViews(
-                    sqliteDatabase = sqliteDatabase,
-                    databaseSchema = databaseSchema,
-                )
-
-                executeSetupQueries(
-                    sqliteDatabase = sqliteDatabase,
-                    databaseSchema = databaseSchema,
-                )
-
-                insertSyntheticCareRecipient(sqliteDatabase)
-
-                sqliteDatabase.version = 1
-                sqliteDatabase.setTransactionSuccessful()
-            } finally {
-                sqliteDatabase.endTransaction()
-            }
-        }
-    }
-
-    private fun readVersionOneSchema(): String {
-        val instrumentation =
-            InstrumentationRegistry.getInstrumentation()
-
-        return runCatching {
-            instrumentation.context.assets
-                .open(VERSION_ONE_SCHEMA_ASSET)
-                .bufferedReader()
-                .use { reader ->
-                    reader.readText()
-                }
-        }.getOrElse {
-            targetContext.assets
-                .open(VERSION_ONE_SCHEMA_ASSET)
-                .bufferedReader()
-                .use { reader ->
-                    reader.readText()
-                }
-        }
-    }
-
-    private fun createEntities(
-        sqliteDatabase: SQLiteDatabase,
-        databaseSchema: JSONObject,
-    ) {
-        val entities =
-            databaseSchema.getJSONArray(ENTITIES_JSON_KEY)
-
-        for (entityIndex in 0 until entities.length()) {
-            val entity = entities.getJSONObject(entityIndex)
-            val tableName =
-                entity.getString(TABLE_NAME_JSON_KEY)
-
-            executeSchemaSql(
-                sqliteDatabase = sqliteDatabase,
-                sql = entity.getString(CREATE_SQL_JSON_KEY),
-                tableName = tableName,
-            )
-
-            val indices =
-                entity.optJSONArray(INDICES_JSON_KEY)
-
-            if (indices != null) {
-                for (indexPosition in 0 until indices.length()) {
-                    val index =
-                        indices.getJSONObject(indexPosition)
-
-                    executeSchemaSql(
-                        sqliteDatabase = sqliteDatabase,
-                        sql = index.getString(CREATE_SQL_JSON_KEY),
-                        tableName = tableName,
-                    )
-                }
-            }
-
-            val contentSyncTriggers =
-                entity.optJSONArray(
-                    CONTENT_SYNC_TRIGGERS_JSON_KEY,
-                )
-
-            if (contentSyncTriggers != null) {
-                for (
-                triggerPosition in
-                0 until contentSyncTriggers.length()
-                ) {
-                    executeSchemaSql(
-                        sqliteDatabase = sqliteDatabase,
-                        sql = contentSyncTriggers.getString(
-                            triggerPosition,
-                        ),
-                        tableName = tableName,
-                    )
-                }
-            }
-        }
-    }
-
-    private fun createViews(
-        sqliteDatabase: SQLiteDatabase,
-        databaseSchema: JSONObject,
-    ) {
-        val views =
-            databaseSchema.optJSONArray(VIEWS_JSON_KEY)
-                ?: return
-
-        for (viewIndex in 0 until views.length()) {
-            val view = views.getJSONObject(viewIndex)
-
-            sqliteDatabase.execSQL(
-                view.getString(CREATE_SQL_JSON_KEY),
-            )
-        }
-    }
-
-    private fun executeSetupQueries(
-        sqliteDatabase: SQLiteDatabase,
-        databaseSchema: JSONObject,
-    ) {
-        val setupQueries =
-            databaseSchema.optJSONArray(
-                SETUP_QUERIES_JSON_KEY,
-            ) ?: return
-
-        for (
-        queryIndex in
-        0 until setupQueries.length()
-        ) {
-            sqliteDatabase.execSQL(
-                setupQueries.getString(queryIndex),
-            )
-        }
-    }
-
-    private fun executeSchemaSql(
-        sqliteDatabase: SQLiteDatabase,
-        sql: String,
-        tableName: String,
-    ) {
-        val resolvedSql =
-            sql.replace(
-                oldValue = TABLE_NAME_PLACEHOLDER,
-                newValue = tableName,
-            )
-
-        sqliteDatabase.execSQL(resolvedSql)
     }
 
     private fun insertSyntheticCareRecipient(
@@ -524,9 +348,6 @@ class DatabaseMigrationTest {
         const val TEST_DATABASE_NAME =
             "carepack-migration-1-to-2-test.db"
 
-        const val VERSION_ONE_SCHEMA_ASSET =
-            "ir.carepack.data.local.CarePackDatabase/1.json"
-
         const val CARE_RECIPIENTS_TABLE =
             "care_recipients"
 
@@ -547,36 +368,6 @@ class DatabaseMigrationTest {
 
         const val CANCELLATION_REASON_COLUMN =
             "cancellationReason"
-
-        const val DATABASE_JSON_KEY =
-            "database"
-
-        const val VERSION_JSON_KEY =
-            "version"
-
-        const val ENTITIES_JSON_KEY =
-            "entities"
-
-        const val VIEWS_JSON_KEY =
-            "views"
-
-        const val TABLE_NAME_JSON_KEY =
-            "tableName"
-
-        const val CREATE_SQL_JSON_KEY =
-            "createSql"
-
-        const val INDICES_JSON_KEY =
-            "indices"
-
-        const val CONTENT_SYNC_TRIGGERS_JSON_KEY =
-            "contentSyncTriggers"
-
-        const val SETUP_QUERIES_JSON_KEY =
-            "setupQueries"
-
-        const val TABLE_NAME_PLACEHOLDER =
-            "\${TABLE_NAME}"
 
         const val SYNTHETIC_PRIMARY_KEY =
             9_001L

@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -85,47 +84,35 @@ class MedicationTextEditViewModel(
         load()
     }
 
-    fun onMedicationNameChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
+    fun onMedicationNameChanged(value: String) {
+        mutableState.update { current ->
+            current.copy(
                 medicationName = value,
-                errors =
-                    it.errors -
-                            CarePlanField
-                                .MEDICATION_NAME,
+                errors = current.errors - CarePlanField.MEDICATION_NAME,
                 generalError = null,
             )
         }
     }
 
-    fun onInstructionChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
+    fun onInstructionChanged(value: String) {
+        mutableState.update { current ->
+            current.copy(
                 instruction = value,
-                errors =
-                    it.errors -
-                            CarePlanField
-                                .INSTRUCTION,
+                errors = current.errors - CarePlanField.INSTRUCTION,
                 generalError = null,
             )
         }
     }
 
     fun save() {
-        if (
-            mutableState.value.isSaving ||
-            mutableState.value.isLoading
-        ) {
+        val current = mutableState.value
+        if (current.isSaving || current.isLoading) {
             return
         }
 
         viewModelScope.launch {
-            mutableState.update {
-                it.copy(
+            mutableState.update { state ->
+                state.copy(
                     isSaving = true,
                     errors = emptyMap(),
                     generalError = null,
@@ -133,76 +120,32 @@ class MedicationTextEditViewModel(
             }
 
             try {
-                val current =
-                    mutableState.value
-
+                val state = mutableState.value
                 when (
-                    val outcome =
-                        carePlanService
-                            .updateMedicationText(
-                                UpdateMedicationTextCommand(
-                                    medicationId =
-                                        medicationId,
-                                    medicationName =
-                                        current
-                                            .medicationName,
-                                    instruction =
-                                        current
-                                            .instruction,
-                                ),
-                            )
+                    val outcome = carePlanService.updateMedicationText(
+                        UpdateMedicationTextCommand(
+                            medicationId = medicationId,
+                            medicationName = state.medicationName,
+                            instruction = state.instruction,
+                        ),
+                    )
                 ) {
-                    UpdateMedicationTextOutcome
-                        .Updated,
-                    UpdateMedicationTextOutcome
-                        .Unchanged,
-                        -> {
-                        eventChannel.send(
-                            MedicationTextEditEvent
-                                .Completed,
-                        )
-                    }
+                    UpdateMedicationTextOutcome.Updated,
+                    UpdateMedicationTextOutcome.Unchanged,
+                        -> eventChannel.send(MedicationTextEditEvent.Completed)
 
-                    UpdateMedicationTextOutcome
-                        .NotFound -> {
-                        showGeneralError(
-                            "دارو پیدا نشد.",
-                        )
+                    UpdateMedicationTextOutcome.NotFound -> showGeneralError("دارو پیدا نشد.")
+                    UpdateMedicationTextOutcome.NotEditable -> {
+                        showGeneralError("این دارو قابل ویرایش نیست.")
                     }
-
-                    UpdateMedicationTextOutcome
-                        .NotEditable -> {
-                        showGeneralError(
-                            "این دارو قابل ویرایش نیست.",
-                        )
-                    }
-
-                    is UpdateMedicationTextOutcome
-                    .Invalid -> {
-                        mutableState.update {
-                            it.copy(
-                                errors =
-                                    outcome
-                                        .errors
-                                        .associate {
-                                                error ->
-                                            error.field to
-                                                    error.message
-                                        },
-                            )
-                        }
+                    is UpdateMedicationTextOutcome.Invalid -> mutableState.update { value ->
+                        value.copy(errors = outcome.errors.toFieldErrors())
                     }
                 }
             } catch (_: Exception) {
-                showGeneralError(
-                    "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
-                )
+                showGeneralError("ذخیره‌سازی انجام نشد. دوباره تلاش کنید.")
             } finally {
-                mutableState.update {
-                    it.copy(
-                        isSaving = false,
-                    )
-                }
+                mutableState.update { state -> state.copy(isSaving = false) }
             }
         }
     }
@@ -210,56 +153,37 @@ class MedicationTextEditViewModel(
     private fun load() {
         viewModelScope.launch {
             try {
-                val snapshot =
-                    carePlanService
-                        .getMedicationEditor(
-                            medicationId,
-                        )
-
-                if (
-                    snapshot == null ||
-                    snapshot.status !=
-                    MedicationStatus.ACTIVE
-                ) {
-                    mutableState.update {
-                        it.copy(
+                val snapshot = carePlanService.getMedicationEditor(medicationId)
+                if (snapshot == null || snapshot.status != MedicationStatus.ACTIVE) {
+                    mutableState.update { current ->
+                        current.copy(
                             isLoading = false,
-                            generalError =
-                                "داروی قابل ویرایش پیدا نشد.",
+                            generalError = "داروی قابل ویرایش پیدا نشد.",
                         )
                     }
                     return@launch
                 }
 
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
-                        medicationName =
-                            snapshot.name,
-                        instruction =
-                            snapshot.instruction,
+                        medicationName = snapshot.name,
+                        instruction = snapshot.instruction,
                     )
                 }
             } catch (_: Exception) {
-                mutableState.update {
-                    it.copy(
+                mutableState.update { current ->
+                    current.copy(
                         isLoading = false,
-                        generalError =
-                            "خواندن اطلاعات دارو انجام نشد.",
+                        generalError = "خواندن اطلاعات دارو انجام نشد.",
                     )
                 }
             }
         }
     }
 
-    private fun showGeneralError(
-        message: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                generalError = message,
-            )
-        }
+    private fun showGeneralError(message: String) {
+        mutableState.update { current -> current.copy(generalError = message) }
     }
 
     companion object {
@@ -378,75 +302,14 @@ private fun MedicationTextEditScreen(
                 return@Column
             }
 
-            OutlinedTextField(
-                value =
-                    state.medicationName,
-                onValueChange =
-                    onMedicationNameChanged,
-                enabled =
-                    !state.isSaving,
-                label = {
-                    Text(
-                        text = stringResource(
-                            R.string
-                                .medication_name_label,
-                        ),
-                    )
-                },
-                singleLine = true,
-                isError =
-                    state.errors.containsKey(
-                        CarePlanField
-                            .MEDICATION_NAME,
-                    ),
-                supportingText = {
-                    state.errors[
-                        CarePlanField
-                            .MEDICATION_NAME
-                    ]?.let {
-                        Text(it)
-                    }
-                },
-                modifier =
-                    Modifier.fillMaxWidth(),
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp),
-            )
-
-            OutlinedTextField(
-                value =
-                    state.instruction,
-                onValueChange =
-                    onInstructionChanged,
-                enabled =
-                    !state.isSaving,
-                label = {
-                    Text(
-                        text = stringResource(
-                            R.string
-                                .instruction_label,
-                        ),
-                    )
-                },
-                minLines = 4,
-                isError =
-                    state.errors.containsKey(
-                        CarePlanField
-                            .INSTRUCTION,
-                    ),
-                supportingText = {
-                    state.errors[
-                        CarePlanField
-                            .INSTRUCTION
-                    ]?.let {
-                        Text(it)
-                    }
-                },
-                modifier =
-                    Modifier.fillMaxWidth(),
+            MedicationTextFields(
+                medicationName = state.medicationName,
+                instruction = state.instruction,
+                errors = state.errors,
+                enabled = !state.isSaving,
+                onMedicationNameChanged = onMedicationNameChanged,
+                onInstructionChanged = onInstructionChanged,
+                instructionMinLines = 4,
             )
 
             state.generalError?.let {

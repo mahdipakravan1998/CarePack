@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.core.id.IdSource
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.CareRecipientEntity
 import ir.carepack.data.local.MedicationEntity
@@ -17,20 +16,21 @@ import ir.carepack.domain.careplan.RoomCarePlanService
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
-import ir.carepack.domain.report.RecordGivenOutcome
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.today.RoomTodayQueryService
+import ir.carepack.testing.SequenceIdSource
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
-import java.util.ArrayDeque
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -619,9 +619,11 @@ class PersistentTracerBulletTest {
             val beforeReport =
                 todayQuery
                     .observeToday(
-                        anchorDate,
+                        localDate = anchorDate,
+                        now = flowOf(fixedClock.instant()),
                     )
                     .first()
+                    .items
 
             assertEquals(
                 1,
@@ -656,38 +658,42 @@ class PersistentTracerBulletTest {
                 )
 
             val firstReport =
-                reportService.recordGiven(
-                    "occurrence-1",
+                reportService.setReport(
+                    occurrenceId = "occurrence-1",
+                    newState = CaregiverReportState.GIVEN,
                 )
 
             val secondReport =
-                reportService.recordGiven(
-                    "occurrence-1",
+                reportService.setReport(
+                    occurrenceId = "occurrence-1",
+                    newState = CaregiverReportState.GIVEN,
                 )
 
             assertTrue(
                 firstReport is
-                        RecordGivenOutcome.Recorded,
+                        SetReportOutcome.Changed,
             )
 
             assertTrue(
                 secondReport is
-                        RecordGivenOutcome.Unchanged,
+                        SetReportOutcome.Unchanged,
             )
 
             assertEquals(
                 1,
                 database
-                    .caregiverReportDao()
-                    .count(),
+                    .reportingDao()
+                    .countReports(),
             )
 
             val afterReport =
                 todayQuery
                     .observeToday(
-                        anchorDate,
+                        localDate = anchorDate,
+                        now = flowOf(fixedClock.instant()),
                     )
                     .first()
+                    .items
 
             assertEquals(
                 CaregiverReportState.GIVEN,
@@ -724,9 +730,11 @@ class PersistentTracerBulletTest {
                     database,
                 )
                     .observeToday(
-                        anchorDate,
+                        localDate = anchorDate,
+                        now = flowOf(fixedClock.instant()),
                     )
                     .first()
+                    .items
 
             assertEquals(
                 1,
@@ -771,8 +779,8 @@ class PersistentTracerBulletTest {
             assertEquals(
                 1,
                 database
-                    .caregiverReportDao()
-                    .count(),
+                    .reportingDao()
+                    .countReports(),
             )
         }
 
@@ -873,10 +881,10 @@ class PersistentTracerBulletTest {
                         async(
                             Dispatchers.Default,
                         ) {
-                            reportService
-                                .recordGiven(
-                                    occurrenceId,
-                                )
+                            reportService.setReport(
+                                occurrenceId = occurrenceId,
+                                newState = CaregiverReportState.GIVEN,
+                            )
                         }
                     }.awaitAll()
                 }
@@ -885,8 +893,8 @@ class PersistentTracerBulletTest {
                 1,
                 outcomes.count {
                     it is
-                            RecordGivenOutcome
-                            .Recorded
+                            SetReportOutcome
+                            .Changed
                 },
             )
 
@@ -895,7 +903,7 @@ class PersistentTracerBulletTest {
                         1,
                 outcomes.count {
                     it is
-                            RecordGivenOutcome
+                            SetReportOutcome
                             .Unchanged
                 },
             )
@@ -903,10 +911,10 @@ class PersistentTracerBulletTest {
             assertTrue(
                 outcomes.all { outcome ->
                     outcome is
-                            RecordGivenOutcome
-                            .Recorded ||
+                            SetReportOutcome
+                            .Changed ||
                             outcome is
-                                    RecordGivenOutcome
+                                    SetReportOutcome
                                     .Unchanged
                 },
             )
@@ -914,14 +922,14 @@ class PersistentTracerBulletTest {
             assertEquals(
                 1,
                 database
-                    .caregiverReportDao()
-                    .count(),
+                    .reportingDao()
+                    .countReports(),
             )
 
             val persistedReport =
                 database
-                    .caregiverReportDao()
-                    .getByOccurrenceId(
+                    .reportingDao()
+                    .getReport(
                         occurrenceId,
                     )
 
@@ -947,25 +955,5 @@ class PersistentTracerBulletTest {
     private companion object {
         const val CONCURRENT_REQUEST_COUNT =
             8
-    }
-}
-
-private class SequenceIdSource(
-    vararg ids: String,
-) : IdSource {
-
-    private val remainingIds =
-        ArrayDeque(
-            ids.toList(),
-        )
-
-    override fun nextId(): String {
-        check(
-            remainingIds.isNotEmpty(),
-        ) {
-            "No test ID remains."
-        }
-
-        return remainingIds.removeFirst()
     }
 }

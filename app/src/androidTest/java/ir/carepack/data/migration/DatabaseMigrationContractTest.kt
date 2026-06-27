@@ -7,10 +7,8 @@ import androidx.room.Room
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.platform.app.InstrumentationRegistry
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.DatabaseMigrations
-import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -362,165 +360,11 @@ class DatabaseMigrationContractTest {
     }
 
     private fun createVersionOneDatabase() {
-        val databaseFile =
-            context.getDatabasePath(
-                DATABASE_NAME,
-            )
-
-        databaseFile.parentFile?.mkdirs()
-
-        val schema =
-            JSONObject(
-                readVersionOneSchema(),
-            ).getJSONObject(
-                DATABASE_KEY,
-            )
-
-        SQLiteDatabase.openOrCreateDatabase(
-            databaseFile,
-            null,
-        ).use { sqlite ->
-            sqlite.beginTransaction()
-
-            try {
-                createSchema(
-                    sqlite = sqlite,
-                    schema = schema,
-                )
-
-                insertVersionOneGraph(
-                    sqlite,
-                )
-
-                sqlite.version = 1
-                sqlite.setTransactionSuccessful()
-            } finally {
-                sqlite.endTransaction()
-            }
-        }
-    }
-
-    private fun readVersionOneSchema():
-            String {
-        val instrumentation =
-            InstrumentationRegistry
-                .getInstrumentation()
-
-        return runCatching {
-            instrumentation
-                .context
-                .assets
-                .open(
-                    VERSION_ONE_SCHEMA_ASSET,
-                )
-                .bufferedReader()
-                .use {
-                    it.readText()
-                }
-        }.getOrElse {
-            context
-                .assets
-                .open(
-                    VERSION_ONE_SCHEMA_ASSET,
-                )
-                .bufferedReader()
-                .use {
-                    it.readText()
-                }
-        }
-    }
-
-    private fun createSchema(
-        sqlite: SQLiteDatabase,
-        schema: JSONObject,
-    ) {
-        val entities =
-            schema.getJSONArray(
-                ENTITIES_KEY,
-            )
-
-        for (
-        entityIndex in
-        0 until entities.length()
-        ) {
-            val entity =
-                entities.getJSONObject(
-                    entityIndex,
-                )
-
-            val tableName =
-                entity.getString(
-                    TABLE_NAME_KEY,
-                )
-
-            executeSchemaSql(
-                sqlite = sqlite,
-                sql =
-                    entity.getString(
-                        CREATE_SQL_KEY,
-                    ),
-                tableName =
-                    tableName,
-            )
-
-            val indices =
-                entity.optJSONArray(
-                    INDICES_KEY,
-                )
-
-            if (indices != null) {
-                for (
-                indexPosition in
-                0 until indices.length()
-                ) {
-                    executeSchemaSql(
-                        sqlite = sqlite,
-                        sql =
-                            indices
-                                .getJSONObject(
-                                    indexPosition,
-                                )
-                                .getString(
-                                    CREATE_SQL_KEY,
-                                ),
-                        tableName =
-                            tableName,
-                    )
-                }
-            }
-        }
-
-        val setupQueries =
-            schema.optJSONArray(
-                SETUP_QUERIES_KEY,
-            )
-
-        if (setupQueries != null) {
-            for (
-            queryIndex in
-            0 until setupQueries.length()
-            ) {
-                sqlite.execSQL(
-                    setupQueries.getString(
-                        queryIndex,
-                    ),
-                )
-            }
-        }
-    }
-
-    private fun executeSchemaSql(
-        sqlite: SQLiteDatabase,
-        sql: String,
-        tableName: String,
-    ) {
-        sqlite.execSQL(
-            sql.replace(
-                oldValue =
-                    TABLE_NAME_PLACEHOLDER,
-                newValue =
-                    tableName,
-            ),
+        VersionOneDatabaseFixture(
+            context = context,
+            databaseName = DATABASE_NAME,
+        ).create(
+            insertData = ::insertVersionOneGraph,
         )
     }
 
@@ -820,30 +664,6 @@ class DatabaseMigrationContractTest {
     private companion object {
         const val DATABASE_NAME =
             "carepack-migration-contract.db"
-
-        const val VERSION_ONE_SCHEMA_ASSET =
-            "ir.carepack.data.local.CarePackDatabase/1.json"
-
-        const val DATABASE_KEY =
-            "database"
-
-        const val ENTITIES_KEY =
-            "entities"
-
-        const val TABLE_NAME_KEY =
-            "tableName"
-
-        const val CREATE_SQL_KEY =
-            "createSql"
-
-        const val INDICES_KEY =
-            "indices"
-
-        const val SETUP_QUERIES_KEY =
-            "setupQueries"
-
-        const val TABLE_NAME_PLACEHOLDER =
-            "\${TABLE_NAME}"
 
         const val RECIPIENT_ID =
             "recipient-v1"

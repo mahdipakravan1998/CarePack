@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.core.id.IdSource
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceCancellationReason
@@ -12,13 +11,11 @@ import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
-import java.time.Clock
+import ir.carepack.testing.IncrementingIdSource
+import ir.carepack.testing.MutableTestClock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -35,10 +32,10 @@ class CarePlanManagementContractTest {
             CarePackDatabase
 
     private lateinit var clock:
-            ContractClock
+            MutableTestClock
 
     private lateinit var idSource:
-            ContractIdSource
+            IncrementingIdSource
 
     private lateinit var generator:
             RoomOccurrenceGenerator
@@ -61,7 +58,7 @@ class CarePlanManagementContractTest {
                 .build()
 
         clock =
-            ContractClock(
+            MutableTestClock(
                 initialInstant =
                     Instant.parse(
                         "2026-06-24T06:00:00Z",
@@ -69,7 +66,9 @@ class CarePlanManagementContractTest {
             )
 
         idSource =
-            ContractIdSource()
+            IncrementingIdSource(
+                prefix = "contract-id",
+            )
 
         generator =
             RoomOccurrenceGenerator(
@@ -276,8 +275,9 @@ class CarePlanManagementContractTest {
                     clock = clock,
                 )
 
-            reportService.recordGiven(
-                reportedFuture.id,
+            reportService.setReport(
+                occurrenceId = reportedFuture.id,
+                newState = CaregiverReportState.GIVEN,
             )
 
             clock.currentInstant =
@@ -364,8 +364,8 @@ class CarePlanManagementContractTest {
                     .GIVEN
                     .name,
                 database
-                    .caregiverReportDao()
-                    .getByOccurrenceId(
+                    .reportingDao()
+                    .getReport(
                         reportedFuture.id,
                     )
                     ?.state,
@@ -473,8 +473,9 @@ class CarePlanManagementContractTest {
             RoomCaregiverReportService(
                 database = database,
                 clock = clock,
-            ).recordGiven(
-                reportedOccurrence.id,
+            ).setReport(
+                occurrenceId = reportedOccurrence.id,
+                newState = CaregiverReportState.GIVEN,
             )
 
             clock.currentInstant =
@@ -530,8 +531,8 @@ class CarePlanManagementContractTest {
                     .GIVEN
                     .name,
                 database
-                    .caregiverReportDao()
-                    .getByOccurrenceId(
+                    .reportingDao()
+                    .getReport(
                         reportedOccurrence.id,
                     )
                     ?.state,
@@ -598,8 +599,9 @@ class CarePlanManagementContractTest {
             RoomCaregiverReportService(
                 database = database,
                 clock = clock,
-            ).recordGiven(
-                reportedFuture.id,
+            ).setReport(
+                occurrenceId = reportedFuture.id,
+                newState = CaregiverReportState.GIVEN,
             )
 
             clock.currentInstant =
@@ -663,8 +665,8 @@ class CarePlanManagementContractTest {
                     .GIVEN
                     .name,
                 database
-                    .caregiverReportDao()
-                    .getByOccurrenceId(
+                    .reportingDao()
+                    .getReport(
                         reportedFuture.id,
                     )
                     ?.state,
@@ -750,38 +752,3 @@ private data class ContractPlan(
     val scheduleSeriesId: String,
     val scheduleVersionId: String,
 )
-
-private class ContractIdSource :
-    IdSource {
-
-    private val counter =
-        AtomicInteger(0)
-
-    override fun nextId(): String {
-        return "contract-id-${counter.incrementAndGet()}"
-    }
-}
-
-private class ContractClock(
-    initialInstant: Instant,
-) : Clock() {
-
-    var currentInstant:
-            Instant = initialInstant
-
-    override fun getZone():
-            ZoneId {
-        return ZoneOffset.UTC
-    }
-
-    override fun withZone(
-        zone: ZoneId,
-    ): Clock {
-        return this
-    }
-
-    override fun instant():
-            Instant {
-        return currentInstant
-    }
-}

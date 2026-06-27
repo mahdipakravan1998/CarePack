@@ -13,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -36,15 +35,23 @@ import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
+import ir.carepack.feature.careplan.AddScheduleTimeResult
+import ir.carepack.feature.careplan.MedicationTextFields
 import ir.carepack.feature.careplan.ScheduleFormCallbacks
 import ir.carepack.feature.careplan.ScheduleFormFields
 import ir.carepack.feature.careplan.ScheduleFormUiState
-import ir.carepack.feature.careplan.parseHourMinute
-import ir.carepack.feature.careplan.parseOptionalDate
+import ir.carepack.feature.careplan.addDraftTime
+import ir.carepack.feature.careplan.parseDates
+import ir.carepack.feature.careplan.removeTime
+import ir.carepack.feature.careplan.toFieldErrors
+import ir.carepack.feature.careplan.toMinuteOfDay
+import ir.carepack.feature.careplan.toggleWeekday
+import ir.carepack.feature.careplan.withEndDate
+import ir.carepack.feature.careplan.withStartDate
+import ir.carepack.feature.careplan.withTimeDraft
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDateTime
-import java.time.LocalTime
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -133,259 +140,89 @@ class MedicationScheduleViewModel(
     val events =
         eventChannel.receiveAsFlow()
 
-    fun onMedicationNameChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                medicationName = value,
-                errors =
-                    it.errors -
-                            CarePlanField
-                                .MEDICATION_NAME,
-                generalError = null,
-            )
-        }
-    }
-
-    fun onInstructionChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                instruction = value,
-                errors =
-                    it.errors -
-                            CarePlanField
-                                .INSTRUCTION,
-                generalError = null,
-            )
-        }
-    }
-
-    fun onWeekdayToggled(
-        day: DayOfWeek,
-    ) {
+    fun onMedicationNameChanged(value: String) {
         mutableState.update { current ->
-            val weekdays =
-                current
-                    .schedule
-                    .weekdays
-                    .toMutableSet()
-
-            if (!weekdays.add(day)) {
-                weekdays.remove(day)
-            }
-
             current.copy(
-                schedule =
-                    current
-                        .schedule
-                        .copy(
-                            weekdays =
-                                weekdays,
-                        ),
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .WEEKDAYS,
+                medicationName = value,
+                errors = current.errors - CarePlanField.MEDICATION_NAME,
                 generalError = null,
             )
         }
     }
 
-    fun onTimeDraftChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                schedule =
-                    it.schedule.copy(
-                        timeDraft = value,
-                    ),
-                errors =
-                    it.errors -
-                            CarePlanField.TIMES,
+    fun onInstructionChanged(value: String) {
+        mutableState.update { current ->
+            current.copy(
+                instruction = value,
+                errors = current.errors - CarePlanField.INSTRUCTION,
                 generalError = null,
             )
         }
+    }
+
+    fun onWeekdayToggled(day: DayOfWeek) = updateSchedule(
+        fieldToClear = CarePlanField.WEEKDAYS,
+    ) { schedule ->
+        schedule.toggleWeekday(day)
+    }
+
+    fun onTimeDraftChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.TIMES,
+    ) { schedule ->
+        schedule.withTimeDraft(value)
     }
 
     fun addTime() {
-        val minuteOfDay =
-            parseHourMinute(
-                mutableState
-                    .value
-                    .schedule
-                    .timeDraft,
-            )
-
-        if (minuteOfDay == null) {
-            setFieldError(
+        when (val result = mutableState.value.schedule.addDraftTime()) {
+            is AddScheduleTimeResult.Invalid -> setFieldError(
                 field = CarePlanField.TIMES,
-                message =
-                    "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
+                message = result.message,
             )
-            return
-        }
-
-        if (
-            minuteOfDay in
-            mutableState
-                .value
-                .schedule
-                .minutesOfDay
-        ) {
-            setFieldError(
-                field = CarePlanField.TIMES,
-                message =
-                    "این زمان قبلاً اضافه شده است.",
-            )
-            return
-        }
-
-        mutableState.update {
-            it.copy(
-                schedule =
-                    it.schedule.copy(
-                        minutesOfDay =
-                            (
-                                    it.schedule
-                                        .minutesOfDay +
-                                            minuteOfDay
-                                    ).sorted(),
-                        timeDraft = "",
-                    ),
-                errors =
-                    it.errors -
-                            CarePlanField.TIMES,
-            )
+            is AddScheduleTimeResult.Updated -> mutableState.update { current ->
+                current.copy(
+                    schedule = result.state,
+                    errors = current.errors - CarePlanField.TIMES,
+                )
+            }
         }
     }
 
-    fun removeTime(
-        minuteOfDay: Int,
-    ) {
-        mutableState.update {
-            it.copy(
-                schedule =
-                    it.schedule.copy(
-                        minutesOfDay =
-                            it.schedule
-                                .minutesOfDay -
-                                    minuteOfDay,
-                    ),
-                errors =
-                    it.errors -
-                            CarePlanField.TIMES,
-            )
-        }
+    fun removeTime(minuteOfDay: Int) = updateSchedule(
+        fieldToClear = CarePlanField.TIMES,
+        clearGeneralError = false,
+    ) { schedule ->
+        schedule.removeTime(minuteOfDay)
     }
 
-    fun onStartDateChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                schedule =
-                    it.schedule.copy(
-                        startDateText =
-                            value,
-                    ),
-                errors =
-                    it.errors -
-                            CarePlanField.START_DATE,
-                generalError = null,
-            )
-        }
+    fun onStartDateChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.START_DATE,
+    ) { schedule ->
+        schedule.withStartDate(value)
     }
 
-    fun onEndDateChanged(
-        value: String,
-    ) {
-        mutableState.update {
-            it.copy(
-                schedule =
-                    it.schedule.copy(
-                        endDateText =
-                            value,
-                    ),
-                errors =
-                    it.errors -
-                            CarePlanField.END_DATE,
-                generalError = null,
-            )
-        }
+    fun onEndDateChanged(value: String) = updateSchedule(
+        fieldToClear = CarePlanField.END_DATE,
+    ) { schedule ->
+        schedule.withEndDate(value)
     }
 
     fun save() {
-        if (mutableState.value.isSaving) {
+        val current = mutableState.value
+        if (current.isSaving) {
             return
         }
 
-        val current =
-            mutableState.value
-
-        val startDate =
-            parseOptionalDate(
-                current
-                    .schedule
-                    .startDateText,
-            )
-
-        val endDate =
-            parseOptionalDate(
-                current
-                    .schedule
-                    .endDateText,
-            )
-
-        val localErrors =
-            mutableMapOf<
-                    CarePlanField,
-                    String,
-                    >()
-
-        if (
-            current
-                .schedule
-                .startDateText
-                .isNotBlank() &&
-            startDate == null
-        ) {
-            localErrors[
-                CarePlanField.START_DATE
-            ] =
-                "تاریخ شروع باید به شکل YYYY-MM-DD باشد."
-        }
-
-        if (
-            current
-                .schedule
-                .endDateText
-                .isNotBlank() &&
-            endDate == null
-        ) {
-            localErrors[
-                CarePlanField.END_DATE
-            ] =
-                "تاریخ پایان باید به شکل YYYY-MM-DD باشد."
-        }
-
-        if (localErrors.isNotEmpty()) {
-            mutableState.update {
-                it.copy(
-                    errors =
-                        it.errors +
-                                localErrors,
-                )
+        val parsedDates = current.schedule.parseDates()
+        if (parsedDates.errors.isNotEmpty()) {
+            mutableState.update { state ->
+                state.copy(errors = state.errors + parsedDates.errors)
             }
             return
         }
 
         viewModelScope.launch {
-            mutableState.update {
-                it.copy(
+            mutableState.update { state ->
+                state.copy(
                     isSaving = true,
                     errors = emptyMap(),
                     generalError = null,
@@ -393,109 +230,61 @@ class MedicationScheduleViewModel(
             }
 
             try {
-                val state =
-                    mutableState.value
-
+                val state = mutableState.value
                 when (
-                    val outcome =
-                        carePlanService
-                            .createMedicationAndSchedule(
-                                CreateMedicationScheduleCommand(
-                                    recipientId =
-                                        recipientId,
-                                    medicationName =
-                                        state
-                                            .medicationName,
-                                    instruction =
-                                        state
-                                            .instruction,
-                                    weekdays =
-                                        state
-                                            .schedule
-                                            .weekdays,
-                                    minutesOfDay =
-                                        state
-                                            .schedule
-                                            .minutesOfDay,
-                                    startDate =
-                                        startDate,
-                                    endDate =
-                                        endDate,
-                                    zoneId =
-                                        state
-                                            .schedule
-                                            .zoneId,
-                                ),
-                            )
+                    val outcome = carePlanService.createMedicationAndSchedule(
+                        CreateMedicationScheduleCommand(
+                            recipientId = recipientId,
+                            medicationName = state.medicationName,
+                            instruction = state.instruction,
+                            weekdays = state.schedule.weekdays,
+                            minutesOfDay = state.schedule.minutesOfDay,
+                            startDate = parsedDates.startDate,
+                            endDate = parsedDates.endDate,
+                            zoneId = state.schedule.zoneId,
+                        ),
+                    )
                 ) {
-                    is CreateMedicationScheduleOutcome
-                    .Created -> {
-                        if (
-                            completeInitialSetup
-                        ) {
-                            setupPreferenceStore
-                                .markSetupComplete()
+                    is CreateMedicationScheduleOutcome.Created -> {
+                        if (completeInitialSetup) {
+                            setupPreferenceStore.markSetupComplete()
                         }
-
-                        eventChannel.send(
-                            MedicationScheduleEvent
-                                .Completed,
-                        )
+                        eventChannel.send(MedicationScheduleEvent.Completed)
                     }
-
-                    is CreateMedicationScheduleOutcome
-                    .Invalid -> {
-                        mutableState.update {
-                            it.copy(
-                                errors =
-                                    outcome
-                                        .errors
-                                        .associate {
-                                                error ->
-                                            error.field to
-                                                    error.message
-                                        },
-                            )
-                        }
+                    is CreateMedicationScheduleOutcome.Invalid -> mutableState.update { state ->
+                        state.copy(errors = outcome.errors.toFieldErrors())
                     }
-
-                    CreateMedicationScheduleOutcome
-                        .RecipientNotFound -> {
-                        mutableState.update {
-                            it.copy(
-                                generalError =
-                                    "فرد تحت مراقبت پیدا نشد.",
-                            )
-                        }
+                    CreateMedicationScheduleOutcome.RecipientNotFound -> mutableState.update { state ->
+                        state.copy(generalError = "فرد تحت مراقبت پیدا نشد.")
                     }
                 }
             } catch (_: Exception) {
-                mutableState.update {
-                    it.copy(
-                        generalError =
-                            "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
-                    )
+                mutableState.update { state ->
+                    state.copy(generalError = "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.")
                 }
             } finally {
-                mutableState.update {
-                    it.copy(
-                        isSaving = false,
-                    )
-                }
+                mutableState.update { state -> state.copy(isSaving = false) }
             }
         }
     }
 
-    private fun setFieldError(
-        field: CarePlanField,
-        message: String,
+    private fun updateSchedule(
+        fieldToClear: CarePlanField,
+        clearGeneralError: Boolean = true,
+        transform: (ScheduleFormUiState) -> ScheduleFormUiState,
     ) {
-        mutableState.update {
-            it.copy(
-                errors =
-                    it.errors +
-                            (field to message),
+        mutableState.update { current ->
+            current.copy(
+                schedule = transform(current.schedule),
+                errors = current.errors - fieldToClear,
+                generalError = if (clearGeneralError) null else current.generalError,
             )
+        }
+    }
+
+    private fun setFieldError(field: CarePlanField, message: String) {
+        mutableState.update { current ->
+            current.copy(errors = current.errors + (field to message))
         }
     }
 
@@ -639,86 +428,20 @@ fun MedicationScheduleScreen(
                     Modifier.height(24.dp),
             )
 
-            OutlinedTextField(
-                value =
-                    state.medicationName,
-                onValueChange =
-                    onMedicationNameChanged,
-                enabled =
-                    !state.isSaving,
-                label = {
-                    Text(
-                        text = stringResource(
-                            R.string
-                                .medication_name_label,
-                        ),
-                    )
-                },
-                singleLine = true,
-                isError =
-                    state.errors.containsKey(
-                        CarePlanField
-                            .MEDICATION_NAME,
-                    ),
-                supportingText = {
-                    state.errors[
-                        CarePlanField
-                            .MEDICATION_NAME
-                    ]?.let {
-                        Text(it)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(
-                        "medication_name",
-                    ),
+            MedicationTextFields(
+                medicationName = state.medicationName,
+                instruction = state.instruction,
+                errors = state.errors,
+                enabled = !state.isSaving,
+                onMedicationNameChanged = onMedicationNameChanged,
+                onInstructionChanged = onInstructionChanged,
+                instructionMinLines = 3,
+                medicationNameTestTag = "medication_name",
+                instructionTestTag = "medication_instruction",
             )
 
             Spacer(
-                modifier =
-                    Modifier.height(12.dp),
-            )
-
-            OutlinedTextField(
-                value =
-                    state.instruction,
-                onValueChange =
-                    onInstructionChanged,
-                enabled =
-                    !state.isSaving,
-                label = {
-                    Text(
-                        text = stringResource(
-                            R.string
-                                .instruction_label,
-                        ),
-                    )
-                },
-                minLines = 3,
-                isError =
-                    state.errors.containsKey(
-                        CarePlanField
-                            .INSTRUCTION,
-                    ),
-                supportingText = {
-                    state.errors[
-                        CarePlanField
-                            .INSTRUCTION
-                    ]?.let {
-                        Text(it)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag(
-                        "medication_instruction",
-                    ),
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(20.dp),
+                modifier = Modifier.height(20.dp),
             )
 
             ScheduleFormFields(
@@ -792,12 +515,3 @@ fun MedicationScheduleScreen(
         }
     }
 }
-
-private fun LocalTime.toMinuteOfDay():
-        Int {
-    return hour * MINUTES_PER_HOUR +
-            minute
-}
-
-private const val MINUTES_PER_HOUR =
-    60

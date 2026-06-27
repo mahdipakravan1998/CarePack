@@ -15,7 +15,6 @@ data class ReportingOccurrenceRow(
     val medicationNameSnapshot: String,
     val medicationInstructionSnapshot: String,
     val lifecycle: String,
-    val cancelledAtEpochMillis: Long?,
     val cancellationReason: String?,
     val reportState: String?,
 )
@@ -49,8 +48,6 @@ interface ReportingDao {
                 AS medicationInstructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
-            occurrence.cancelledAtEpochMillis
-                AS cancelledAtEpochMillis,
             occurrence.cancellationReason
                 AS cancellationReason,
             report.state
@@ -88,8 +85,6 @@ interface ReportingDao {
                 AS medicationInstructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
-            occurrence.cancelledAtEpochMillis
-                AS cancelledAtEpochMillis,
             occurrence.cancellationReason
                 AS cancellationReason,
             report.state
@@ -129,8 +124,6 @@ interface ReportingDao {
                 AS medicationInstructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
-            occurrence.cancelledAtEpochMillis
-                AS cancelledAtEpochMillis,
             occurrence.cancellationReason
                 AS cancellationReason,
             report.state
@@ -228,6 +221,11 @@ interface ReportingDao {
         expectedCurrentState: String,
         expectedCurrentUpdatedAtEpochMillis: Long,
     ): Int
+
+    @Query(
+        "SELECT COUNT(*) FROM caregiver_reports",
+    )
+    suspend fun countReports(): Int
 
     @Query(
         """

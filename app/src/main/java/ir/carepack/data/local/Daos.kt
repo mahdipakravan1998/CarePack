@@ -121,15 +121,12 @@ interface MedicationDao {
         """
         SELECT
             medication.id AS medicationId,
-            medication.careRecipientId AS careRecipientId,
             medication.name AS medicationName,
             medication.instruction AS medicationInstruction,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
                 AS medicationStoppedAtEpochMillis,
-            medication.archivedAtEpochMillis
-                AS medicationArchivedAtEpochMillis,
             series.id AS scheduleSeriesId,
             version.id AS scheduleVersionId,
             version.versionNumber AS scheduleVersionNumber,
@@ -163,15 +160,12 @@ interface MedicationDao {
         """
         SELECT
             medication.id AS medicationId,
-            medication.careRecipientId AS careRecipientId,
             medication.name AS medicationName,
             medication.instruction AS medicationInstruction,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
                 AS medicationStoppedAtEpochMillis,
-            medication.archivedAtEpochMillis
-                AS medicationArchivedAtEpochMillis,
             series.id AS scheduleSeriesId,
             version.id AS scheduleVersionId,
             version.versionNumber AS scheduleVersionNumber,
@@ -284,17 +278,8 @@ interface ScheduleDao {
             version.versionNumber AS versionNumber,
             version.weekdayMask AS weekdayMask,
             version.zoneId AS zoneId,
-            version.effectiveFromEpochMillis
-                AS effectiveFromEpochMillis,
-            version.effectiveUntilEpochMillis
-                AS effectiveUntilEpochMillis,
             version.startDateEpochDay AS startDateEpochDay,
-            version.endDateEpochDay AS endDateEpochDay,
-            version.medicationNameSnapshot
-                AS medicationNameSnapshot,
-            version.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
-            version.createdAtEpochMillis AS createdAtEpochMillis
+            version.endDateEpochDay AS endDateEpochDay
         FROM schedule_versions AS version
         INNER JOIN schedule_series AS series
             ON series.id = version.seriesId
@@ -495,62 +480,6 @@ interface OccurrenceDao {
 
     @Query(
         """
-        SELECT
-            occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
-            occurrence.minuteOfDay AS minuteOfDay,
-            occurrence.scheduledAtEpochMillis
-                AS scheduledAtEpochMillis,
-            occurrence.medicationNameSnapshot
-                AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
-            occurrence.lifecycle AS lifecycle,
-            report.state AS reportState
-        FROM occurrences AS occurrence
-        LEFT JOIN caregiver_reports AS report
-            ON report.occurrenceId = occurrence.id
-        WHERE occurrence.localDateEpochDay
-                = :localDateEpochDay
-          AND occurrence.lifecycle != 'CANCELLED'
-        ORDER BY
-            occurrence.minuteOfDay,
-            occurrence.id
-        """,
-    )
-    fun observeForDate(
-        localDateEpochDay: Long,
-    ): Flow<List<OccurrenceReadRow>>
-
-    @Query(
-        """
-        SELECT
-            occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
-            occurrence.minuteOfDay AS minuteOfDay,
-            occurrence.scheduledAtEpochMillis
-                AS scheduledAtEpochMillis,
-            occurrence.medicationNameSnapshot
-                AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
-            occurrence.lifecycle AS lifecycle,
-            report.state AS reportState
-        FROM occurrences AS occurrence
-        LEFT JOIN caregiver_reports AS report
-            ON report.occurrenceId = occurrence.id
-        WHERE occurrence.id = :occurrenceId
-        LIMIT 1
-        """,
-    )
-    fun observeById(
-        occurrenceId: String,
-    ): Flow<OccurrenceReadRow?>
-
-    @Query(
-        """
         SELECT COUNT(*)
         FROM occurrences
         WHERE localDateEpochDay
@@ -564,34 +493,6 @@ interface OccurrenceDao {
 
     @Query(
         "SELECT COUNT(*) FROM occurrences",
-    )
-    suspend fun count(): Int
-}
-
-@Dao
-interface CaregiverReportDao {
-
-    @Insert(
-        onConflict = OnConflictStrategy.IGNORE,
-    )
-    suspend fun insertIgnoringConflict(
-        entity: CaregiverReportEntity,
-    ): Long
-
-    @Query(
-        """
-        SELECT *
-        FROM caregiver_reports
-        WHERE occurrenceId = :occurrenceId
-        LIMIT 1
-        """,
-    )
-    suspend fun getByOccurrenceId(
-        occurrenceId: String,
-    ): CaregiverReportEntity?
-
-    @Query(
-        "SELECT COUNT(*) FROM caregiver_reports",
     )
     suspend fun count(): Int
 }

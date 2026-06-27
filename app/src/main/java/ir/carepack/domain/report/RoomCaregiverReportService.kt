@@ -3,6 +3,7 @@ package ir.carepack.domain.report
 import androidx.room.withTransaction
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.CaregiverReportEntity
+import ir.carepack.data.local.ReportingDao
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
 import java.time.Clock
@@ -11,148 +12,68 @@ class RoomCaregiverReportService(
     private val database: CarePackDatabase,
     private val clock: Clock,
 ) : CaregiverReportService {
+    private val reportingDao: ReportingDao = database.reportingDao()
 
     override suspend fun setReport(
         occurrenceId: String,
         newState: CaregiverReportState,
+    ): SetReportOutcome = database.withTransaction {
+        when (reportingDao.getOccurrenceLifecycle(occurrenceId)) {
+            null -> SetReportOutcome.OccurrenceNotFound
+            OccurrenceLifecycle.ACTIVE.name -> setActiveOccurrenceReport(occurrenceId, newState)
+            else -> SetReportOutcome.CancelledOccurrenceRejected
+        }
+    }
+
+    override suspend fun restorePrevious(change: ReportChange): UndoReportOutcome =
+        database.withTransaction {
+            when (reportingDao.getOccurrenceLifecycle(change.occurrenceId)) {
+                null -> UndoReportOutcome.OccurrenceNotFound
+                OccurrenceLifecycle.ACTIVE.name -> restoreActiveOccurrenceReport(change)
+                else -> UndoReportOutcome.NoLongerCurrent
+            }
+        }
+
+    private suspend fun setActiveOccurrenceReport(
+        occurrenceId: String,
+        newState: CaregiverReportState,
     ): SetReportOutcome {
-        return database.withTransaction {
-            val reportingDao =
-                database.reportingDao()
+        val existing = reportingDao.getReport(occurrenceId)
+        val previousState = existing?.state?.let(CaregiverReportState::valueOf)
 
-            val lifecycle =
-                reportingDao.getOccurrenceLifecycle(
-                    occurrenceId = occurrenceId,
-                )
-
-            if (lifecycle == null) {
-                SetReportOutcome.OccurrenceNotFound
-            } else if (
-                lifecycle !=
-                OccurrenceLifecycle.ACTIVE.name
-            ) {
-                SetReportOutcome.CancelledOccurrenceRejected
-            } else {
-                val existing =
-                    reportingDao.getReport(
-                        occurrenceId = occurrenceId,
-                    )
-
-                val previousState =
-                    existing
-                        ?.state
-                        ?.let(
-                            CaregiverReportState::valueOf,
-                        )
-
-                when {
-                    previousState == newState -> {
-                        SetReportOutcome.Unchanged(
-                            occurrenceId = occurrenceId,
-                            state = newState,
-                        )
-                    }
-
-                    existing == null -> {
-                        insertFirstReport(
-                            occurrenceId = occurrenceId,
-                            newState = newState,
-                        )
-                    }
-
-                    else -> {
-                        updateExistingReport(
-                            existing = existing,
-                            newState = newState,
-                        )
-                    }
-                }
-            }
+        return when {
+            previousState == newState -> SetReportOutcome.Unchanged(occurrenceId, newState)
+            existing == null -> insertFirstReport(occurrenceId, newState)
+            else -> updateExistingReport(existing, newState)
         }
     }
 
-    override suspend fun restorePrevious(
-        change: ReportChange,
-    ): UndoReportOutcome {
-        return database.withTransaction {
-            val reportingDao =
-                database.reportingDao()
+    private suspend fun restoreActiveOccurrenceReport(change: ReportChange): UndoReportOutcome {
+        val current = reportingDao.getReport(change.occurrenceId)
+            ?: return UndoReportOutcome.NoLongerCurrent
 
-            val occurrenceLifecycle =
-                reportingDao.getOccurrenceLifecycle(
-                    occurrenceId =
-                        change.occurrenceId,
-                )
+        val isCurrentChange =
+            CaregiverReportState.valueOf(current.state) == change.newState &&
+                    current.updatedAtEpochMillis == change.changedAtEpochMillis
 
-            if (occurrenceLifecycle == null) {
-                UndoReportOutcome.OccurrenceNotFound
-            } else if (
-                occurrenceLifecycle !=
-                OccurrenceLifecycle.ACTIVE.name
-            ) {
-                UndoReportOutcome.NoLongerCurrent
-            } else {
-                val current =
-                    reportingDao.getReport(
-                        occurrenceId =
-                            change.occurrenceId,
-                    )
-
-                if (current == null) {
-                    UndoReportOutcome.NoLongerCurrent
-                } else {
-                    val currentState =
-                        CaregiverReportState.valueOf(
-                            current.state,
-                        )
-
-                    val isCurrentChange =
-                        currentState ==
-                                change.newState &&
-                                current.updatedAtEpochMillis ==
-                                change.changedAtEpochMillis
-
-                    if (!isCurrentChange) {
-                        UndoReportOutcome.NoLongerCurrent
-                    } else if (
-                        change.previousState == null
-                    ) {
-                        restoreToNoReport(
-                            change = change,
-                        )
-                    } else {
-                        restoreToExplicitState(
-                            change = change,
-                            current =
-                                current,
-                        )
-                    }
-                }
-            }
+        if (!isCurrentChange) {
+            return UndoReportOutcome.NoLongerCurrent
         }
+
+        return change.previousState?.let { previousState ->
+            restoreToExplicitState(change, current, previousState)
+        } ?: restoreToNoReport(change)
     }
 
-    private suspend fun restoreToNoReport(
-        change: ReportChange,
-    ): UndoReportOutcome {
-        val deletedRows =
-            database
-                .reportingDao()
-                .deleteReportIfCurrent(
-                    occurrenceId =
-                        change.occurrenceId,
-                    expectedCurrentState =
-                        change.newState.name,
-                    expectedCurrentUpdatedAtEpochMillis =
-                        change.changedAtEpochMillis,
-                )
+    private suspend fun restoreToNoReport(change: ReportChange): UndoReportOutcome {
+        val deletedRows = reportingDao.deleteReportIfCurrent(
+            occurrenceId = change.occurrenceId,
+            expectedCurrentState = change.newState.name,
+            expectedCurrentUpdatedAtEpochMillis = change.changedAtEpochMillis,
+        )
 
         return if (deletedRows == 1) {
-            UndoReportOutcome.Restored(
-                occurrenceId =
-                    change.occurrenceId,
-                restoredState = null,
-            )
+            UndoReportOutcome.Restored(change.occurrenceId, restoredState = null)
         } else {
             UndoReportOutcome.NoLongerCurrent
         }
@@ -161,41 +82,18 @@ class RoomCaregiverReportService(
     private suspend fun restoreToExplicitState(
         change: ReportChange,
         current: CaregiverReportEntity,
+        previousState: CaregiverReportState,
     ): UndoReportOutcome {
-        val previousState =
-            checkNotNull(
-                change.previousState,
-            )
-
-        val restoredAtEpochMillis =
-            nextTimestamp(
-                previousTimestamp =
-                    current.updatedAtEpochMillis,
-            )
-
-        val restoredRows =
-            database
-                .reportingDao()
-                .restorePreviousReportIfCurrent(
-                    occurrenceId =
-                        change.occurrenceId,
-                    expectedCurrentState =
-                        change.newState.name,
-                    expectedCurrentUpdatedAtEpochMillis =
-                        change.changedAtEpochMillis,
-                    previousState =
-                        previousState.name,
-                    restoredAtEpochMillis =
-                        restoredAtEpochMillis,
-                )
+        val restoredRows = reportingDao.restorePreviousReportIfCurrent(
+            occurrenceId = change.occurrenceId,
+            expectedCurrentState = change.newState.name,
+            expectedCurrentUpdatedAtEpochMillis = change.changedAtEpochMillis,
+            previousState = previousState.name,
+            restoredAtEpochMillis = nextTimestamp(current.updatedAtEpochMillis),
+        )
 
         return if (restoredRows == 1) {
-            UndoReportOutcome.Restored(
-                occurrenceId =
-                    change.occurrenceId,
-                restoredState =
-                    previousState,
-            )
+            UndoReportOutcome.Restored(change.occurrenceId, previousState)
         } else {
             UndoReportOutcome.NoLongerCurrent
         }
@@ -205,94 +103,46 @@ class RoomCaregiverReportService(
         occurrenceId: String,
         newState: CaregiverReportState,
     ): SetReportOutcome {
-        val reportingDao =
-            database.reportingDao()
+        val changedAtEpochMillis = clock.instant().toEpochMilli()
+        val insertResult = reportingDao.insertReportIgnoringConflict(
+            CaregiverReportEntity(
+                occurrenceId = occurrenceId,
+                state = newState.name,
+                recordedAtEpochMillis = changedAtEpochMillis,
+                updatedAtEpochMillis = changedAtEpochMillis,
+            ),
+        )
 
-        val changedAtEpochMillis =
-            clock
-                .instant()
-                .toEpochMilli()
-
-        val insertResult =
-            reportingDao.insertReportIgnoringConflict(
-                CaregiverReportEntity(
-                    occurrenceId =
-                        occurrenceId,
-                    state =
-                        newState.name,
-                    recordedAtEpochMillis =
-                        changedAtEpochMillis,
-                    updatedAtEpochMillis =
-                        changedAtEpochMillis,
-                ),
-            )
-
-        if (insertResult != -1L) {
-            return SetReportOutcome.Changed(
-                change =
-                    ReportChange(
-                        occurrenceId =
-                            occurrenceId,
-                        previousState = null,
-                        newState = newState,
-                        changedAtEpochMillis =
-                            changedAtEpochMillis,
-                    ),
+        if (insertResult != INSERT_CONFLICT) {
+            return changed(
+                occurrenceId = occurrenceId,
+                previousState = null,
+                newState = newState,
+                changedAtEpochMillis = changedAtEpochMillis,
             )
         }
 
-        val concurrentReport =
-            checkNotNull(
-                reportingDao.getReport(
-                    occurrenceId =
-                        occurrenceId,
-                ),
-            )
-
-        val concurrentState =
-            CaregiverReportState.valueOf(
-                concurrentReport.state,
-            )
+        val concurrentReport = checkNotNull(reportingDao.getReport(occurrenceId))
+        val concurrentState = CaregiverReportState.valueOf(concurrentReport.state)
 
         if (concurrentState == newState) {
-            return SetReportOutcome.Unchanged(
-                occurrenceId =
-                    occurrenceId,
-                state = newState,
-            )
+            return SetReportOutcome.Unchanged(occurrenceId, newState)
         }
 
-        val retryTimestamp =
-            nextTimestamp(
-                previousTimestamp =
-                    concurrentReport
-                        .updatedAtEpochMillis,
-            )
-
-        val updatedRows =
+        val retryTimestamp = nextTimestamp(concurrentReport.updatedAtEpochMillis)
+        check(
             reportingDao.updateReport(
-                occurrenceId =
-                    occurrenceId,
-                state =
-                    newState.name,
-                updatedAtEpochMillis =
-                    retryTimestamp,
-            )
+                occurrenceId = occurrenceId,
+                state = newState.name,
+                updatedAtEpochMillis = retryTimestamp,
+            ) == 1,
+        )
 
-        check(updatedRows == 1)
-
-        return SetReportOutcome.Changed(
-            change =
-                ReportChange(
-                    occurrenceId =
-                        occurrenceId,
-                    previousState =
-                        concurrentState,
-                    newState =
-                        newState,
-                    changedAtEpochMillis =
-                        retryTimestamp,
-                ),
+        return changed(
+            occurrenceId = occurrenceId,
+            previousState = concurrentState,
+            newState = newState,
+            changedAtEpochMillis = retryTimestamp,
         )
     }
 
@@ -300,66 +150,50 @@ class RoomCaregiverReportService(
         existing: CaregiverReportEntity,
         newState: CaregiverReportState,
     ): SetReportOutcome {
-        val previousState =
-            CaregiverReportState.valueOf(
-                existing.state,
-            )
+        val previousState = CaregiverReportState.valueOf(existing.state)
+        val changedAtEpochMillis = nextTimestamp(existing.updatedAtEpochMillis)
 
-        val changedAtEpochMillis =
-            nextTimestamp(
-                previousTimestamp =
-                    existing.updatedAtEpochMillis,
-            )
+        check(
+            reportingDao.updateReport(
+                occurrenceId = existing.occurrenceId,
+                state = newState.name,
+                updatedAtEpochMillis = changedAtEpochMillis,
+            ) == 1,
+        )
 
-        val updatedRows =
-            database
-                .reportingDao()
-                .updateReport(
-                    occurrenceId =
-                        existing.occurrenceId,
-                    state =
-                        newState.name,
-                    updatedAtEpochMillis =
-                        changedAtEpochMillis,
-                )
-
-        check(updatedRows == 1)
-
-        return SetReportOutcome.Changed(
-            change =
-                ReportChange(
-                    occurrenceId =
-                        existing.occurrenceId,
-                    previousState =
-                        previousState,
-                    newState =
-                        newState,
-                    changedAtEpochMillis =
-                        changedAtEpochMillis,
-                ),
+        return changed(
+            occurrenceId = existing.occurrenceId,
+            previousState = previousState,
+            newState = newState,
+            changedAtEpochMillis = changedAtEpochMillis,
         )
     }
 
-    private fun nextTimestamp(
-        previousTimestamp: Long,
-    ): Long {
-        val currentTimestamp =
-            clock
-                .instant()
-                .toEpochMilli()
+    private fun changed(
+        occurrenceId: String,
+        previousState: CaregiverReportState?,
+        newState: CaregiverReportState,
+        changedAtEpochMillis: Long,
+    ) = SetReportOutcome.Changed(
+        ReportChange(
+            occurrenceId = occurrenceId,
+            previousState = previousState,
+            newState = newState,
+            changedAtEpochMillis = changedAtEpochMillis,
+        ),
+    )
 
-        return if (
-            currentTimestamp >
-            previousTimestamp
-        ) {
-            currentTimestamp
-        } else {
-            check(
-                previousTimestamp <
-                        Long.MAX_VALUE,
-            )
-
-            previousTimestamp + 1L
+    private fun nextTimestamp(previousTimestamp: Long): Long {
+        val currentTimestamp = clock.instant().toEpochMilli()
+        if (currentTimestamp > previousTimestamp) {
+            return currentTimestamp
         }
+
+        check(previousTimestamp < Long.MAX_VALUE)
+        return previousTimestamp + 1L
+    }
+
+    private companion object {
+        const val INSERT_CONFLICT = -1L
     }
 }

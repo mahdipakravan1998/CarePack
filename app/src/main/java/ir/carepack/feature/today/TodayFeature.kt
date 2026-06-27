@@ -36,11 +36,11 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.core.time.tickingNow
-import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.HistoryDay
 import ir.carepack.domain.model.HistoryItem
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.model.TemporalPhase
+import ir.carepack.feature.reporting.reportStateText
+import ir.carepack.feature.reporting.temporalPhaseText
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.today.TodayQueryService
@@ -1057,69 +1057,6 @@ private fun ErrorContent(
                     stringResource(
                         R.string.pr3_retry,
                     ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun reportStateText(
-    reportState: CaregiverReportState?,
-): String {
-    return when (reportState) {
-        null -> {
-            stringResource(
-                R.string
-                    .pr3_report_no_report,
-            )
-        }
-
-        CaregiverReportState.GIVEN -> {
-            stringResource(
-                R.string
-                    .pr3_report_given,
-            )
-        }
-
-        CaregiverReportState.NOT_GIVEN -> {
-            stringResource(
-                R.string
-                    .pr3_report_not_given,
-            )
-        }
-
-        CaregiverReportState.UNKNOWN -> {
-            stringResource(
-                R.string
-                    .pr3_report_unknown,
-            )
-        }
-    }
-}
-
-@Composable
-private fun temporalPhaseText(
-    phase: TemporalPhase,
-): String {
-    return when (phase) {
-        TemporalPhase.UPCOMING -> {
-            stringResource(
-                R.string
-                    .pr3_phase_upcoming,
-            )
-        }
-
-        TemporalPhase.DUE -> {
-            stringResource(
-                R.string
-                    .pr3_phase_due,
-            )
-        }
-
-        TemporalPhase.PAST -> {
-            stringResource(
-                R.string
-                    .pr3_phase_past,
             )
         }
     }

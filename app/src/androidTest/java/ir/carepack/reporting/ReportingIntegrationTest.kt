@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.core.id.IdSource
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
@@ -21,13 +20,11 @@ import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.RoomTodayQueryService
-import java.time.Clock
+import ir.carepack.testing.IncrementingIdSource
+import ir.carepack.testing.MutableTestClock
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -48,10 +45,10 @@ class ReportingIntegrationTest {
             CarePackDatabase
 
     private lateinit var clock:
-            MutableReportingClock
+            MutableTestClock
 
     private lateinit var idSource:
-            ReportingIdSource
+            IncrementingIdSource
 
     private lateinit var generator:
             RoomOccurrenceGenerator
@@ -85,13 +82,15 @@ class ReportingIntegrationTest {
                 .build()
 
         clock =
-            MutableReportingClock(
+            MutableTestClock(
                 initialInstant =
                     HISTORY_START_INSTANT,
             )
 
         idSource =
-            ReportingIdSource()
+            IncrementingIdSource(
+                prefix = "reporting-id",
+            )
 
         generator =
             RoomOccurrenceGenerator(
@@ -119,7 +118,6 @@ class ReportingIntegrationTest {
         todayQueryService =
             RoomTodayQueryService(
                 database = database,
-                clock = clock,
             )
 
         runBlocking {
@@ -901,40 +899,3 @@ private data class CreatedReportingPlan(
     val medicationId: String,
     val scheduleVersionId: String,
 )
-
-private class ReportingIdSource :
-    IdSource {
-
-    private val counter =
-        AtomicInteger(0)
-
-    override fun nextId(): String {
-        return "reporting-id-" +
-                counter.incrementAndGet()
-    }
-}
-
-private class MutableReportingClock(
-    initialInstant: Instant,
-) : Clock() {
-
-    var currentInstant:
-            Instant =
-        initialInstant
-
-    override fun getZone():
-            ZoneId {
-        return ZoneOffset.UTC
-    }
-
-    override fun withZone(
-        zone: ZoneId,
-    ): Clock {
-        return this
-    }
-
-    override fun instant():
-            Instant {
-        return currentInstant
-    }
-}
