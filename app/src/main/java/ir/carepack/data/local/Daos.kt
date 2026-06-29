@@ -350,6 +350,32 @@ interface ScheduleDao {
     ): Int
 
     @Query(
+        """
+        SELECT id
+        FROM schedule_series
+        ORDER BY createdAtEpochMillis, id
+        """,
+    )
+    suspend fun getAllSeriesIds():
+            List<String>
+
+    @Query(
+        """
+        SELECT COUNT(DISTINCT series.id)
+        FROM schedule_series AS series
+        INNER JOIN medications AS medication
+            ON medication.id = series.medicationId
+        INNER JOIN schedule_versions AS version
+            ON version.seriesId = series.id
+        WHERE series.stoppedAtEpochMillis IS NULL
+          AND medication.stoppedAtEpochMillis IS NULL
+          AND medication.archivedAtEpochMillis IS NULL
+          AND version.effectiveUntilEpochMillis IS NULL
+        """,
+    )
+    suspend fun countActiveSeries(): Int
+
+    @Query(
         "SELECT COUNT(*) FROM schedule_series",
     )
     suspend fun countSeries(): Int
@@ -429,6 +455,102 @@ interface OccurrenceDao {
     suspend fun getForVersion(
         scheduleVersionId: String,
     ): List<OccurrenceEntity>
+
+    @Query(
+        """
+        SELECT
+            occurrence.scheduleSeriesId AS scheduleSeriesId,
+            occurrence.id AS occurrenceId,
+            occurrence.localDateEpochDay AS localDateEpochDay,
+            occurrence.minuteOfDay AS minuteOfDay,
+            occurrence.zoneId AS zoneId,
+            occurrence.scheduledAtEpochMillis
+                AS scheduledAtEpochMillis,
+            occurrence.medicationNameSnapshot
+                AS medicationNameSnapshot
+        FROM occurrences AS occurrence
+        INNER JOIN schedule_series AS series
+            ON series.id = occurrence.scheduleSeriesId
+        INNER JOIN medications AS medication
+            ON medication.id = occurrence.medicationId
+        WHERE occurrence.lifecycle = 'ACTIVE'
+          AND occurrence.scheduledAtEpochMillis > :nowEpochMillis
+          AND series.stoppedAtEpochMillis IS NULL
+          AND medication.stoppedAtEpochMillis IS NULL
+          AND medication.archivedAtEpochMillis IS NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM caregiver_reports AS report
+              WHERE report.occurrenceId = occurrence.id
+          )
+          AND NOT EXISTS (
+              SELECT 1
+              FROM occurrences AS earlierOccurrence
+              WHERE earlierOccurrence.scheduleSeriesId =
+                    occurrence.scheduleSeriesId
+                AND earlierOccurrence.lifecycle = 'ACTIVE'
+                AND earlierOccurrence.scheduledAtEpochMillis >
+                    :nowEpochMillis
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM caregiver_reports AS earlierReport
+                    WHERE earlierReport.occurrenceId =
+                        earlierOccurrence.id
+                )
+                AND (
+                    earlierOccurrence.scheduledAtEpochMillis <
+                        occurrence.scheduledAtEpochMillis
+                    OR (
+                        earlierOccurrence.scheduledAtEpochMillis =
+                            occurrence.scheduledAtEpochMillis
+                        AND earlierOccurrence.id <
+                            occurrence.id
+                    )
+                )
+          )
+        ORDER BY
+            occurrence.scheduleSeriesId,
+            occurrence.scheduledAtEpochMillis,
+            occurrence.id
+        """,
+    )
+    suspend fun getNextReminderTargets(
+        nowEpochMillis: Long,
+    ): List<ReminderTargetRow>
+
+    @Query(
+        """
+        SELECT
+            occurrence.scheduleSeriesId AS scheduleSeriesId,
+            occurrence.id AS occurrenceId,
+            occurrence.localDateEpochDay AS localDateEpochDay,
+            occurrence.minuteOfDay AS minuteOfDay,
+            occurrence.zoneId AS zoneId,
+            occurrence.scheduledAtEpochMillis
+                AS scheduledAtEpochMillis,
+            occurrence.medicationNameSnapshot
+                AS medicationNameSnapshot
+        FROM occurrences AS occurrence
+        INNER JOIN schedule_series AS series
+            ON series.id = occurrence.scheduleSeriesId
+        INNER JOIN medications AS medication
+            ON medication.id = occurrence.medicationId
+        WHERE occurrence.id = :occurrenceId
+          AND occurrence.lifecycle = 'ACTIVE'
+          AND series.stoppedAtEpochMillis IS NULL
+          AND medication.stoppedAtEpochMillis IS NULL
+          AND medication.archivedAtEpochMillis IS NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM caregiver_reports AS report
+              WHERE report.occurrenceId = occurrence.id
+          )
+        LIMIT 1
+        """,
+    )
+    suspend fun getEligibleReminderOccurrence(
+        occurrenceId: String,
+    ): ReminderTargetRow?
 
     @Query(
         """

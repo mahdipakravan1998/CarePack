@@ -40,6 +40,15 @@ import ir.carepack.domain.careplan.UpdateScheduleCommand
 import ir.carepack.domain.careplan.UpdateScheduleOutcome
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
+import ir.carepack.domain.reminder.AlarmFireResult
+import ir.carepack.domain.reminder.ReconciliationReason
+import ir.carepack.domain.reminder.ReminderAvailability
+import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceState
+import ir.carepack.domain.reminder.ReminderPreferenceStore
+import ir.carepack.domain.reminder.ReminderReconciliationResult
+import ir.carepack.domain.reminder.ReminderStatus
+import ir.carepack.domain.reminder.TimezoneObservation
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.feature.careplan.CarePlanRoute
@@ -50,6 +59,7 @@ import ir.carepack.feature.setup.MedicationScheduleRoute
 import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
+import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.Clock
 import java.time.DayOfWeek
@@ -227,6 +237,15 @@ class CarePackComposeTest {
         val preferenceStore =
             InMemorySetupPreferenceStore()
 
+        val reminderPreferenceStore =
+            InMemoryReminderPreferenceStore()
+
+        val reminderCoordinator =
+            InMemoryReminderCoordinator()
+
+        val notificationPermissionGateway =
+            GrantedNotificationPermissionGateway()
+
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
@@ -238,6 +257,12 @@ class CarePackComposeTest {
                         reportService,
                     setupPreferenceStore =
                         preferenceStore,
+                    reminderPreferenceStore =
+                        reminderPreferenceStore,
+                    reminderCoordinator =
+                        reminderCoordinator,
+                    notificationPermissionGateway =
+                        notificationPermissionGateway,
                     clock = fixedClock,
                     zoneProvider =
                         tehranZoneProvider,
@@ -1151,6 +1176,141 @@ private class InMemorySetupPreferenceStore :
     override suspend fun markSetupComplete() {
         mutableSetupComplete.value =
             true
+    }
+}
+
+private class InMemoryReminderPreferenceStore :
+    ReminderPreferenceStore {
+
+    private val mutableState =
+        MutableStateFlow(
+            ReminderPreferenceState(
+                remindersEnabled =
+                    false,
+            ),
+        )
+
+    override val state:
+            Flow<ReminderPreferenceState> =
+        mutableState
+
+    override suspend fun setRemindersEnabled(
+        enabled: Boolean,
+    ) {
+        mutableState.value =
+            mutableState
+                .value
+                .copy(
+                    remindersEnabled =
+                        enabled,
+                )
+    }
+
+    override suspend fun observeDeviceZone(
+        zoneId: String,
+    ): TimezoneObservation {
+        val previousZoneId =
+            mutableState
+                .value
+                .lastObservedZoneId
+
+        return when {
+            previousZoneId == null -> {
+                mutableState.value =
+                    mutableState
+                        .value
+                        .copy(
+                            lastObservedZoneId =
+                                zoneId,
+                        )
+
+                TimezoneObservation.Initialized
+            }
+
+            previousZoneId == zoneId -> {
+                TimezoneObservation.Unchanged
+            }
+
+            else -> {
+                mutableState.value =
+                    mutableState
+                        .value
+                        .copy(
+                            lastObservedZoneId =
+                                zoneId,
+                        )
+
+                TimezoneObservation.Unchanged
+            }
+        }
+    }
+
+    override suspend fun dismissTimezoneWarning() {
+        mutableState.value =
+            mutableState
+                .value
+                .copy(
+                    timezoneWarning = null,
+                )
+    }
+}
+
+private class InMemoryReminderCoordinator :
+    ReminderCoordinator {
+
+    private val status =
+        ReminderStatus(
+            remindersEnabled = false,
+            notificationPermissionGranted =
+                true,
+            hasActiveSchedule = true,
+            exactAlarmCapabilityGranted =
+                false,
+            availability =
+                ReminderAvailability.DISABLED,
+        )
+
+    override suspend fun currentStatus():
+            ReminderStatus {
+        return status
+    }
+
+    override suspend fun reconcile(
+        reason: ReconciliationReason,
+    ): ReminderReconciliationResult {
+        return ReminderReconciliationResult
+            .Reconciled(
+                reason = reason,
+                status = status,
+                scheduledCount = 0,
+                cancelledCount = 0,
+            )
+    }
+
+    override suspend fun handleAlarmFired(
+        occurrenceId: String,
+    ): AlarmFireResult {
+        error(
+            "Alarm fire is not used by this test.",
+        )
+    }
+
+    override suspend fun cancelAllOwnedReminderState() {
+        Unit
+    }
+}
+
+private class GrantedNotificationPermissionGateway :
+    NotificationPermissionGateway {
+
+    override fun isPermissionGranted():
+            Boolean {
+        return true
+    }
+
+    override fun requiresRuntimePermission():
+            Boolean {
+        return true
     }
 }
 

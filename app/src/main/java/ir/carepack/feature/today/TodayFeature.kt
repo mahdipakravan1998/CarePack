@@ -19,9 +19,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -29,6 +32,8 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,6 +49,12 @@ import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
+import ir.carepack.domain.reminder.ReminderAvailability
+import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceState
+import ir.carepack.domain.reminder.ReminderPreferenceStore
+import ir.carepack.domain.reminder.ReminderStatus
+import ir.carepack.domain.reminder.TimezoneWarning
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.feature.reporting.reportStateText
 import ir.carepack.feature.reporting.temporalPhaseText
@@ -51,6 +62,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,11 +71,13 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 
 enum class TodaySection {
     TODAY,
@@ -72,121 +86,342 @@ enum class TodaySection {
 
 data class TodayUiState(
     val localDate: LocalDate,
-    val selectedSection: TodaySection = TodaySection.TODAY,
+    val selectedSection:
+    TodaySection = TodaySection.TODAY,
     val isLoading: Boolean = true,
-    val items: List<TodayItem> = emptyList(),
-    val emptyState: TodayEmptyState? = null,
+    val items: List<TodayItem> =
+        emptyList(),
+    val emptyState: TodayEmptyState? =
+        null,
     val errorMessage: String? = null,
-    val isHistoryLoading: Boolean = true,
-    val historyDays: List<HistoryDay> = emptyList(),
-    val historyErrorMessage: String? = null,
+    val isHistoryLoading: Boolean =
+        true,
+    val historyDays: List<HistoryDay> =
+        emptyList(),
+    val historyErrorMessage: String? =
+        null,
+    val reminderStatus: ReminderStatus? =
+        null,
+    val timezoneWarning: TimezoneWarning? =
+        null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodayViewModel(
-    private val todayQueryService: TodayQueryService,
+    private val todayQueryService:
+    TodayQueryService,
     clock: Clock,
-    private val zoneProvider: ZoneProvider,
-    now: Flow<Instant> = tickingNow(clock),
+    private val zoneProvider:
+    ZoneProvider,
+    private val reminderCoordinator:
+    ReminderCoordinator? = null,
+    private val reminderPreferenceStore:
+    ReminderPreferenceStore? = null,
+    now: Flow<Instant> =
+        tickingNow(clock),
 ) : ViewModel() {
 
-    private val initialLocalDate = clock.instant()
-        .atZone(zoneProvider.currentZone())
-        .toLocalDate()
+    private val initialLocalDate =
+        clock
+            .instant()
+            .atZone(
+                zoneProvider.currentZone(),
+            )
+            .toLocalDate()
 
-    private val sharedNow = now.shareIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        replay = 1,
-    )
+    private val sharedNow =
+        now.shareIn(
+            scope = viewModelScope,
+            started =
+                SharingStarted.Eagerly,
+            replay = 1,
+        )
 
-    private val selectedSection = MutableStateFlow(TodaySection.TODAY)
-    private val retryVersion = MutableStateFlow(0L)
+    private val selectedSection =
+        MutableStateFlow(
+            TodaySection.TODAY,
+        )
 
-    private val dateRequests = combine(
-        sharedNow
-            .map { instant ->
-                instant.atZone(zoneProvider.currentZone()).toLocalDate()
-            }
-            .distinctUntilChanged(),
-        retryVersion,
-    ) { localDate, retry ->
-        DateRequest(localDate, retry)
-    }
+    private val retryVersion =
+        MutableStateFlow(0L)
 
-    private val content = dateRequests.flatMapLatest { request ->
+    private val mutableReminderStatus =
+        MutableStateFlow<ReminderStatus?>(
+            null,
+        )
+
+    private val reminderPreferences =
+        reminderPreferenceStore
+            ?.state
+            ?: flowOf(
+                ReminderPreferenceState(),
+            )
+
+    private val dateRequests =
         combine(
-            observeToday(request.localDate),
-            observeHistory(request.localDate),
-        ) { today, history ->
-            DateContent(
-                localDate = request.localDate,
-                today = today,
-                history = history,
+            sharedNow
+                .map { instant ->
+                    instant
+                        .atZone(
+                            zoneProvider
+                                .currentZone(),
+                        )
+                        .toLocalDate()
+                }
+                .distinctUntilChanged(),
+            retryVersion,
+        ) { localDate, retry ->
+            DateRequest(
+                localDate = localDate,
+                retryVersion = retry,
             )
         }
+
+    private val content =
+        dateRequests
+            .flatMapLatest { request ->
+                combine(
+                    observeToday(
+                        localDate =
+                            request.localDate,
+                    ),
+                    observeHistory(
+                        localDate =
+                            request.localDate,
+                    ),
+                ) { today, history ->
+                    DateContent(
+                        localDate =
+                            request.localDate,
+                        today = today,
+                        history = history,
+                    )
+                }
+            }
+
+    val state =
+        combine(
+            selectedSection,
+            content,
+            reminderPreferences,
+            mutableReminderStatus,
+        ) {
+                section,
+                dateContent,
+                preferenceState,
+                reminderStatus ->
+            TodayUiState(
+                localDate =
+                    dateContent.localDate,
+                selectedSection = section,
+                isLoading =
+                    dateContent.today is
+                            TodayLoad.Loading,
+                items =
+                    (
+                            dateContent.today as?
+                                    TodayLoad.Loaded
+                            )
+                        ?.model
+                        ?.items
+                        .orEmpty(),
+                emptyState =
+                    (
+                            dateContent.today as?
+                                    TodayLoad.Loaded
+                            )
+                        ?.model
+                        ?.emptyState,
+                errorMessage =
+                    (
+                            dateContent.today as?
+                                    TodayLoad.Failed
+                            )
+                        ?.message,
+                isHistoryLoading =
+                    dateContent.history is
+                            HistoryLoad.Loading,
+                historyDays =
+                    (
+                            dateContent.history as?
+                                    HistoryLoad.Loaded
+                            )
+                        ?.days
+                        .orEmpty(),
+                historyErrorMessage =
+                    (
+                            dateContent.history as?
+                                    HistoryLoad.Failed
+                            )
+                        ?.message,
+                reminderStatus =
+                    reminderStatus
+                        ?.copy(
+                            remindersEnabled =
+                                preferenceState
+                                    .remindersEnabled,
+                        ),
+                timezoneWarning =
+                    preferenceState
+                        .timezoneWarning,
+            )
+        }.stateIn(
+            scope = viewModelScope,
+            started =
+                SharingStarted.Eagerly,
+            initialValue =
+                TodayUiState(
+                    localDate =
+                        initialLocalDate,
+                ),
+        )
+
+    init {
+        refreshReminderStatus()
     }
 
-    val state = combine(selectedSection, content) { section, content ->
-        TodayUiState(
-            localDate = content.localDate,
-            selectedSection = section,
-            isLoading = content.today is TodayLoad.Loading,
-            items = (content.today as? TodayLoad.Loaded)?.model?.items.orEmpty(),
-            emptyState = (content.today as? TodayLoad.Loaded)?.model?.emptyState,
-            errorMessage = (content.today as? TodayLoad.Failed)?.message,
-            isHistoryLoading = content.history is HistoryLoad.Loading,
-            historyDays = (content.history as? HistoryLoad.Loaded)?.days.orEmpty(),
-            historyErrorMessage = (content.history as? HistoryLoad.Failed)?.message,
-        )
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.Eagerly,
-        initialValue = TodayUiState(localDate = initialLocalDate),
-    )
-
     fun showToday() {
-        selectedSection.value = TodaySection.TODAY
+        selectedSection.value =
+            TodaySection.TODAY
     }
 
     fun showHistory() {
-        selectedSection.value = TodaySection.HISTORY
+        selectedSection.value =
+            TodaySection.HISTORY
     }
 
     fun retry() {
-        retryVersion.update { it + 1L }
+        retryVersion.update {
+            it + 1L
+        }
+
+        refreshReminderStatus()
     }
 
-    private fun observeToday(localDate: LocalDate): Flow<TodayLoad> =
-        todayQueryService.observeToday(
-            localDate = localDate,
-            now = sharedNow,
-        )
-            .map<TodayModel, TodayLoad> { model -> TodayLoad.Loaded(model) }
-            .onStart { emit(TodayLoad.Loading) }
-            .catch { emit(TodayLoad.Failed("خواندن اطلاعات امروز انجام نشد.")) }
+    fun refreshReminderStatus() {
+        val coordinator =
+            reminderCoordinator
+                ?: return
 
-    private fun observeHistory(localDate: LocalDate): Flow<HistoryLoad> =
-        todayQueryService.observeRecentHistory(
-            anchorDate = localDate,
-            now = sharedNow,
-        )
-            .map<List<HistoryDay>, HistoryLoad> { days -> HistoryLoad.Loaded(days) }
-            .onStart { emit(HistoryLoad.Loading) }
-            .catch { emit(HistoryLoad.Failed("خواندن سابقه انجام نشد.")) }
+        viewModelScope.launch {
+            try {
+                mutableReminderStatus.value =
+                    coordinator
+                        .currentStatus()
+            } catch (
+                cancellation:
+                CancellationException,
+            ) {
+                throw cancellation
+            } catch (_: Exception) {
+                Unit
+            }
+        }
+    }
+
+    fun dismissTimezoneWarning() {
+        val preferenceStore =
+            reminderPreferenceStore
+                ?: return
+
+        viewModelScope.launch {
+            try {
+                preferenceStore
+                    .dismissTimezoneWarning()
+            } catch (
+                cancellation:
+                CancellationException,
+            ) {
+                throw cancellation
+            } catch (_: Exception) {
+                Unit
+            }
+        }
+    }
+
+    private fun observeToday(
+        localDate: LocalDate,
+    ): Flow<TodayLoad> {
+        return todayQueryService
+            .observeToday(
+                localDate = localDate,
+                now = sharedNow,
+            )
+            .map<TodayModel, TodayLoad> {
+                    model ->
+                TodayLoad.Loaded(
+                    model = model,
+                )
+            }
+            .onStart {
+                emit(
+                    TodayLoad.Loading,
+                )
+            }
+            .catch {
+                emit(
+                    TodayLoad.Failed(
+                        message =
+                            "خواندن اطلاعات امروز انجام نشد.",
+                    ),
+                )
+            }
+    }
+
+    private fun observeHistory(
+        localDate: LocalDate,
+    ): Flow<HistoryLoad> {
+        return todayQueryService
+            .observeRecentHistory(
+                anchorDate = localDate,
+                now = sharedNow,
+            )
+            .map<List<HistoryDay>, HistoryLoad> {
+                    days ->
+                HistoryLoad.Loaded(
+                    days = days,
+                )
+            }
+            .onStart {
+                emit(
+                    HistoryLoad.Loading,
+                )
+            }
+            .catch {
+                emit(
+                    HistoryLoad.Failed(
+                        message =
+                            "خواندن سابقه انجام نشد.",
+                    ),
+                )
+            }
+    }
 
     companion object {
         fun factory(
-            todayQueryService: TodayQueryService,
+            todayQueryService:
+            TodayQueryService,
+            reminderCoordinator:
+            ReminderCoordinator,
+            reminderPreferenceStore:
+            ReminderPreferenceStore,
             clock: Clock,
             zoneProvider: ZoneProvider,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                TodayViewModel(
-                    todayQueryService = todayQueryService,
-                    clock = clock,
-                    zoneProvider = zoneProvider,
-                )
+        ): ViewModelProvider.Factory {
+            return viewModelFactory {
+                initializer {
+                    TodayViewModel(
+                        todayQueryService =
+                            todayQueryService,
+                        reminderCoordinator =
+                            reminderCoordinator,
+                        reminderPreferenceStore =
+                            reminderPreferenceStore,
+                        clock = clock,
+                        zoneProvider =
+                            zoneProvider,
+                    )
+                }
             }
         }
     }
@@ -205,14 +440,26 @@ private data class DateContent(
 
 private sealed interface TodayLoad {
     data object Loading : TodayLoad
-    data class Loaded(val model: TodayModel) : TodayLoad
-    data class Failed(val message: String) : TodayLoad
+
+    data class Loaded(
+        val model: TodayModel,
+    ) : TodayLoad
+
+    data class Failed(
+        val message: String,
+    ) : TodayLoad
 }
 
 private sealed interface HistoryLoad {
     data object Loading : HistoryLoad
-    data class Loaded(val days: List<HistoryDay>) : HistoryLoad
-    data class Failed(val message: String) : HistoryLoad
+
+    data class Loaded(
+        val days: List<HistoryDay>,
+    ) : HistoryLoad
+
+    data class Failed(
+        val message: String,
+    ) : HistoryLoad
 }
 
 @Composable
@@ -220,16 +467,61 @@ fun TodayRoute(
     viewModel: TodayViewModel,
     onOccurrenceSelected: (String) -> Unit,
     onManageCarePlan: () -> Unit,
+    onReminderSettings: () -> Unit,
+    onReviewSchedules: () -> Unit,
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by
+    viewModel
+        .state
+        .collectAsStateWithLifecycle()
+
+    val lifecycleOwner =
+        LocalLifecycleOwner.current
+
+    DisposableEffect(
+        lifecycleOwner,
+    ) {
+        val observer =
+            LifecycleEventObserver {
+                    _, event ->
+                if (
+                    event ==
+                    Lifecycle.Event.ON_RESUME
+                ) {
+                    viewModel
+                        .refreshReminderStatus()
+                }
+            }
+
+        lifecycleOwner
+            .lifecycle
+            .addObserver(observer)
+
+        onDispose {
+            lifecycleOwner
+                .lifecycle
+                .removeObserver(observer)
+        }
+    }
 
     TodayScreen(
         state = state,
-        onOccurrenceSelected = onOccurrenceSelected,
-        onManageCarePlan = onManageCarePlan,
-        onShowToday = viewModel::showToday,
-        onShowHistory = viewModel::showHistory,
-        onRetry = viewModel::retry,
+        onOccurrenceSelected =
+            onOccurrenceSelected,
+        onManageCarePlan =
+            onManageCarePlan,
+        onReminderSettings =
+            onReminderSettings,
+        onReviewSchedules =
+            onReviewSchedules,
+        onDismissTimezoneWarning =
+            viewModel::dismissTimezoneWarning,
+        onShowToday =
+            viewModel::showToday,
+        onShowHistory =
+            viewModel::showHistory,
+        onRetry =
+            viewModel::retry,
     )
 }
 
@@ -239,84 +531,444 @@ fun TodayScreen(
     onOccurrenceSelected: (String) -> Unit,
     onManageCarePlan: () -> Unit,
     modifier: Modifier = Modifier,
+    onReminderSettings: () -> Unit = {},
+    onReviewSchedules: () -> Unit = {},
+    onDismissTimezoneWarning: () -> Unit = {},
     onShowToday: () -> Unit = {},
     onShowHistory: () -> Unit = {},
     onRetry: () -> Unit = {},
 ) {
-    Scaffold(modifier = modifier.fillMaxSize()) { contentPadding ->
+    Scaffold(
+        modifier =
+            modifier.fillMaxSize(),
+    ) { contentPadding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(contentPadding)
-                .padding(horizontal = 24.dp, vertical = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(contentPadding)
+                    .padding(
+                        horizontal = 24.dp,
+                        vertical = 16.dp,
+                    ),
         ) {
             Text(
-                text = stringResource(R.string.today_title),
-                style = MaterialTheme.typography.headlineMedium,
-                modifier = Modifier.semantics { heading() },
+                text =
+                    stringResource(
+                        R.string.today_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
+                modifier =
+                    Modifier.semantics {
+                        heading()
+                    },
             )
 
-            Spacer(Modifier.height(4.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(4.dp),
+            )
 
             Text(
-                text = state.localDate.toString(),
-                style = MaterialTheme.typography.bodyMedium,
-                modifier = Modifier.testTag("today_local_date"),
+                text =
+                    state.localDate.toString(),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                modifier =
+                    Modifier.testTag(
+                        "today_local_date",
+                    ),
             )
 
-            Spacer(Modifier.height(12.dp))
-
-            OutlinedButton(
-                onClick = onManageCarePlan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("manage_care_plan"),
-            ) {
-                Text(stringResource(R.string.manage_care_plan))
-            }
-
-            Spacer(Modifier.height(12.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp),
+            )
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp,
+                    ),
             ) {
-                SectionButton(
-                    text = stringResource(R.string.pr3_today_section),
-                    selected = state.selectedSection == TodaySection.TODAY,
-                    onClick = onShowToday,
-                    testTag = "today_section",
-                    modifier = Modifier.weight(1f),
+                OutlinedButton(
+                    onClick =
+                        onManageCarePlan,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                "manage_care_plan",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .manage_care_plan,
+                            ),
+                    )
+                }
+
+                OutlinedButton(
+                    onClick =
+                        onReminderSettings,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                "open_reminder_settings",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .open_reminder_settings,
+                            ),
+                    )
+                }
+            }
+
+            state.timezoneWarning?.let {
+                    warning ->
+                Spacer(
+                    modifier =
+                        Modifier.height(
+                            12.dp,
+                        ),
                 )
-                SectionButton(
-                    text = stringResource(R.string.pr3_history_section),
-                    selected = state.selectedSection == TodaySection.HISTORY,
-                    onClick = onShowHistory,
-                    testTag = "history_section",
-                    modifier = Modifier.weight(1f),
+
+                TimezoneWarningCard(
+                    warning = warning,
+                    onReviewSchedules =
+                        onReviewSchedules,
+                    onDismiss =
+                        onDismissTimezoneWarning,
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            ReminderAvailabilityBanner(
+                status =
+                    state.reminderStatus,
+                onOpenSettings =
+                    onReminderSettings,
+            )
 
-            when (state.selectedSection) {
-                TodaySection.TODAY -> TodayContent(
-                    state = state,
-                    onOccurrenceSelected = onOccurrenceSelected,
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f),
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp),
+            )
+
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp,
+                    ),
+            ) {
+                SectionButton(
+                    text =
+                        stringResource(
+                            R.string
+                                .pr3_today_section,
+                        ),
+                    selected =
+                        state.selectedSection ==
+                                TodaySection.TODAY,
+                    onClick = onShowToday,
+                    testTag =
+                        "today_section",
+                    modifier =
+                        Modifier.weight(1f),
                 )
 
-                TodaySection.HISTORY -> HistoryContent(
-                    state = state,
-                    onOccurrenceSelected = onOccurrenceSelected,
-                    onRetry = onRetry,
-                    modifier = Modifier.weight(1f),
+                SectionButton(
+                    text =
+                        stringResource(
+                            R.string
+                                .pr3_history_section,
+                        ),
+                    selected =
+                        state.selectedSection ==
+                                TodaySection.HISTORY,
+                    onClick = onShowHistory,
+                    testTag =
+                        "history_section",
+                    modifier =
+                        Modifier.weight(1f),
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(16.dp),
+            )
+
+            when (state.selectedSection) {
+                TodaySection.TODAY -> {
+                    TodayContent(
+                        state = state,
+                        onOccurrenceSelected =
+                            onOccurrenceSelected,
+                        onRetry = onRetry,
+                        modifier =
+                            Modifier.weight(1f),
+                    )
+                }
+
+                TodaySection.HISTORY -> {
+                    HistoryContent(
+                        state = state,
+                        onOccurrenceSelected =
+                            onOccurrenceSelected,
+                        onRetry = onRetry,
+                        modifier =
+                            Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimezoneWarningCard(
+    warning: TimezoneWarning,
+    onReviewSchedules: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "timezone_warning",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .timezone_warning_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .timezone_warning_body,
+                        warning
+                            .previousZoneId,
+                        warning
+                            .currentZoneId,
+                    ),
+                modifier =
+                    Modifier.testTag(
+                        "timezone_warning_body",
+                    ),
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp),
+            )
+
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp,
+                    ),
+            ) {
+                Button(
+                    onClick =
+                        onReviewSchedules,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                "timezone_warning_review",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .review_schedules,
+                            ),
+                    )
+                }
+
+                TextButton(
+                    onClick = onDismiss,
+                    modifier =
+                        Modifier
+                            .weight(1f)
+                            .testTag(
+                                "timezone_warning_dismiss",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .dismiss_for_later,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderAvailabilityBanner(
+    status: ReminderStatus?,
+    onOpenSettings: () -> Unit,
+) {
+    if (
+        status == null ||
+        !status.remindersEnabled
+    ) {
+        return
+    }
+
+    val banner =
+        when (status.availability) {
+            ReminderAvailability
+                .NOTIFICATION_PERMISSION_REQUIRED -> {
+                ReminderBannerContent(
+                    titleResource =
+                        R.string
+                            .today_notification_unavailable_title,
+                    bodyResource =
+                        R.string
+                            .today_notification_unavailable_body,
+                    testTag =
+                        "today_notification_unavailable",
+                )
+            }
+
+            ReminderAvailability.APPROXIMATE -> {
+                ReminderBannerContent(
+                    titleResource =
+                        R.string
+                            .today_approximate_reminder_title,
+                    bodyResource =
+                        R.string
+                            .today_approximate_reminder_body,
+                    testTag =
+                        "today_approximate_reminder",
+                )
+            }
+
+            ReminderAvailability.DISABLED,
+            ReminderAvailability.NO_ACTIVE_SCHEDULE,
+            ReminderAvailability.EXACT -> {
+                null
+            }
+        } ?: return
+
+    Spacer(
+        modifier =
+            Modifier.height(12.dp),
+    )
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    banner.testTag,
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        banner.titleResource,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        banner.bodyResource,
+                    ),
+            )
+
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp),
+            )
+
+            OutlinedButton(
+                onClick =
+                    onOpenSettings,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "today_reminder_status_settings",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .open_reminder_settings,
+                        ),
                 )
             }
         }
     }
 }
+
+private data class ReminderBannerContent(
+    val titleResource: Int,
+    val bodyResource: Int,
+    val testTag: String,
+)
 
 @Composable
 private fun SectionButton(
@@ -329,14 +981,20 @@ private fun SectionButton(
     if (selected) {
         Button(
             onClick = onClick,
-            modifier = modifier.testTag(testTag),
+            modifier =
+                modifier.testTag(
+                    testTag,
+                ),
         ) {
             Text(text)
         }
     } else {
         OutlinedButton(
             onClick = onClick,
-            modifier = modifier.testTag(testTag),
+            modifier =
+                modifier.testTag(
+                    testTag,
+                ),
         ) {
             Text(text)
         }
@@ -351,40 +1009,65 @@ private fun TodayContent(
     modifier: Modifier = Modifier,
 ) {
     when {
-        state.isLoading -> Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("today_loading"),
-        ) {
-            CircularProgressIndicator()
+        state.isLoading -> {
+            Column(
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "today_loading",
+                        ),
+            ) {
+                CircularProgressIndicator()
+            }
         }
 
-        state.errorMessage != null -> ErrorContent(
-            message = state.errorMessage,
-            onRetry = onRetry,
-            testTag = "today_error",
-            modifier = modifier,
-        )
+        state.errorMessage != null -> {
+            ErrorContent(
+                message =
+                    state.errorMessage,
+                onRetry = onRetry,
+                testTag =
+                    "today_error",
+                modifier = modifier,
+            )
+        }
 
-        state.items.isEmpty() -> TodayEmptyContent(
-            emptyState = state.emptyState,
-            modifier = modifier,
-        )
+        state.items.isEmpty() -> {
+            TodayEmptyContent(
+                emptyState =
+                    state.emptyState,
+                modifier = modifier,
+            )
+        }
 
-        else -> LazyColumn(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("today_list"),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            items(
-                items = state.items,
-                key = TodayItem::occurrenceId,
-            ) { item ->
-                TodayOccurrenceCard(
-                    item = item,
-                    onClick = { onOccurrenceSelected(item.occurrenceId) },
-                )
+        else -> {
+            LazyColumn(
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "today_list",
+                        ),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        12.dp,
+                    ),
+            ) {
+                items(
+                    items = state.items,
+                    key =
+                        TodayItem::occurrenceId,
+                ) { item ->
+                    TodayOccurrenceCard(
+                        item = item,
+                        onClick = {
+                            onOccurrenceSelected(
+                                item.occurrenceId,
+                            )
+                        },
+                    )
+                }
             }
         }
     }
@@ -395,41 +1078,60 @@ private fun TodayEmptyContent(
     emptyState: TodayEmptyState?,
     modifier: Modifier = Modifier,
 ) {
-    val hasNoMedications = emptyState == TodayEmptyState.NO_MEDICATIONS
+    val hasNoMedications =
+        emptyState ==
+                TodayEmptyState
+                    .NO_MEDICATIONS
 
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(
-                if (hasNoMedications) {
-                    "today_empty_no_medications"
-                } else {
-                    "today_empty_no_occurrences"
-                },
-            ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .testTag(
+                    if (hasNoMedications) {
+                        "today_empty_no_medications"
+                    } else {
+                        "today_empty_no_occurrences"
+                    },
+                ),
     ) {
         Text(
-            text = stringResource(
-                if (hasNoMedications) {
-                    R.string.pr3_no_medications_title
-                } else {
-                    R.string.pr3_no_occurrences_title
+            text =
+                stringResource(
+                    if (hasNoMedications) {
+                        R.string
+                            .pr3_no_medications_title
+                    } else {
+                        R.string
+                            .pr3_no_occurrences_title
+                    },
+                ),
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge,
+            modifier =
+                Modifier.semantics {
+                    heading()
                 },
-            ),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.semantics { heading() },
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp),
+        )
 
         Text(
-            text = stringResource(
-                if (hasNoMedications) {
-                    R.string.pr3_no_medications_body
-                } else {
-                    R.string.pr3_no_occurrences_body
-                },
-            ),
+            text =
+                stringResource(
+                    if (hasNoMedications) {
+                        R.string
+                            .pr3_no_medications_body
+                    } else {
+                        R.string
+                            .pr3_no_occurrences_body
+                    },
+                ),
         )
     }
 }
@@ -442,49 +1144,95 @@ private fun HistoryContent(
     modifier: Modifier = Modifier,
 ) {
     when {
-        state.isHistoryLoading -> Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("history_loading"),
-        ) {
-            CircularProgressIndicator()
+        state.isHistoryLoading -> {
+            Column(
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "history_loading",
+                        ),
+            ) {
+                CircularProgressIndicator()
+            }
         }
 
-        state.historyErrorMessage != null -> ErrorContent(
-            message = state.historyErrorMessage,
-            onRetry = onRetry,
-            testTag = "history_error",
-            modifier = modifier,
-        )
-
-        state.historyDays.isEmpty() -> Column(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("history_empty"),
-        ) {
-            Text(
-                text = stringResource(R.string.pr3_history_empty_title),
-                style = MaterialTheme.typography.titleLarge,
-                modifier = Modifier.semantics { heading() },
+        state.historyErrorMessage != null -> {
+            ErrorContent(
+                message =
+                    state.historyErrorMessage,
+                onRetry = onRetry,
+                testTag =
+                    "history_error",
+                modifier = modifier,
             )
-            Spacer(Modifier.height(8.dp))
-            Text(stringResource(R.string.pr3_history_empty_body))
         }
 
-        else -> LazyColumn(
-            modifier = modifier
-                .fillMaxWidth()
-                .testTag("history_list"),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            items(
-                items = state.historyDays,
-                key = HistoryDay::localDate,
-            ) { historyDay ->
-                HistoryDayContent(
-                    historyDay = historyDay,
-                    onOccurrenceSelected = onOccurrenceSelected,
+        state.historyDays.isEmpty() -> {
+            Column(
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "history_empty",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .pr3_history_empty_title,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleLarge,
+                    modifier =
+                        Modifier.semantics {
+                            heading()
+                        },
                 )
+
+                Spacer(
+                    modifier =
+                        Modifier.height(8.dp),
+                )
+
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .pr3_history_empty_body,
+                        ),
+                )
+            }
+        }
+
+        else -> {
+            LazyColumn(
+                modifier =
+                    modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "history_list",
+                        ),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        16.dp,
+                    ),
+            ) {
+                items(
+                    items = state.historyDays,
+                    key =
+                        HistoryDay::localDate,
+                ) { historyDay ->
+                    HistoryDayContent(
+                        historyDay =
+                            historyDay,
+                        onOccurrenceSelected =
+                            onOccurrenceSelected,
+                    )
+                }
             }
         }
     }
@@ -495,23 +1243,49 @@ private fun HistoryDayContent(
     historyDay: HistoryDay,
     onOccurrenceSelected: (String) -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(
+        modifier =
+            Modifier.fillMaxWidth(),
+    ) {
         Text(
-            text = historyDay.localDate.toString(),
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier
-                .testTag("history_date_${historyDay.localDate}")
-                .semantics { heading() },
+            text =
+                historyDay
+                    .localDate
+                    .toString(),
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium,
+            modifier =
+                Modifier
+                    .testTag(
+                        "history_date_${historyDay.localDate}",
+                    )
+                    .semantics {
+                        heading()
+                    },
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(
+            modifier =
+                Modifier.height(8.dp),
+        )
 
-        historyDay.items.forEach { item ->
+        historyDay.items.forEach {
+                item ->
             HistoryOccurrenceCard(
                 item = item,
-                onClick = { onOccurrenceSelected(item.occurrenceId) },
+                onClick = {
+                    onOccurrenceSelected(
+                        item.occurrenceId,
+                    )
+                },
             )
-            Spacer(Modifier.height(8.dp))
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp),
+            )
         }
     }
 }
@@ -522,37 +1296,83 @@ private fun TodayOccurrenceCard(
     onClick: () -> Unit,
 ) {
     OccurrenceCardSurface(
-        testTag = "today_item_${item.occurrenceId}",
+        testTag =
+            "today_item_${item.occurrenceId}",
         contentPadding = 20.dp,
         onClick = onClick,
     ) {
         Text(
-            text = item.medicationName,
-            style = MaterialTheme.typography.titleLarge,
+            text =
+                item.medicationName,
+            style =
+                MaterialTheme
+                    .typography
+                    .titleLarge,
         )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = item.localTime.format(HOUR_MINUTE_FORMATTER),
-            style = MaterialTheme.typography.bodyLarge,
+
+        Spacer(
+            modifier =
+                Modifier.height(8.dp),
         )
-        Spacer(Modifier.height(8.dp))
+
         Text(
-            text = temporalPhaseText(item.temporalPhase),
-            modifier = Modifier.testTag("today_phase_${item.occurrenceId}"),
+            text =
+                item.localTime.format(
+                    HOUR_MINUTE_FORMATTER,
+                ),
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyLarge,
         )
-        Spacer(Modifier.height(4.dp))
+
+        Spacer(
+            modifier =
+                Modifier.height(8.dp),
+        )
+
         Text(
-            text = if (item.isOverdue) {
-                stringResource(R.string.pr3_recording_time_passed)
-            } else {
-                reportStateText(item.reportState)
-            },
-            color = if (item.isOverdue) {
-                MaterialTheme.colorScheme.error
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
-            modifier = Modifier.testTag("today_report_${item.occurrenceId}"),
+            text =
+                temporalPhaseText(
+                    item.temporalPhase,
+                ),
+            modifier =
+                Modifier.testTag(
+                    "today_phase_${item.occurrenceId}",
+                ),
+        )
+
+        Spacer(
+            modifier =
+                Modifier.height(4.dp),
+        )
+
+        Text(
+            text =
+                if (item.isOverdue) {
+                    stringResource(
+                        R.string
+                            .pr3_recording_time_passed,
+                    )
+                } else {
+                    reportStateText(
+                        item.reportState,
+                    )
+                },
+            color =
+                if (item.isOverdue) {
+                    MaterialTheme
+                        .colorScheme
+                        .error
+                } else {
+                    MaterialTheme
+                        .colorScheme
+                        .onSurface
+                },
+            modifier =
+                Modifier.testTag(
+                    "today_report_${item.occurrenceId}",
+                ),
         )
     }
 }
@@ -563,26 +1383,62 @@ private fun HistoryOccurrenceCard(
     onClick: () -> Unit,
 ) {
     OccurrenceCardSurface(
-        testTag = "history_item_${item.occurrenceId}",
+        testTag =
+            "history_item_${item.occurrenceId}",
         contentPadding = 16.dp,
         onClick = onClick,
     ) {
         Text(
-            text = item.medicationName,
-            style = MaterialTheme.typography.titleMedium,
+            text =
+                item.medicationName,
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium,
         )
-        Spacer(Modifier.height(4.dp))
-        Text(item.localTime.format(HOUR_MINUTE_FORMATTER))
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = when {
-                item.lifecycle == OccurrenceLifecycle.CANCELLED -> {
-                    stringResource(R.string.pr3_cancelled_occurrence)
-                }
 
-                item.isOverdue -> stringResource(R.string.pr3_recording_time_passed)
-                else -> reportStateText(item.reportState)
-            },
+        Spacer(
+            modifier =
+                Modifier.height(4.dp),
+        )
+
+        Text(
+            text =
+                item.localTime.format(
+                    HOUR_MINUTE_FORMATTER,
+                ),
+        )
+
+        Spacer(
+            modifier =
+                Modifier.height(4.dp),
+        )
+
+        Text(
+            text =
+                when {
+                    item.lifecycle ==
+                            OccurrenceLifecycle
+                                .CANCELLED -> {
+                        stringResource(
+                            R.string
+                                .pr3_cancelled_occurrence,
+                        )
+                    }
+
+                    item.isOverdue -> {
+                        stringResource(
+                            R.string
+                                .pr3_recording_time_passed,
+                        )
+                    }
+
+                    else -> {
+                        reportStateText(
+                            item.reportState,
+                        )
+                    }
+                },
         )
     }
 }
@@ -592,20 +1448,27 @@ private fun OccurrenceCardSurface(
     testTag: String,
     contentPadding: Dp,
     onClick: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit,
+    content:
+    @Composable ColumnScope.() -> Unit,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .semantics(mergeDescendants = true) {}
-            .clickable(
-                role = Role.Button,
-                onClick = onClick,
-            )
-            .testTag(testTag),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .semantics(
+                    mergeDescendants = true,
+                ) {}
+                .clickable(
+                    role = Role.Button,
+                    onClick = onClick,
+                )
+                .testTag(testTag),
     ) {
         Column(
-            modifier = Modifier.padding(contentPadding),
+            modifier =
+                Modifier.padding(
+                    contentPadding,
+                ),
             content = content,
         )
     }
@@ -619,22 +1482,42 @@ private fun ErrorContent(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(testTag),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .testTag(testTag),
     ) {
         Text(
             text = message,
-            color = MaterialTheme.colorScheme.error,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .error,
         )
-        Spacer(Modifier.height(12.dp))
+
+        Spacer(
+            modifier =
+                Modifier.height(12.dp),
+        )
+
         Button(
             onClick = onRetry,
-            modifier = Modifier.testTag("${testTag}_retry"),
+            modifier =
+                Modifier.testTag(
+                    "${testTag}_retry",
+                ),
         ) {
-            Text(stringResource(R.string.pr3_retry))
+            Text(
+                text =
+                    stringResource(
+                        R.string.pr3_retry,
+                    ),
+            )
         }
     }
 }
 
-private val HOUR_MINUTE_FORMATTER = DateTimeFormatter.ofPattern("HH:mm")
+private val HOUR_MINUTE_FORMATTER =
+    DateTimeFormatter.ofPattern(
+        "HH:mm",
+    )

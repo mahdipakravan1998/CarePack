@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_settings_title">تنظیمات یادآورها</string>
+    <string name="open_reminder_settings">تنظیمات یادآورها</string>
+
+    <string name="reminders_enabled_label">یادآورها</string>
+    <string name="reminders_enabled_description">یادآورها اختیاری هستند و خاموش‌بودن آن‌ها ثبت، سابقه و مدیریت برنامه را محدود نمی‌کند.</string>
+
+    <string name="notification_permission_status_label">وضعیت اجازه اعلان</string>
+    <string name="notification_permission_not_required">در این نسخه اندروید، اجازه جداگانه‌ای لازم نیست.</string>
+    <string name="notification_permission_granted">اجازه اعلان فعال است.</string>
+    <string name="notification_permission_denied">اجازه اعلان فعال نیست؛ بخش‌های اصلی برنامه همچنان قابل استفاده‌اند.</string>
+
+    <string name="reminder_delivery_mode_label">روش زمان‌بندی یادآور</string>
+    <string name="reminder_mode_disabled">یادآورها خاموش هستند.</string>
+    <string name="reminder_mode_notification_unavailable">به‌دلیل نبود اجازه اعلان، یادآوری ثبت نمی‌شود.</string>
+    <string name="reminder_mode_no_active_schedule">برنامه فعالی برای زمان‌بندی یادآور وجود ندارد.</string>
+    <string name="reminder_mode_exact">در صورت پشتیبانی دستگاه، یادآور با زمان‌بندی دقیق ثبت می‌شود.</string>
+    <string name="reminder_mode_approximate">یادآور به‌صورت تقریبی ثبت می‌شود و ممکن است با تأخیر نمایش داده شود.</string>
+
+    <string name="request_notification_permission">بررسی اجازه اعلان</string>
+    <string name="open_notification_settings">باز کردن تنظیمات اعلان</string>
+    <string name="request_exact_alarm_access">درخواست یادآور دقیق</string>
+    <string name="open_device_settings">باز کردن تنظیمات دستگاه</string>
+    <string name="continue_action">ادامه</string>
+
+    <string name="notification_permission_rationale_title">اجازه نمایش یادآور</string>
+    <string name="notification_permission_rationale_body">برای نمایش یادآورهای محلی، اندروید باید اجازه اعلان داشته باشد. ردکردن این اجازه، صفحه امروز، سابقه، ویرایش و ثبت گزارش را غیرفعال نمی‌کند.</string>
+
+    <string name="exact_alarm_rationale_title">یادآور دقیق‌تر</string>
+    <string name="exact_alarm_rationale_body">اندروید برای زمان‌بندی دقیق‌تر ممکن است دسترسی ویژه بخواهد. بدون این دسترسی، کرپک از زمان‌بندی تقریبی استفاده می‌کند و نمایش اعلان ممکن است با تأخیر انجام شود.</string>
+
+    <string name="reminder_delivery_limitations">نمایش اعلان تضمین‌شده نیست. حالت تقریبی ممکن است به‌دلیل حالت کم‌مصرف دستگاه یا محدودیت‌های سازنده با تأخیر انجام شود. اعلان و بازکردن آن هیچ گزارشی برای نوبت ثبت نمی‌کند.</string>
+
+    <string name="today_notification_unavailable_title">یادآورها فعلاً در دسترس نیستند</string>
+    <string name="today_notification_unavailable_body">اجازه اعلان فعال نیست. ثبت و مرور نوبت‌ها بدون یادآور ادامه دارد.</string>
+    <string name="today_approximate_reminder_title">یادآورها تقریبی هستند</string>
+    <string name="today_approximate_reminder_body">دستگاه اجازه زمان‌بندی دقیق نداده است و اعلان ممکن است با تأخیر نمایش داده شود.</string>
+
+    <string name="timezone_warning_title">منطقه زمانی دستگاه تغییر کرده است</string>
+    <string name="timezone_warning_body">منطقه زمانی دستگاه از %1$s به %2$s تغییر کرده است. برنامه‌های قبلی در منطقه زمانی ثابت خود باقی می‌مانند. برای استفاده از منطقه جدید، برنامه را بررسی و ویرایش کنید.</string>
+    <string name="review_schedules">بررسی برنامه‌ها</string>
+    <string name="dismiss_for_later">بعداً</string>
+
+    <string name="reminder_notification_channel_name">یادآورهای نوبت دارو</string>
+    <string name="reminder_notification_channel_description">اعلان‌های محلی برای بررسی نوبت‌های ثبت‌شده</string>
+    <string name="reminder_notification_title">زمان بررسی یک نوبت دارو</string>
+    <string name="reminder_notification_body">%1$s، ساعت %2$s</string>
+    <string name="reminder_notification_public_title">زمان بررسی یک نوبت دارو</string>
+    <string name="reminder_notification_public_body">برای دیدن جزئیات، قفل دستگاه را باز کنید.</string>
+</resources>

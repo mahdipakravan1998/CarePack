@@ -1,12 +1,9 @@
 package ir.carepack.data.preferences
 
 import android.content.Context
-import androidx.datastore.core.DataStore
-import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.preferencesDataStore
+import androidx.datastore.preferences.core.emptyPreferences
 import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -17,11 +14,6 @@ interface SetupPreferenceStore {
 
     suspend fun markSetupComplete()
 }
-
-private val Context.carePackDataStore:
-        DataStore<Preferences> by preferencesDataStore(
-    name = "carepack_preferences",
-)
 
 class DataStoreSetupPreferenceStore(
     context: Context,

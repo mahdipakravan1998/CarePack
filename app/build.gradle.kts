@@ -180,6 +180,10 @@ dependencies {
     )
 
     androidTestImplementation(
+        libs.androidx.test.uiautomator
+    )
+
+    androidTestImplementation(
         libs.androidx.room.testing
     )
 
