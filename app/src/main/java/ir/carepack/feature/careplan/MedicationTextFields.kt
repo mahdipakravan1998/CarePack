@@ -13,6 +13,7 @@ import androidx.compose.ui.unit.dp
 import ir.carepack.R
 import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanValidationError
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 
 @Composable
 internal fun MedicationTextFields(
@@ -20,43 +21,124 @@ internal fun MedicationTextFields(
     instruction: String,
     errors: Map<CarePlanField, String>,
     enabled: Boolean,
-    onMedicationNameChanged: (String) -> Unit,
-    onInstructionChanged: (String) -> Unit,
+    onMedicationNameChanged:
+        (String) -> Unit,
+    onInstructionChanged:
+        (String) -> Unit,
     instructionMinLines: Int,
-    medicationNameTestTag: String? = null,
-    instructionTestTag: String? = null,
+    medicationNameTestTag:
+    String? = null,
+    instructionTestTag:
+    String? = null,
 ) {
     OutlinedTextField(
-        value = medicationName,
-        onValueChange = onMedicationNameChanged,
+        value =
+            medicationName,
+        onValueChange =
+            onMedicationNameChanged,
         enabled = enabled,
-        label = { Text(stringResource(R.string.medication_name_label)) },
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .medication_name_label,
+                    ),
+            )
+        },
         singleLine = true,
-        isError = errors.containsKey(CarePlanField.MEDICATION_NAME),
-        supportingText = { errors[CarePlanField.MEDICATION_NAME]?.let { Text(it) } },
-        modifier = Modifier
-            .fillMaxWidth()
-            .optionalTestTag(medicationNameTestTag),
+        isError =
+            errors.containsKey(
+                CarePlanField
+                    .MEDICATION_NAME,
+            ),
+        supportingText = {
+            errors[
+                CarePlanField
+                    .MEDICATION_NAME
+            ]?.let {
+                    errorMessage ->
+                Text(
+                    text =
+                        errorMessage,
+                    modifier =
+                        Modifier
+                            .carePackPoliteLiveRegion(),
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .optionalTestTag(
+                    medicationNameTestTag,
+                ),
     )
 
-    Spacer(Modifier.height(12.dp))
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
 
     OutlinedTextField(
-        value = instruction,
-        onValueChange = onInstructionChanged,
+        value =
+            instruction,
+        onValueChange =
+            onInstructionChanged,
         enabled = enabled,
-        label = { Text(stringResource(R.string.instruction_label)) },
-        minLines = instructionMinLines,
-        isError = errors.containsKey(CarePlanField.INSTRUCTION),
-        supportingText = { errors[CarePlanField.INSTRUCTION]?.let { Text(it) } },
-        modifier = Modifier
-            .fillMaxWidth()
-            .optionalTestTag(instructionTestTag),
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .instruction_label,
+                    ),
+            )
+        },
+        minLines =
+            instructionMinLines,
+        isError =
+            errors.containsKey(
+                CarePlanField.INSTRUCTION,
+            ),
+        supportingText = {
+            errors[
+                CarePlanField.INSTRUCTION
+            ]?.let {
+                    errorMessage ->
+                Text(
+                    text =
+                        errorMessage,
+                    modifier =
+                        Modifier
+                            .carePackPoliteLiveRegion(),
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .optionalTestTag(
+                    instructionTestTag,
+                ),
     )
 }
 
-internal fun List<CarePlanValidationError>.toFieldErrors(): Map<CarePlanField, String> =
-    associate { error -> error.field to error.message }
+internal fun List<CarePlanValidationError>.toFieldErrors():
+        Map<CarePlanField, String> =
+    associate {
+            error ->
+        error.field to
+                error.message
+    }
 
-private fun Modifier.optionalTestTag(testTag: String?): Modifier =
-    if (testTag == null) this else this.testTag(testTag)
+private fun Modifier.optionalTestTag(
+    testTag: String?,
+): Modifier =
+    if (testTag == null) {
+        this
+    } else {
+        testTag(testTag)
+    }

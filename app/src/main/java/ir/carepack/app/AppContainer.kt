@@ -8,8 +8,10 @@ import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.DatabaseMigrations
+import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
+import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.RoomCarePlanService
@@ -23,6 +25,8 @@ import ir.carepack.domain.reminder.ReminderScheduleSource
 import ir.carepack.domain.reminder.RoomReminderScheduleSource
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.report.RoomTodayReportFormatter
+import ir.carepack.domain.report.TodayReportFormatter
 import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.reminder.alarm.AlarmGateway
@@ -34,6 +38,16 @@ import ir.carepack.reminder.permission.AndroidExactAlarmCapabilityGateway
 import ir.carepack.reminder.permission.AndroidNotificationPermissionGateway
 import ir.carepack.reminder.permission.ExactAlarmCapabilityGateway
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.reporting.share.AndroidTextShareGateway
+import ir.carepack.reporting.share.TextShareGateway
+import ir.carepack.settings.deletion.AndroidTemporaryDataCleaner
+import ir.carepack.settings.deletion.DataDeletionCoordinator
+import ir.carepack.settings.deletion.DefaultDataDeletionCoordinator
+import ir.carepack.settings.deletion.DomainDataCleaner
+import ir.carepack.settings.deletion.RoomDomainDataCleaner
+import ir.carepack.settings.deletion.TemporaryDataCleaner
+import ir.carepack.settings.privacy.AndroidPrivacyPolicyGateway
+import ir.carepack.settings.privacy.PrivacyPolicyGateway
 import java.time.Clock
 
 class AppContainer(
@@ -73,6 +87,13 @@ class AppContainer(
     val reminderPreferenceStore:
             ReminderPreferenceStore =
         DataStoreReminderPreferenceStore(
+            context =
+                applicationContext,
+        )
+
+    val privacyPreferenceStore:
+            PrivacyPreferenceStore =
+        DataStorePrivacyPreferenceStore(
             context =
                 applicationContext,
         )
@@ -178,6 +199,56 @@ class AppContainer(
             database = database,
         )
 
+    val todayReportFormatter:
+            TodayReportFormatter =
+        RoomTodayReportFormatter(
+            database = database,
+        )
+
+    val textShareGateway:
+            TextShareGateway =
+        AndroidTextShareGateway(
+            context =
+                applicationContext,
+        )
+
+    val privacyPolicyGateway:
+            PrivacyPolicyGateway =
+        AndroidPrivacyPolicyGateway(
+            context =
+                applicationContext,
+            policyUrl =
+                PUBLIC_PRIVACY_POLICY_URL,
+        )
+
+    private val domainDataCleaner:
+            DomainDataCleaner =
+        RoomDomainDataCleaner(
+            database = database,
+        )
+
+    private val temporaryDataCleaner:
+            TemporaryDataCleaner =
+        AndroidTemporaryDataCleaner(
+            context =
+                applicationContext,
+        )
+
+    val dataDeletionCoordinator:
+            DataDeletionCoordinator =
+        DefaultDataDeletionCoordinator(
+            privacyPreferenceStore =
+                privacyPreferenceStore,
+            reminderCoordinator =
+                reminderCoordinator,
+            notificationGateway =
+                notificationGateway,
+            domainDataCleaner =
+                domainDataCleaner,
+            temporaryDataCleaner =
+                temporaryDataCleaner,
+        )
+
     val notificationNavigationValidator =
         NotificationNavigationValidator(
             database = database,
@@ -197,7 +268,11 @@ class AppContainer(
         )
 
     private companion object {
+
         const val DATABASE_NAME =
             "carepack.db"
+
+        const val PUBLIC_PRIVACY_POLICY_URL =
+            ""
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -598,14 +599,14 @@ class ReportingComposeTest {
             }
         }
 
-        val historyList =
-            composeRule
-                .onNodeWithTag(
-                    "history_list",
-                )
-                .assertIsDisplayed()
+        composeRule.waitForIdle()
 
-        historyList.performScrollToNode(
+        val todayScreenList =
+            composeRule.onNode(
+                hasScrollAction(),
+            )
+
+        todayScreenList.performScrollToNode(
             hasTestTag(
                 "history_item_history-2",
             ),
@@ -624,7 +625,7 @@ class ReportingComposeTest {
             selectedOccurrenceId,
         )
 
-        historyList.performScrollToNode(
+        todayScreenList.performScrollToNode(
             hasTestTag(
                 "history_date_$previousDate",
             ),
@@ -636,7 +637,7 @@ class ReportingComposeTest {
             )
             .assertIsDisplayed()
 
-        historyList.performScrollToNode(
+        todayScreenList.performScrollToNode(
             hasTestTag(
                 "history_item_history-3",
             ),

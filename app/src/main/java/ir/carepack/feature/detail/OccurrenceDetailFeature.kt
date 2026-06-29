@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -29,6 +28,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -42,13 +46,15 @@ import ir.carepack.core.time.tickingNow
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceDetail
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.feature.reporting.reportStateText
-import ir.carepack.feature.reporting.temporalPhaseText
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.ReportChange
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.feature.reporting.reportStateText
+import ir.carepack.feature.reporting.temporalPhaseText
+import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import java.time.Clock
 import java.time.Instant
 import java.time.format.DateTimeFormatter
@@ -74,23 +80,29 @@ data class OccurrenceDetailUiState(
     val isLoading: Boolean = true,
     val occurrence: OccurrenceDetail? = null,
     val isSaving: Boolean = false,
-    val pendingReportState: CaregiverReportState? = null,
+    val pendingReportState:
+    CaregiverReportState? = null,
     val undo: UndoUiState? = null,
     val errorMessage: String? = null,
 )
 
 class OccurrenceDetailViewModel(
     private val occurrenceId: String,
-    todayQueryService: TodayQueryService,
-    private val caregiverReportService: CaregiverReportService,
-    clock: Clock = Clock.systemUTC(),
-    now: Flow<Instant> = tickingNow(clock),
+    todayQueryService:
+    TodayQueryService,
+    private val caregiverReportService:
+    CaregiverReportService,
+    clock: Clock =
+        Clock.systemUTC(),
+    now: Flow<Instant> =
+        tickingNow(clock),
 ) : ViewModel() {
 
     private val sharedNow =
         now.shareIn(
             scope = viewModelScope,
-            started = SharingStarted.Eagerly,
+            started =
+                SharingStarted.Eagerly,
             replay = 1,
         )
 
@@ -105,50 +117,64 @@ class OccurrenceDetailViewModel(
     private var undoTokenCounter =
         0L
 
-    private var undoExpiryJob: Job? =
-        null
+    private var undoExpiryJob:
+            Job? = null
 
     init {
         todayQueryService
             .observeOccurrence(
-                occurrenceId = occurrenceId,
+                occurrenceId =
+                    occurrenceId,
                 now = sharedNow,
             )
             .onEach { occurrence ->
-                mutableState.update { current ->
+                mutableState.update {
+                        current ->
                     val pendingStateWasPersisted =
-                        current.pendingReportState != null &&
-                                current.pendingReportState ==
-                                occurrence?.reportState
+                        current
+                            .pendingReportState !=
+                                null &&
+                                current
+                                    .pendingReportState ==
+                                occurrence
+                                    ?.reportState
 
                     current.copy(
                         isLoading = false,
                         occurrence = occurrence,
                         pendingReportState =
-                            if (pendingStateWasPersisted) {
+                            if (
+                                pendingStateWasPersisted
+                            ) {
                                 null
                             } else {
-                                current.pendingReportState
+                                current
+                                    .pendingReportState
                             },
                         errorMessage = null,
                     )
                 }
             }
             .catch {
-                mutableState.update { current ->
+                mutableState.update {
+                        current ->
                     current.copy(
                         isLoading = false,
-                        pendingReportState = null,
+                        pendingReportState =
+                            null,
                         errorMessage =
                             "خواندن جزئیات انجام نشد.",
                     )
                 }
             }
-            .launchIn(viewModelScope)
+            .launchIn(
+                viewModelScope,
+            )
     }
 
     fun setReport(
-        newState: CaregiverReportState,
+        newState:
+        CaregiverReportState,
     ) {
         val currentState =
             mutableState.value
@@ -169,7 +195,9 @@ class OccurrenceDetailViewModel(
             currentState.pendingReportState
                 ?: occurrence.reportState
 
-        if (displayedState == newState) {
+        if (
+            displayedState == newState
+        ) {
             return
         }
 
@@ -177,7 +205,8 @@ class OccurrenceDetailViewModel(
             mutableState.update {
                 it.copy(
                     isSaving = true,
-                    pendingReportState = newState,
+                    pendingReportState =
+                        newState,
                     errorMessage = null,
                 )
             }
@@ -199,11 +228,13 @@ class OccurrenceDetailViewModel(
                         )
                     }
 
-                    is SetReportOutcome.Unchanged -> {
+                    is SetReportOutcome
+                    .Unchanged -> {
                         clearPendingReportState()
                     }
 
-                    SetReportOutcome.OccurrenceNotFound -> {
+                    SetReportOutcome
+                        .OccurrenceNotFound -> {
                         showError(
                             "نوبت پیدا نشد.",
                         )
@@ -234,10 +265,14 @@ class OccurrenceDetailViewModel(
         token: Long,
     ) {
         val undoState =
-            mutableState.value.undo
+            mutableState
+                .value
+                .undo
                 ?: return
 
-        if (undoState.token != token) {
+        if (
+            undoState.token != token
+        ) {
             return
         }
 
@@ -246,7 +281,8 @@ class OccurrenceDetailViewModel(
         mutableState.update {
             it.copy(
                 undo = null,
-                pendingReportState = null,
+                pendingReportState =
+                    null,
                 errorMessage = null,
             )
         }
@@ -259,17 +295,20 @@ class OccurrenceDetailViewModel(
                             undoState.change,
                         )
                 ) {
-                    is UndoReportOutcome.Restored -> {
+                    is UndoReportOutcome
+                    .Restored -> {
                         clearPendingReportState()
                     }
 
-                    UndoReportOutcome.NoLongerCurrent -> {
+                    UndoReportOutcome
+                        .NoLongerCurrent -> {
                         showError(
                             "این تغییر دیگر قابل بازگردانی نیست.",
                         )
                     }
 
-                    UndoReportOutcome.OccurrenceNotFound -> {
+                    UndoReportOutcome
+                        .OccurrenceNotFound -> {
                         showError(
                             "نوبت پیدا نشد.",
                         )
@@ -292,7 +331,8 @@ class OccurrenceDetailViewModel(
 
         val undoState =
             UndoUiState(
-                token = undoTokenCounter,
+                token =
+                    undoTokenCounter,
                 change = change,
             )
 
@@ -309,7 +349,8 @@ class OccurrenceDetailViewModel(
                     UNDO_DURATION_MILLIS,
                 )
 
-                mutableState.update { current ->
+                mutableState.update {
+                        current ->
                     if (
                         current.undo?.token ==
                         undoState.token
@@ -327,7 +368,8 @@ class OccurrenceDetailViewModel(
     private fun clearPendingReportState() {
         mutableState.update {
             it.copy(
-                pendingReportState = null,
+                pendingReportState =
+                    null,
             )
         }
     }
@@ -337,7 +379,8 @@ class OccurrenceDetailViewModel(
     ) {
         mutableState.update {
             it.copy(
-                pendingReportState = null,
+                pendingReportState =
+                    null,
                 errorMessage = message,
             )
         }
@@ -350,14 +393,18 @@ class OccurrenceDetailViewModel(
 
         fun factory(
             occurrenceId: String,
-            todayQueryService: TodayQueryService,
-            caregiverReportService: CaregiverReportService,
-            clock: Clock = Clock.systemUTC(),
-        ): ViewModelProvider.Factory {
-            return viewModelFactory {
+            todayQueryService:
+            TodayQueryService,
+            caregiverReportService:
+            CaregiverReportService,
+            clock: Clock =
+                Clock.systemUTC(),
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
                 initializer {
                     OccurrenceDetailViewModel(
-                        occurrenceId = occurrenceId,
+                        occurrenceId =
+                            occurrenceId,
                         todayQueryService =
                             todayQueryService,
                         caregiverReportService =
@@ -366,13 +413,13 @@ class OccurrenceDetailViewModel(
                     )
                 }
             }
-        }
     }
 }
 
 @Composable
 fun OccurrenceDetailRoute(
-    viewModel: OccurrenceDetailViewModel,
+    viewModel:
+    OccurrenceDetailViewModel,
     onBack: () -> Unit,
 ) {
     val state by
@@ -401,7 +448,11 @@ fun OccurrenceDetailScreen(
 ) {
     Box(
         modifier =
-            modifier.fillMaxSize(),
+            modifier
+                .fillMaxSize()
+                .testTag(
+                    "occurrence_detail_screen",
+                ),
     ) {
         Scaffold(
             modifier =
@@ -415,12 +466,18 @@ fun OccurrenceDetailScreen(
                             contentPadding,
                         )
                         .imePadding()
+                        .navigationBarsPadding()
                         .verticalScroll(
                             rememberScrollState(),
                         )
-                        .padding(24.dp),
+                        .padding(
+                            horizontal = 24.dp,
+                            vertical = 16.dp,
+                        ),
                 verticalArrangement =
-                    Arrangement.Top,
+                    Arrangement.spacedBy(
+                        16.dp,
+                    ),
             ) {
                 TextButton(
                     onClick = onBack,
@@ -437,11 +494,6 @@ fun OccurrenceDetailScreen(
                     )
                 }
 
-                Spacer(
-                    modifier =
-                        Modifier.height(8.dp),
-                )
-
                 Text(
                     text =
                         stringResource(
@@ -451,11 +503,12 @@ fun OccurrenceDetailScreen(
                         MaterialTheme
                             .typography
                             .headlineMedium,
-                )
-
-                Spacer(
                     modifier =
-                        Modifier.height(24.dp),
+                        Modifier
+                            .carePackHeading()
+                            .testTag(
+                                "detail_title",
+                            ),
                 )
 
                 OccurrenceDetailContent(
@@ -466,7 +519,8 @@ fun OccurrenceDetailScreen(
             }
         }
 
-        state.undo?.let { undoState ->
+        state.undo?.let {
+                undoState ->
             Snackbar(
                 modifier =
                     Modifier
@@ -478,6 +532,7 @@ fun OccurrenceDetailScreen(
                             horizontal = 16.dp,
                             vertical = 16.dp,
                         )
+                        .carePackPoliteLiveRegion()
                         .testTag(
                             "report_undo_snackbar",
                         ),
@@ -496,7 +551,8 @@ fun OccurrenceDetailScreen(
                         Text(
                             text =
                                 stringResource(
-                                    R.string.pr3_undo,
+                                    R.string
+                                        .pr3_undo,
                                 ),
                         )
                     }
@@ -522,12 +578,19 @@ private fun OccurrenceDetailContent(
 ) {
     when {
         state.isLoading -> {
-            CircularProgressIndicator(
+            Column(
                 modifier =
-                    Modifier.testTag(
-                        "detail_loading",
-                    ),
-            )
+                    Modifier
+                        .fillMaxWidth()
+                        .carePackPoliteLiveRegion()
+                        .testTag(
+                            "detail_loading",
+                        ),
+                horizontalAlignment =
+                    Alignment.CenterHorizontally,
+            ) {
+                CircularProgressIndicator()
+            }
         }
 
         state.errorMessage != null &&
@@ -540,9 +603,11 @@ private fun OccurrenceDetailContent(
                         .colorScheme
                         .error,
                 modifier =
-                    Modifier.testTag(
-                        "detail_error",
-                    ),
+                    Modifier
+                        .carePackPoliteLiveRegion()
+                        .testTag(
+                            "detail_error",
+                        ),
             )
         }
 
@@ -554,9 +619,11 @@ private fun OccurrenceDetailContent(
                             .pr3_occurrence_not_found,
                     ),
                 modifier =
-                    Modifier.testTag(
-                        "detail_not_found",
-                    ),
+                    Modifier
+                        .carePackPoliteLiveRegion()
+                        .testTag(
+                            "detail_not_found",
+                        ),
             )
         }
 
@@ -575,11 +642,12 @@ private fun OccurrenceDetailContent(
                     MaterialTheme
                         .typography
                         .titleLarge,
-            )
-
-            Spacer(
                 modifier =
-                    Modifier.height(16.dp),
+                    Modifier
+                        .carePackHeading()
+                        .testTag(
+                            "detail_medication_name",
+                        ),
             )
 
             DetailLabelValue(
@@ -588,15 +656,12 @@ private fun OccurrenceDetailContent(
                         R.string.scheduled_time,
                     ),
                 value =
-                    occurrence.localTime
+                    occurrence
+                        .localTime
                         .format(
                             HOUR_MINUTE_FORMATTER,
                         ),
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp),
+                forceLeftToRight = true,
             )
 
             DetailLabelValue(
@@ -606,13 +671,10 @@ private fun OccurrenceDetailContent(
                             .pr3_scheduled_date,
                     ),
                 value =
-                    occurrence.localDate
+                    occurrence
+                        .localDate
                         .toString(),
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp),
+                forceLeftToRight = true,
             )
 
             DetailLabelValue(
@@ -623,11 +685,7 @@ private fun OccurrenceDetailContent(
                     ),
                 value =
                     occurrence.zoneId,
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(12.dp),
+                forceLeftToRight = true,
             )
 
             DetailLabelValue(
@@ -642,32 +700,39 @@ private fun OccurrenceDetailContent(
                     ),
             )
 
-            Spacer(
+            Column(
                 modifier =
-                    Modifier.height(16.dp),
-            )
-
-            Text(
-                text =
-                    stringResource(
-                        R.string.instruction,
+                    Modifier.fillMaxWidth(),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        4.dp,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .labelLarge,
-            )
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.instruction,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .labelLarge,
+                )
 
-            Text(
-                text =
-                    occurrence
-                        .medicationInstruction,
-            )
-
-            Spacer(
-                modifier =
-                    Modifier.height(20.dp),
-            )
+                Text(
+                    text =
+                        occurrence
+                            .medicationInstruction,
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge,
+                    modifier =
+                        Modifier.testTag(
+                            "detail_instruction",
+                        ),
+                )
+            }
 
             ReportStatusCard(
                 occurrence = occurrence,
@@ -676,22 +741,22 @@ private fun OccurrenceDetailContent(
             )
 
             if (BuildConfig.DEBUG) {
-                Spacer(
-                    modifier =
-                        Modifier.height(16.dp),
-                )
-
                 Text(
                     text =
                         stringResource(
                             R.string
                                 .debug_occurrence_id,
-                            occurrence.occurrenceId,
+                            occurrence
+                                .occurrenceId,
                         ),
                     style =
                         MaterialTheme
                             .typography
-                            .bodySmall,
+                            .bodySmall
+                            .copy(
+                                textDirection =
+                                    TextDirection.Ltr,
+                            ),
                     modifier =
                         Modifier.testTag(
                             "debug_occurrence_id",
@@ -701,11 +766,6 @@ private fun OccurrenceDetailContent(
 
             state.errorMessage?.let {
                     errorMessage ->
-                Spacer(
-                    modifier =
-                        Modifier.height(16.dp),
-                )
-
                 Text(
                     text =
                         errorMessage,
@@ -714,16 +774,13 @@ private fun OccurrenceDetailContent(
                             .colorScheme
                             .error,
                     modifier =
-                        Modifier.testTag(
-                            "report_error",
-                        ),
+                        Modifier
+                            .carePackPoliteLiveRegion()
+                            .testTag(
+                                "report_error",
+                            ),
                 )
             }
-
-            Spacer(
-                modifier =
-                    Modifier.height(24.dp),
-            )
 
             if (
                 occurrence.lifecycle ==
@@ -740,12 +797,15 @@ private fun OccurrenceDetailContent(
                             .colorScheme
                             .error,
                     modifier =
-                        Modifier.testTag(
-                            "cancelled_report_disabled",
-                        ),
+                        Modifier
+                            .carePackPoliteLiveRegion()
+                            .testTag(
+                                "cancelled_report_disabled",
+                            ),
                 )
             } else {
                 ReportActions(
+                    occurrence = occurrence,
                     currentState =
                         displayedReportState,
                     isSaving =
@@ -757,7 +817,9 @@ private fun OccurrenceDetailContent(
 
             Spacer(
                 modifier =
-                    Modifier.height(24.dp),
+                    Modifier.padding(
+                        bottom = 8.dp,
+                    ),
             )
         }
     }
@@ -767,18 +829,42 @@ private fun OccurrenceDetailContent(
 private fun DetailLabelValue(
     label: String,
     value: String,
+    forceLeftToRight: Boolean = false,
 ) {
-    Text(
-        text = label,
-        style =
-            MaterialTheme
-                .typography
-                .labelLarge,
-    )
+    Column(
+        modifier =
+            Modifier.fillMaxWidth(),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                4.dp,
+            ),
+    ) {
+        Text(
+            text = label,
+            style =
+                MaterialTheme
+                    .typography
+                    .labelLarge,
+        )
 
-    Text(
-        text = value,
-    )
+        Text(
+            text = value,
+            style =
+                if (forceLeftToRight) {
+                    MaterialTheme
+                        .typography
+                        .bodyLarge
+                        .copy(
+                            textDirection =
+                                TextDirection.Ltr,
+                        )
+                } else {
+                    MaterialTheme
+                        .typography
+                        .bodyLarge
+                },
+        )
+    }
 }
 
 @Composable
@@ -787,13 +873,37 @@ private fun ReportStatusCard(
     displayedReportState:
     CaregiverReportState?,
 ) {
+    val statusText =
+        if (occurrence.isOverdue) {
+            stringResource(
+                R.string
+                    .pr3_recording_time_passed,
+            )
+        } else {
+            reportStateText(
+                displayedReportState,
+            )
+        }
+
     Card(
         modifier =
-            Modifier.fillMaxWidth(),
+            Modifier
+                .fillMaxWidth()
+                .carePackPoliteLiveRegion()
+                .semantics {
+                    contentDescription =
+                        "وضعیت گزارش مراقب: $statusText"
+                },
     ) {
         Column(
             modifier =
-                Modifier.padding(16.dp),
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    4.dp,
+                ),
         ) {
             Text(
                 text =
@@ -807,23 +917,13 @@ private fun ReportStatusCard(
                         .labelLarge,
             )
 
-            Spacer(
-                modifier =
-                    Modifier.height(4.dp),
-            )
-
             Text(
                 text =
-                    if (occurrence.isOverdue) {
-                        stringResource(
-                            R.string
-                                .pr3_recording_time_passed,
-                        )
-                    } else {
-                        reportStateText(
-                            displayedReportState,
-                        )
-                    },
+                    statusText,
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
                 modifier =
                     Modifier.testTag(
                         "current_report_state",
@@ -835,102 +935,144 @@ private fun ReportStatusCard(
 
 @Composable
 private fun ReportActions(
+    occurrence: OccurrenceDetail,
     currentState:
     CaregiverReportState?,
     isSaving: Boolean,
     onSetReport:
         (CaregiverReportState) -> Unit,
 ) {
-    ReportActionButton(
-        text =
-            stringResource(
-                R.string
-                    .pr3_action_given,
-            ),
-        selected =
-            currentState ==
-                    CaregiverReportState.GIVEN,
-        enabled =
-            !isSaving,
-        testTag =
-            "record_given",
-        onClick = {
-            onSetReport(
-                CaregiverReportState.GIVEN,
+    val timeText =
+        occurrence
+            .localTime
+            .format(
+                HOUR_MINUTE_FORMATTER,
             )
-        },
-    )
 
-    Spacer(
+    Column(
         modifier =
-            Modifier.height(12.dp),
-    )
-
-    ReportActionButton(
-        text =
-            stringResource(
-                R.string
-                    .pr3_action_not_given,
+            Modifier.fillMaxWidth(),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp,
             ),
-        selected =
-            currentState ==
-                    CaregiverReportState.NOT_GIVEN,
-        enabled =
-            !isSaving,
-        testTag =
-            "record_not_given",
-        onClick = {
-            onSetReport(
-                CaregiverReportState.NOT_GIVEN,
-            )
-        },
-    )
-
-    Spacer(
-        modifier =
-            Modifier.height(12.dp),
-    )
-
-    ReportActionButton(
-        text =
-            stringResource(
-                R.string
-                    .pr3_action_unknown,
-            ),
-        selected =
-            currentState ==
-                    CaregiverReportState.UNKNOWN,
-        enabled =
-            !isSaving,
-        testTag =
-            "record_unknown",
-        onClick = {
-            onSetReport(
-                CaregiverReportState.UNKNOWN,
-            )
-        },
-    )
-
-    Spacer(
-        modifier =
-            Modifier.height(12.dp),
-    )
-
-    Box(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(40.dp),
-        contentAlignment =
-            Alignment.Center,
     ) {
+        Text(
+            text =
+                stringResource(
+                    R.string
+                        .pr3_current_report,
+                ),
+            style =
+                MaterialTheme
+                    .typography
+                    .titleMedium,
+            modifier =
+                Modifier.carePackHeading(),
+        )
+
+        ReportActionButton(
+            text =
+                stringResource(
+                    R.string
+                        .pr3_action_given,
+                ),
+            accessibilityLabel =
+                "ثبت داده شدن ${occurrence.medicationName} برای ساعت $timeText",
+            selected =
+                currentState ==
+                        CaregiverReportState
+                            .GIVEN,
+            enabled =
+                !isSaving,
+            testTag =
+                "record_given",
+            onClick = {
+                onSetReport(
+                    CaregiverReportState
+                        .GIVEN,
+                )
+            },
+        )
+
+        ReportActionButton(
+            text =
+                stringResource(
+                    R.string
+                        .pr3_action_not_given,
+                ),
+            accessibilityLabel =
+                "ثبت داده نشدن ${occurrence.medicationName} برای ساعت $timeText",
+            selected =
+                currentState ==
+                        CaregiverReportState
+                            .NOT_GIVEN,
+            enabled =
+                !isSaving,
+            testTag =
+                "record_not_given",
+            onClick = {
+                onSetReport(
+                    CaregiverReportState
+                        .NOT_GIVEN,
+                )
+            },
+        )
+
+        ReportActionButton(
+            text =
+                stringResource(
+                    R.string
+                        .pr3_action_unknown,
+                ),
+            accessibilityLabel =
+                "ثبت مشخص نبودن نتیجه ${occurrence.medicationName} برای ساعت $timeText",
+            selected =
+                currentState ==
+                        CaregiverReportState
+                            .UNKNOWN,
+            enabled =
+                !isSaving,
+            testTag =
+                "record_unknown",
+            onClick = {
+                onSetReport(
+                    CaregiverReportState
+                        .UNKNOWN,
+                )
+            },
+        )
+
         if (isSaving) {
-            CircularProgressIndicator(
+            Column(
                 modifier =
-                    Modifier.testTag(
-                        "report_saving",
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            vertical = 8.dp,
+                        )
+                        .carePackPoliteLiveRegion()
+                        .testTag(
+                            "report_saving",
+                        ),
+                horizontalAlignment =
+                    Alignment.CenterHorizontally,
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp,
                     ),
-            )
+            ) {
+                CircularProgressIndicator()
+
+                Text(
+                    text =
+                        "در حال ذخیره گزارش…",
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyMedium,
+                )
+            }
         }
     }
 }
@@ -938,6 +1080,7 @@ private fun ReportActions(
 @Composable
 private fun ReportActionButton(
     text: String,
+    accessibilityLabel: String,
     selected: Boolean,
     enabled: Boolean,
     testTag: String,
@@ -971,16 +1114,17 @@ private fun ReportActionButton(
         onClick = onClick,
         enabled = enabled,
         colors =
-            ButtonDefaults.outlinedButtonColors(
-                containerColor =
-                    containerColor,
-                contentColor =
-                    contentColor,
-                disabledContainerColor =
-                    containerColor,
-                disabledContentColor =
-                    contentColor,
-            ),
+            ButtonDefaults
+                .outlinedButtonColors(
+                    containerColor =
+                        containerColor,
+                    contentColor =
+                        contentColor,
+                    disabledContainerColor =
+                        containerColor,
+                    disabledContentColor =
+                        contentColor,
+                ),
         border =
             BorderStroke(
                 width = 1.dp,
@@ -989,10 +1133,31 @@ private fun ReportActionButton(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .testTag(testTag),
+                .semantics {
+                    contentDescription =
+                        accessibilityLabel
+
+                    this.selected =
+                        selected
+
+                    stateDescription =
+                        if (selected) {
+                            "وضعیت فعلی"
+                        } else {
+                            "انتخاب‌نشده"
+                        }
+                }
+                .testTag(
+                    testTag,
+                ),
     ) {
         Text(
-            text = text,
+            text =
+                if (selected) {
+                    "$text — وضعیت فعلی"
+                } else {
+                    text
+                },
         )
     }
 }

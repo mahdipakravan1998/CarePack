@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <exclude
+        domain="root"
+        path="." />
+
+    <exclude
+        domain="file"
+        path="." />
+
+    <exclude
         domain="database"
         path="." />
 
@@ -9,10 +17,22 @@
         path="." />
 
     <exclude
-        domain="file"
+        domain="external"
         path="." />
 
     <exclude
-        domain="external"
+        domain="device_root"
+        path="." />
+
+    <exclude
+        domain="device_file"
+        path="." />
+
+    <exclude
+        domain="device_database"
+        path="." />
+
+    <exclude
+        domain="device_sharedpref"
         path="." />
 </full-backup-content>

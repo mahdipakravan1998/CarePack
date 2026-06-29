@@ -93,6 +93,43 @@ interface ReportingDao {
         LEFT JOIN caregiver_reports AS report
             ON report.occurrenceId = occurrence.id
         WHERE occurrence.localDateEpochDay
+                = :localDateEpochDay
+          AND occurrence.lifecycle != 'CANCELLED'
+        ORDER BY
+            occurrence.scheduledAtEpochMillis,
+            occurrence.id
+        """,
+    )
+    suspend fun getTodayForReport(
+        localDateEpochDay: Long,
+    ): List<ReportingOccurrenceRow>
+
+    @Query(
+        """
+        SELECT
+            occurrence.id AS occurrenceId,
+            occurrence.localDateEpochDay
+                AS localDateEpochDay,
+            occurrence.minuteOfDay
+                AS minuteOfDay,
+            occurrence.zoneId
+                AS zoneId,
+            occurrence.scheduledAtEpochMillis
+                AS scheduledAtEpochMillis,
+            occurrence.medicationNameSnapshot
+                AS medicationNameSnapshot,
+            occurrence.medicationInstructionSnapshot
+                AS medicationInstructionSnapshot,
+            occurrence.lifecycle
+                AS lifecycle,
+            occurrence.cancellationReason
+                AS cancellationReason,
+            report.state
+                AS reportState
+        FROM occurrences AS occurrence
+        LEFT JOIN caregiver_reports AS report
+            ON report.occurrenceId = occurrence.id
+        WHERE occurrence.localDateEpochDay
                 BETWEEN :startEpochDay
                 AND :endEpochDay
         ORDER BY

@@ -34,7 +34,7 @@ class ReminderReceiverContractTest {
                 .getApplicationContext()
 
     @Test
-    fun manifestDeclaresOnlyRequiredPhaseFourPermissions() {
+    fun manifestDeclaresOnlyRequiredReminderPermissions() {
         val permissions =
             readPackageInfo()
                 .requestedPermissions
