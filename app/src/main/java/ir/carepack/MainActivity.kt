@@ -1,14 +1,17 @@
 package ir.carepack
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import ir.carepack.app.ForegroundGenerationErrorHost
 import ir.carepack.app.CarePackApp
+import ir.carepack.app.ForegroundGenerationErrorHost
+import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.ui.theme.CarePackTheme
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -26,7 +29,13 @@ class MainActivity :
     private val foregroundGenerationError =
         MutableStateFlow<String?>(null)
 
-    private var foregroundGenerationJob:
+    private val notificationOccurrenceId =
+        MutableStateFlow<String?>(null)
+
+    private var foregroundReconciliationJob:
+            Job? = null
+
+    private var notificationValidationJob:
             Job? = null
 
     override fun onCreate(
@@ -42,12 +51,17 @@ class MainActivity :
                     .collectAsStateWithLifecycle()
                     .value
 
+            val pendingNotificationOccurrenceId =
+                notificationOccurrenceId
+                    .collectAsStateWithLifecycle()
+                    .value
+
             CarePackTheme {
                 ForegroundGenerationErrorHost(
                     errorMessage =
                         generationError,
                     onRetry =
-                        ::guaranteeForegroundWindow,
+                        ::reconcileForegroundState,
                 ) {
                     CarePackApp(
                         carePlanService =
@@ -62,62 +76,100 @@ class MainActivity :
                         setupPreferenceStore =
                             container
                                 .setupPreferenceStore,
+                        reminderPreferenceStore =
+                            container
+                                .reminderPreferenceStore,
+                        reminderCoordinator =
+                            container
+                                .reminderCoordinator,
+                        notificationPermissionGateway =
+                            container
+                                .notificationPermissionGateway,
                         clock =
                             container.clock,
                         zoneProvider =
                             container
                                 .zoneProvider,
+                        notificationOccurrenceId =
+                            pendingNotificationOccurrenceId,
+                        onNotificationOccurrenceHandled = {
+                            notificationOccurrenceId.value =
+                                null
+                        },
                     )
                 }
             }
         }
+
+        validateNotificationIntent(
+            sourceIntent = intent,
+        )
+    }
+
+    override fun onNewIntent(
+        intent: Intent,
+    ) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+
+        validateNotificationIntent(
+            sourceIntent = intent,
+        )
     }
 
     override fun onStart() {
         super.onStart()
 
-        guaranteeForegroundWindow()
+        reconcileForegroundState()
     }
 
-    private fun guaranteeForegroundWindow() {
+    private fun reconcileForegroundState() {
         if (
-            foregroundGenerationJob
+            foregroundReconciliationJob
                 ?.isActive == true
         ) {
             return
         }
 
-        foregroundGenerationJob =
+        foregroundReconciliationJob =
             lifecycleScope.launch {
                 foregroundGenerationError.value =
                     null
 
                 try {
-                    val now =
-                        container
-                            .clock
-                            .instant()
-
-                    val anchorDate =
-                        now
-                            .atZone(
-                                container
-                                    .zoneProvider
-                                    .currentZone(),
-                            )
-                            .toLocalDate()
-
                     container
-                        .occurrenceGenerator
-                        .guaranteeWindowForAll(
-                            anchorDate =
-                                anchorDate,
-                            now = now,
+                        .appReconciler
+                        .reconcile(
+                            reason =
+                                ReconciliationReason
+                                    .APPLICATION_FOREGROUND,
                         )
+                } catch (
+                    cancellation:
+                    CancellationException,
+                ) {
+                    throw cancellation
                 } catch (_: Exception) {
                     foregroundGenerationError.value =
-                        "به‌روزرسانی نوبت‌ها انجام نشد."
+                        "به‌روزرسانی نوبت‌ها و یادآورها انجام نشد."
                 }
+            }
+    }
+
+    private fun validateNotificationIntent(
+        sourceIntent: Intent?,
+    ) {
+        notificationValidationJob
+            ?.cancel()
+
+        notificationValidationJob =
+            lifecycleScope.launch {
+                notificationOccurrenceId.value =
+                    container
+                        .notificationNavigationValidator
+                        .validatedOccurrenceId(
+                            intent = sourceIntent,
+                        )
             }
     }
 }

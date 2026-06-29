@@ -42,3 +42,13 @@ data class MedicationScheduleOverviewRow(
     val endDateEpochDay: Long?,
     val minuteOfDay: Int?,
 )
+
+data class ReminderTargetRow(
+    val scheduleSeriesId: String,
+    val occurrenceId: String,
+    val localDateEpochDay: Long,
+    val minuteOfDay: Int,
+    val zoneId: String,
+    val scheduledAtEpochMillis: Long,
+    val medicationNameSnapshot: String,
+)

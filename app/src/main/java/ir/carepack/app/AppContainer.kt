@@ -8,6 +8,7 @@ import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.DatabaseMigrations
+import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
@@ -15,15 +16,32 @@ import ir.carepack.domain.careplan.RoomCarePlanService
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.OccurrenceGenerator
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
+import ir.carepack.domain.reminder.DefaultReminderCoordinator
+import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceStore
+import ir.carepack.domain.reminder.ReminderScheduleSource
+import ir.carepack.domain.reminder.RoomReminderScheduleSource
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.reminder.alarm.AlarmGateway
+import ir.carepack.reminder.alarm.AndroidAlarmGateway
+import ir.carepack.reminder.navigation.NotificationNavigationValidator
+import ir.carepack.reminder.notification.AndroidNotificationGateway
+import ir.carepack.reminder.notification.NotificationGateway
+import ir.carepack.reminder.permission.AndroidExactAlarmCapabilityGateway
+import ir.carepack.reminder.permission.AndroidNotificationPermissionGateway
+import ir.carepack.reminder.permission.ExactAlarmCapabilityGateway
+import ir.carepack.reminder.permission.NotificationPermissionGateway
 import java.time.Clock
 
 class AppContainer(
     context: Context,
 ) {
+    private val applicationContext =
+        context.applicationContext
+
     val clock: Clock =
         Clock.systemUTC()
 
@@ -35,12 +53,56 @@ class AppContainer(
 
     val database: CarePackDatabase =
         Room.databaseBuilder(
-            context.applicationContext,
+            applicationContext,
             CarePackDatabase::class.java,
             DATABASE_NAME,
         )
-            .addMigrations(DatabaseMigrations.MIGRATION_1_2)
+            .addMigrations(
+                DatabaseMigrations
+                    .MIGRATION_1_2,
+            )
             .build()
+
+    val setupPreferenceStore:
+            SetupPreferenceStore =
+        DataStoreSetupPreferenceStore(
+            context =
+                applicationContext,
+        )
+
+    val reminderPreferenceStore:
+            ReminderPreferenceStore =
+        DataStoreReminderPreferenceStore(
+            context =
+                applicationContext,
+        )
+
+    val notificationPermissionGateway:
+            NotificationPermissionGateway =
+        AndroidNotificationPermissionGateway(
+            context =
+                applicationContext,
+        )
+
+    val exactAlarmCapabilityGateway:
+            ExactAlarmCapabilityGateway =
+        AndroidExactAlarmCapabilityGateway(
+            context =
+                applicationContext,
+        )
+
+    val alarmGateway: AlarmGateway =
+        AndroidAlarmGateway(
+            context =
+                applicationContext,
+        )
+
+    val notificationGateway:
+            NotificationGateway =
+        AndroidNotificationGateway(
+            context =
+                applicationContext,
+        )
 
     val occurrenceGenerator:
             OccurrenceGenerator =
@@ -51,7 +113,32 @@ class AppContainer(
                 OccurrenceCandidateResolver(),
         )
 
-    val carePlanService: CarePlanService =
+    private val reminderScheduleSource:
+            ReminderScheduleSource =
+        RoomReminderScheduleSource(
+            database = database,
+        )
+
+    val reminderCoordinator:
+            ReminderCoordinator =
+        DefaultReminderCoordinator(
+            scheduleSource =
+                reminderScheduleSource,
+            preferenceStore =
+                reminderPreferenceStore,
+            notificationPermissionGateway =
+                notificationPermissionGateway,
+            exactAlarmCapabilityGateway =
+                exactAlarmCapabilityGateway,
+            alarmGateway =
+                alarmGateway,
+            notificationGateway =
+                notificationGateway,
+            clock = clock,
+        )
+
+    private val roomCarePlanService:
+            CarePlanService =
         RoomCarePlanService(
             database = database,
             occurrenceGenerator =
@@ -60,11 +147,29 @@ class AppContainer(
             idSource = idSource,
         )
 
-    val caregiverReportService:
+    val carePlanService:
+            CarePlanService =
+        ReminderAwareCarePlanService(
+            delegate =
+                roomCarePlanService,
+            reminderCoordinator =
+                reminderCoordinator,
+        )
+
+    private val roomCaregiverReportService:
             CaregiverReportService =
         RoomCaregiverReportService(
             database = database,
             clock = clock,
+        )
+
+    val caregiverReportService:
+            CaregiverReportService =
+        ReminderAwareCaregiverReportService(
+            delegate =
+                roomCaregiverReportService,
+            reminderCoordinator =
+                reminderCoordinator,
         )
 
     val todayQueryService:
@@ -73,10 +178,22 @@ class AppContainer(
             database = database,
         )
 
-    val setupPreferenceStore:
-            SetupPreferenceStore =
-        DataStoreSetupPreferenceStore(
-            context = context,
+    val notificationNavigationValidator =
+        NotificationNavigationValidator(
+            database = database,
+        )
+
+    val appReconciler =
+        AppReconciler(
+            occurrenceGenerator =
+                occurrenceGenerator,
+            reminderCoordinator =
+                reminderCoordinator,
+            reminderPreferenceStore =
+                reminderPreferenceStore,
+            clock = clock,
+            zoneProvider =
+                zoneProvider,
         )
 
     private companion object {

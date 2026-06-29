@@ -8,6 +8,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -16,9 +17,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -28,6 +29,8 @@ import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.SetupProgress
+import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.feature.careplan.CarePlanRoute
@@ -39,12 +42,15 @@ import ir.carepack.feature.careplan.ScheduleEditViewModel
 import ir.carepack.feature.detail.OccurrenceDetailRoute
 import ir.carepack.feature.detail.OccurrenceDetailViewModel
 import ir.carepack.feature.onboarding.OnboardingScreen
+import ir.carepack.feature.reminder.ReminderSettingsRoute
+import ir.carepack.feature.reminder.ReminderSettingsViewModel
 import ir.carepack.feature.setup.MedicationScheduleRoute
 import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.feature.today.TodayRoute
 import ir.carepack.feature.today.TodayViewModel
+import ir.carepack.reminder.permission.NotificationPermissionGateway
 import java.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -63,6 +69,9 @@ private object Routes {
 
     const val CarePlan =
         "care-plan"
+
+    const val ReminderSettings =
+        "reminder-settings"
 
     const val RecipientIdArgument =
         "recipientId"
@@ -242,8 +251,18 @@ fun CarePackApp(
     CaregiverReportService,
     setupPreferenceStore:
     SetupPreferenceStore,
+    reminderPreferenceStore:
+    ReminderPreferenceStore,
+    reminderCoordinator:
+    ReminderCoordinator,
+    notificationPermissionGateway:
+    NotificationPermissionGateway,
     clock: Clock,
     zoneProvider: ZoneProvider,
+    notificationOccurrenceId:
+    String? = null,
+    onNotificationOccurrenceHandled:
+        () -> Unit = {},
 ) {
     val appViewModel:
             AppViewModel =
@@ -291,9 +310,19 @@ fun CarePackApp(
                     caregiverReportService,
                 setupPreferenceStore =
                     setupPreferenceStore,
+                reminderPreferenceStore =
+                    reminderPreferenceStore,
+                reminderCoordinator =
+                    reminderCoordinator,
+                notificationPermissionGateway =
+                    notificationPermissionGateway,
                 clock = clock,
                 zoneProvider =
                     zoneProvider,
+                notificationOccurrenceId =
+                    notificationOccurrenceId,
+                onNotificationOccurrenceHandled =
+                    onNotificationOccurrenceHandled,
             )
         }
     }
@@ -309,11 +338,39 @@ private fun CarePackNavigation(
     CaregiverReportService,
     setupPreferenceStore:
     SetupPreferenceStore,
+    reminderPreferenceStore:
+    ReminderPreferenceStore,
+    reminderCoordinator:
+    ReminderCoordinator,
+    notificationPermissionGateway:
+    NotificationPermissionGateway,
     clock: Clock,
     zoneProvider: ZoneProvider,
+    notificationOccurrenceId: String?,
+    onNotificationOccurrenceHandled:
+        () -> Unit,
 ) {
     val navController =
         rememberNavController()
+
+    LaunchedEffect(
+        notificationOccurrenceId,
+    ) {
+        val occurrenceId =
+            notificationOccurrenceId
+                ?: return@LaunchedEffect
+
+        navController.navigate(
+            Routes.occurrenceDetail(
+                occurrenceId =
+                    occurrenceId,
+            ),
+        ) {
+            launchSingleTop = true
+        }
+
+        onNotificationOccurrenceHandled()
+    }
 
     NavHost(
         navController = navController,
@@ -384,7 +441,7 @@ private fun CarePackNavigation(
                         ),
                 )
 
-            val viewModel:
+            val medicationViewModel:
                     MedicationScheduleViewModel =
                 viewModel(
                     factory =
@@ -405,7 +462,8 @@ private fun CarePackNavigation(
                 )
 
             MedicationScheduleRoute(
-                viewModel = viewModel,
+                viewModel =
+                    medicationViewModel,
                 onCompleted = {
                     navController.navigate(
                         Routes.Today,
@@ -418,8 +476,7 @@ private fun CarePackNavigation(
                             inclusive = true
                         }
 
-                        launchSingleTop =
-                            true
+                        launchSingleTop = true
                     }
                 },
             )
@@ -436,6 +493,10 @@ private fun CarePackNavigation(
                             .factory(
                                 todayQueryService =
                                     todayQueryService,
+                                reminderCoordinator =
+                                    reminderCoordinator,
+                                reminderPreferenceStore =
+                                    reminderPreferenceStore,
                                 clock = clock,
                                 zoneProvider =
                                     zoneProvider,
@@ -455,6 +516,16 @@ private fun CarePackNavigation(
                     )
                 },
                 onManageCarePlan = {
+                    navController.navigate(
+                        Routes.CarePlan,
+                    )
+                },
+                onReminderSettings = {
+                    navController.navigate(
+                        Routes.ReminderSettings,
+                    )
+                },
+                onReviewSchedules = {
                     navController.navigate(
                         Routes.CarePlan,
                     )
@@ -512,6 +583,39 @@ private fun CarePackNavigation(
         }
 
         composable(
+            Routes.ReminderSettings,
+        ) {
+            val reminderSettingsViewModel:
+                    ReminderSettingsViewModel =
+                viewModel(
+                    factory =
+                        ReminderSettingsViewModel
+                            .factory(
+                                preferenceStore =
+                                    reminderPreferenceStore,
+                                reminderCoordinator =
+                                    reminderCoordinator,
+                                notificationPermissionGateway =
+                                    notificationPermissionGateway,
+                            ),
+                )
+
+            ReminderSettingsRoute(
+                viewModel =
+                    reminderSettingsViewModel,
+                onBack = {
+                    navController
+                        .popBackStack()
+                },
+                onReviewSchedules = {
+                    navController.navigate(
+                        Routes.CarePlan,
+                    )
+                },
+            )
+        }
+
+        composable(
             route =
                 Routes
                     .AddMedicationPattern,
@@ -535,7 +639,7 @@ private fun CarePackNavigation(
                         ),
                 )
 
-            val viewModel:
+            val medicationViewModel:
                     MedicationScheduleViewModel =
                 viewModel(
                     factory =
@@ -556,7 +660,8 @@ private fun CarePackNavigation(
                 )
 
             MedicationScheduleRoute(
-                viewModel = viewModel,
+                viewModel =
+                    medicationViewModel,
                 onCompleted = {
                     navController
                         .popBackStack()
@@ -588,7 +693,7 @@ private fun CarePackNavigation(
                         ),
                 )
 
-            val viewModel:
+            val medicationTextViewModel:
                     MedicationTextEditViewModel =
                 viewModel(
                     factory =
@@ -602,7 +707,8 @@ private fun CarePackNavigation(
                 )
 
             MedicationTextEditRoute(
-                viewModel = viewModel,
+                viewModel =
+                    medicationTextViewModel,
                 onBack = {
                     navController
                         .popBackStack()
@@ -638,7 +744,7 @@ private fun CarePackNavigation(
                         ),
                 )
 
-            val viewModel:
+            val scheduleEditViewModel:
                     ScheduleEditViewModel =
                 viewModel(
                     factory =
@@ -654,7 +760,8 @@ private fun CarePackNavigation(
                 )
 
             ScheduleEditRoute(
-                viewModel = viewModel,
+                viewModel =
+                    scheduleEditViewModel,
                 onBack = {
                     navController
                         .popBackStack()
@@ -690,7 +797,7 @@ private fun CarePackNavigation(
                         ),
                 )
 
-            val viewModel:
+            val occurrenceViewModel:
                     OccurrenceDetailViewModel =
                 viewModel(
                     factory =
@@ -706,7 +813,8 @@ private fun CarePackNavigation(
                 )
 
             OccurrenceDetailRoute(
-                viewModel = viewModel,
+                viewModel =
+                    occurrenceViewModel,
                 onBack = {
                     navController
                         .popBackStack()
