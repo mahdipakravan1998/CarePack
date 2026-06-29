@@ -11,6 +11,9 @@ rem One non-Compose class:
 rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.ReportingIntegrationTest"
 rem
 rem One Compose class:
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingPrivacyDeletionComposeTest"
+rem
+rem Another Compose class:
 rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingComposeTest"
 rem
 rem One method:
@@ -26,10 +29,11 @@ set "TEST_PACKAGE=ir.carepack.debug.test"
 set "TEST_RUNNER=androidx.test.runner.AndroidJUnitRunner"
 set "TEST_COMPONENT=%TEST_PACKAGE%/%TEST_RUNNER%"
 
+set "REPORTING_PRIVACY_DELETION_COMPOSE_CLASS=ir.carepack.ui.ReportingPrivacyDeletionComposeTest"
 set "REPORTING_COMPOSE_CLASS=ir.carepack.ui.ReportingComposeTest"
 set "CAREPACK_COMPOSE_CLASS=ir.carepack.ui.CarePackComposeTest"
 
-set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%"
+set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%,%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%"
 
 set "TARGET_APK=%CD%\app\build\outputs\apk\debug\app-debug.apk"
 set "TEST_APK=%CD%\app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
@@ -46,6 +50,10 @@ set "INSTRUMENTATION_SCRIPT=%CD%\tools\run-adb-instrumentation.ps1"
 set "VALIDATOR_SCRIPT=%CD%\tools\validate-instrumentation-report.ps1"
 
 set "INSTRUMENTATION_TIMEOUT_SECONDS=180"
+set "PACKAGE_VISIBILITY_TIMEOUT_SECONDS=20"
+set "XIAOMI_PERMISSION_ATTEMPTS=2"
+
+set "REPORTING_PRIVACY_DELETION_COMPOSE_METHODS=reportPreview_displaysExactTextAndExplicitActionsAtTwoHundredPercentFont privacyScreen_remainsUsefulWhenExternalPolicyCannotOpen deletion_requiresExplicitDestructiveConfirmation deletionProgress_doesNotExposeAnotherSuccessOrDeleteAction deletionFailure_keepsRetryReachableAtLargeFontScale"
 
 set "REPORTING_COMPOSE_METHODS=noReportAndUnknown_haveDifferentVisibleText detail_exposesAllThreeReportActions cancelledOccurrence_disablesNewReportActions undoSnackbar_callsCurrentUndoToken todayShowsSeparateNoMedicationEmptyState historySectionShowsGroupedRecentHistory"
 
@@ -118,9 +126,18 @@ for /f "usebackq delims=" %%V in (`adb shell getprop ro.build.version.release`) 
     set "ANDROID_VERSION=%%V"
 )
 
+for /f "usebackq delims=" %%U in (`adb shell am get-current-user`) do (
+    set "DEVICE_USER_ID=%%U"
+)
+
+if not defined DEVICE_USER_ID (
+    set "DEVICE_USER_ID=0"
+)
+
 echo Device manufacturer: %DEVICE_MANUFACTURER%
 echo Device model:        %DEVICE_MODEL%
 echo Android version:     %ANDROID_VERSION%
+echo Android user:        %DEVICE_USER_ID%
 echo.
 
 echo [1/8] Building application and test APKs...
@@ -158,28 +175,24 @@ adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
 adb shell am force-stop com.miui.securitycenter >nul 2>&1
 
 echo.
-echo [3/8] Updating application APK...
+echo [3/8] Updating and verifying application APK...
 
-adb install -r -t -g "%TARGET_APK%"
+call :install_and_verify_target_apk
 
 if errorlevel 1 (
     echo.
-    echo ERROR: Application APK installation failed.
+    echo ERROR: Application APK installation or verification failed.
     exit /b 1
 )
 
 echo.
-echo [4/8] Installing a fresh Android test APK...
+echo [4/8] Installing and verifying a fresh Android test APK...
 
-rem A fresh test-package install prevents stale or missing
-rem instrumentation registration after interrupted Gradle runs.
-adb uninstall "%TEST_PACKAGE%" >nul 2>&1
-
-adb install -t -g "%TEST_APK%"
+call :install_and_verify_test_apk
 
 if errorlevel 1 (
     echo.
-    echo ERROR: Android test APK installation failed.
+    echo ERROR: Android test APK installation or verification failed.
     exit /b 1
 )
 
@@ -194,9 +207,7 @@ if errorlevel 1 (
     echo Reinstalling the Android test APK once...
     echo.
 
-    adb uninstall "%TEST_PACKAGE%" >nul 2>&1
-
-    adb install -t -g "%TEST_APK%"
+    call :install_and_verify_test_apk
 
     if errorlevel 1 (
         echo.
@@ -223,17 +234,15 @@ echo %TEST_COMPONENT%
 echo.
 echo [6/8] Granting Xiaomi background-window permission...
 
-powershell.exe ^
-    -NoLogo ^
-    -NoProfile ^
-    -ExecutionPolicy Bypass ^
-    -File "%PERMISSION_SCRIPT%" ^
-    -PackageName "%TARGET_PACKAGE%"
+call :grant_xiaomi_permission
 
 if errorlevel 1 (
     echo.
-    echo ERROR: Xiaomi UI permission automation failed.
-    exit /b 1
+    echo WARNING: Xiaomi UI permission automation did not complete.
+    echo The APKs are installed and verified, so the test run will continue.
+    echo If MIUI blocks a test window, set this permission manually:
+    echo Open new windows while running in the background = Always allow
+    echo.
 )
 
 echo.
@@ -297,6 +306,10 @@ goto :run_full_suite
 
 :dispatch_selected_test
 
+if /I "%~1"=="%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%" (
+    goto :run_selected_reporting_privacy_deletion_compose_class
+)
+
 if /I "%~1"=="%REPORTING_COMPOSE_CLASS%" (
     goto :run_selected_reporting_compose_class
 )
@@ -317,6 +330,28 @@ call :run_and_validate ^
     "Selected instrumented test"
 
 if errorlevel 1 goto :selected_test_failed
+
+goto :selected_test_passed
+
+
+:run_selected_reporting_privacy_deletion_compose_class
+
+type nul > "%SELECTED_REPORT_FILE%"
+
+for %%M in (%REPORTING_PRIVACY_DELETION_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "ReportingPrivacyDeletionComposeTest#%%M"
+
+    if errorlevel 1 goto :selected_test_failed
+
+    call :append_report ^
+        "%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%#%%M" ^
+        "%SELECTED_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
 
 goto :selected_test_passed
 
@@ -383,7 +418,26 @@ if errorlevel 1 goto :non_ui_tests_failed
 type nul > "%UI_REPORT_FILE%"
 
 echo.
-echo [8B/8] Running ReportingComposeTest methods in isolated sessions...
+echo [8B/8] Running ReportingPrivacyDeletionComposeTest methods in isolated sessions...
+echo.
+
+for %%M in (%REPORTING_PRIVACY_DELETION_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "ReportingPrivacyDeletionComposeTest#%%M"
+
+    if errorlevel 1 goto :ui_tests_failed
+
+    call :append_report ^
+        "%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%#%%M" ^
+        "%UI_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+echo.
+echo [8C/8] Running ReportingComposeTest methods in isolated sessions...
 echo.
 
 for %%M in (%REPORTING_COMPOSE_METHODS%) do (
@@ -402,7 +456,7 @@ for %%M in (%REPORTING_COMPOSE_METHODS%) do (
 )
 
 echo.
-echo [8C/8] Running CarePackComposeTest methods in isolated sessions...
+echo [8D/8] Running CarePackComposeTest methods in isolated sessions...
 echo.
 
 for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
@@ -495,12 +549,177 @@ if not "!RUN_VALIDATION_EXIT_CODE!"=="0" (
 exit /b 0
 
 
+:install_and_verify_target_apk
+
+adb install ^
+    --user "%DEVICE_USER_ID%" ^
+    -r ^
+    -t ^
+    -g ^
+    "%TARGET_APK%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TARGET_PACKAGE%"
+
+if not errorlevel 1 (
+    exit /b 0
+)
+
+echo.
+echo Target package was not visible after the first install.
+echo Performing one clean reinstall...
+
+adb uninstall "%TARGET_PACKAGE%" >nul 2>&1
+
+adb install ^
+    --user "%DEVICE_USER_ID%" ^
+    -t ^
+    -g ^
+    "%TARGET_APK%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TARGET_PACKAGE%"
+
+exit /b %ERRORLEVEL%
+
+
+:install_and_verify_test_apk
+
+rem A fresh test-package install prevents stale or missing
+rem instrumentation registration after interrupted Gradle runs.
+adb uninstall "%TEST_PACKAGE%" >nul 2>&1
+
+adb install ^
+    --user "%DEVICE_USER_ID%" ^
+    -t ^
+    -g ^
+    "%TEST_APK%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TEST_PACKAGE%"
+
+if not errorlevel 1 (
+    exit /b 0
+)
+
+echo.
+echo Test package was not visible after the first install.
+echo Performing one clean reinstall...
+
+adb uninstall "%TEST_PACKAGE%" >nul 2>&1
+
+adb install ^
+    --user "%DEVICE_USER_ID%" ^
+    -t ^
+    -g ^
+    "%TEST_APK%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TEST_PACKAGE%"
+
+exit /b %ERRORLEVEL%
+
+
+:grant_xiaomi_permission
+
+for /L %%I in (1,1,%XIAOMI_PERMISSION_ATTEMPTS%) do (
+    call :ensure_target_package
+
+    if errorlevel 1 (
+        exit /b 1
+    )
+
+    powershell.exe ^
+        -NoLogo ^
+        -NoProfile ^
+        -ExecutionPolicy Bypass ^
+        -File "%PERMISSION_SCRIPT%" ^
+        -PackageName "%TARGET_PACKAGE%"
+
+    if not errorlevel 1 (
+        exit /b 0
+    )
+
+    echo.
+    echo Xiaomi permission attempt %%I of %XIAOMI_PERMISSION_ATTEMPTS% failed.
+
+    adb shell am force-stop com.miui.securitycenter >nul 2>&1
+    adb shell input keyevent 3 >nul 2>&1
+
+    timeout /t 2 /nobreak >nul
+)
+
+exit /b 1
+
+
+:ensure_target_package
+
+call :wait_for_package "%TARGET_PACKAGE%"
+
+if not errorlevel 1 (
+    exit /b 0
+)
+
+echo.
+echo Target package disappeared before permission setup.
+echo Reinstalling and verifying the target APK...
+
+call :install_and_verify_target_apk
+
+exit /b %ERRORLEVEL%
+
+
+:wait_for_package
+
+set "PACKAGE_TO_WAIT_FOR=%~1"
+
+for /L %%I in (1,1,%PACKAGE_VISIBILITY_TIMEOUT_SECONDS%) do (
+    adb shell pm path --user "%DEVICE_USER_ID%" "%PACKAGE_TO_WAIT_FOR%" 2>nul ^
+        | findstr /B /C:"package:" >nul
+
+    if not errorlevel 1 (
+        exit /b 0
+    )
+
+    timeout /t 1 /nobreak >nul
+)
+
+echo.
+echo Package was not visible to Android user %DEVICE_USER_ID%:
+echo %PACKAGE_TO_WAIT_FOR%
+echo.
+
+adb shell pm list packages --user "%DEVICE_USER_ID%" ^
+    | findstr /I /C:"carepack"
+
+exit /b 1
+
+
 :prepare_test_session
 
 adb get-state >nul 2>&1
 
 if errorlevel 1 (
     echo ERROR: Device disconnected before instrumentation.
+    exit /b 1
+)
+
+call :ensure_target_package
+
+if errorlevel 1 (
+    echo ERROR: Target package is unavailable before instrumentation.
     exit /b 1
 )
 

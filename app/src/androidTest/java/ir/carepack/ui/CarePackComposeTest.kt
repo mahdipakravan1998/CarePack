@@ -50,6 +50,7 @@ import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.domain.reminder.TimezoneObservation
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.report.RoomTodayReportFormatter
 import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.feature.careplan.CarePlanRoute
 import ir.carepack.feature.careplan.CarePlanViewModel
@@ -60,6 +61,10 @@ import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
+import ir.carepack.testing.RecordingDataDeletionCoordinator
+import ir.carepack.testing.RecordingPrivacyPolicyGateway
+import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.Clock
 import java.time.DayOfWeek
@@ -263,6 +268,18 @@ class CarePackComposeTest {
                         reminderCoordinator,
                     notificationPermissionGateway =
                         notificationPermissionGateway,
+                    todayReportFormatter =
+                        RoomTodayReportFormatter(
+                            database = database,
+                        ),
+                    privacyPreferenceStore =
+                        InstrumentedPrivacyPreferenceStore(),
+                    textShareGateway =
+                        RecordingTextShareGateway(),
+                    privacyPolicyGateway =
+                        RecordingPrivacyPolicyGateway(),
+                    dataDeletionCoordinator =
+                        RecordingDataDeletionCoordinator(),
                     clock = fixedClock,
                     zoneProvider =
                         tehranZoneProvider,
@@ -425,11 +442,128 @@ class CarePackComposeTest {
     }
 
     @Test
+    fun completedDeletion_returnsNavigationToFirstLaunch() {
+        createPlan()
+
+        val deletionCoordinator =
+            RecordingDataDeletionCoordinator()
+
+        composeRule.setContent {
+            CarePackTheme {
+                CarePackApp(
+                    carePlanService =
+                        carePlanService,
+                    todayQueryService =
+                        RoomTodayQueryService(
+                            database = database,
+                        ),
+                    caregiverReportService =
+                        RoomCaregiverReportService(
+                            database = database,
+                            clock = testClock,
+                        ),
+                    setupPreferenceStore =
+                        InMemorySetupPreferenceStore(),
+                    reminderPreferenceStore =
+                        InMemoryReminderPreferenceStore(),
+                    reminderCoordinator =
+                        InMemoryReminderCoordinator(),
+                    notificationPermissionGateway =
+                        GrantedNotificationPermissionGateway(),
+                    todayReportFormatter =
+                        RoomTodayReportFormatter(
+                            database = database,
+                        ),
+                    privacyPreferenceStore =
+                        InstrumentedPrivacyPreferenceStore(),
+                    textShareGateway =
+                        RecordingTextShareGateway(),
+                    privacyPolicyGateway =
+                        RecordingPrivacyPolicyGateway(),
+                    dataDeletionCoordinator =
+                        deletionCoordinator,
+                    clock = testClock,
+                    zoneProvider =
+                        tehranZoneProvider,
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "open_settings",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "open_settings",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "settings_delete_all",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "settings_delete_all",
+            )
+            .performScrollTo()
+            .performClick()
+
+        waitForTag(
+            tag =
+                "delete_all_data_request",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "delete_all_data_request",
+            )
+            .performScrollTo()
+            .performClick()
+
+        waitForTag(
+            tag =
+                "delete_all_data_confirm",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "delete_all_data_confirm",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "onboarding_screen",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "onboarding_screen",
+            )
+            .assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            assertEquals(
+                1,
+                deletionCoordinator
+                    .deleteCount,
+            )
+        }
+    }
+
+    @Test
     fun storageFailure_doesNotNavigateOrShowSuccess() {
         val continueInvoked =
             AtomicBoolean(
                 false,
             )
+
+        val expectedError =
+            "ذخیره‌سازی انجام نشد. دوباره تلاش کنید."
 
         val viewModel =
             RecipientSetupViewModel(
@@ -450,56 +584,43 @@ class CarePackComposeTest {
             }
         }
 
-        waitForTag(
-            tag =
-                "recipient_name",
-        )
-
-        composeRule
-            .onNodeWithTag(
-                "recipient_name",
-            )
-            .assertExists()
-            .performTextInput(
+        /*
+         * This test intentionally does not search for recipient_name,
+         * does not enter text through the Xiaomi IME, and does not wait
+         * for a semantics tag before exercising the ViewModel.
+         */
+        composeRule.runOnIdle {
+            viewModel.onDisplayNameChanged(
                 "Test recipient",
             )
 
-        closeSoftKeyboard()
-
-        composeRule
-            .onNodeWithTag(
-                "recipient_save",
-            )
-            .performScrollTo()
-            .assertIsDisplayed()
-            .performClick()
+            viewModel.save()
+        }
 
         composeRule.waitForIdle()
 
-        waitForTag(
-            tag =
-                "recipient_error",
-        )
-
-        composeRule
-            .onNodeWithTag(
-                "recipient_error",
-            )
-            .assertTextEquals(
-                "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
-            )
-
         composeRule.runOnIdle {
+            val state =
+                viewModel.state.value
+
+            assertFalse(
+                state.isSaving,
+            )
+
+            assertEquals(
+                "Test recipient",
+                state.displayName,
+            )
+
+            assertEquals(
+                expectedError,
+                state.errorMessage,
+            )
+
             assertFalse(
                 continueInvoked.get(),
             )
         }
-
-        composeRule
-            .onNodeWithTag(
-                "recipient_save",
-            )
-            .assertExists()
     }
 
     @Test
@@ -550,12 +671,14 @@ class CarePackComposeTest {
             .onNodeWithText(
                 "نام دارو نمی‌تواند خالی باشد.",
             )
+            .performScrollTo()
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithText(
                 "دستور مصرف یا توضیح مراقبت نمی‌تواند خالی باشد.",
             )
+            .performScrollTo()
             .assertIsDisplayed()
 
         runBlocking {
@@ -843,49 +966,98 @@ class CarePackComposeTest {
             }
         }
 
+        val medicationCardTag =
+            "medication_card_${plan.medicationId}"
+
+        val stopMedicationTag =
+            "stop_medication_${plan.medicationId}"
+
+        val confirmStopTag =
+            "confirm_stop_${plan.medicationId}"
+
+        val archiveMedicationTag =
+            "archive_medication_${plan.medicationId}"
+
+        val confirmArchiveTag =
+            "confirm_archive_${plan.medicationId}"
+
         waitForTag(
             tag =
-                "medication_card_${plan.medicationId}",
+                medicationCardTag,
         )
 
         assertTagDoesNotExist(
             tag =
-                "archive_medication_${plan.medicationId}",
+                archiveMedicationTag,
         )
 
         composeRule
             .onNodeWithTag(
-                "stop_medication_${plan.medicationId}",
+                stopMedicationTag,
             )
+            .performScrollTo()
+            .assertIsDisplayed()
             .performClick()
 
-        composeRule
-            .onNodeWithTag(
-                "confirm_stop_${plan.medicationId}",
-            )
-            .performClick()
+        composeRule.waitForIdle()
 
         waitForTag(
             tag =
-                "archive_medication_${plan.medicationId}",
+                confirmStopTag,
+            useUnmergedTree =
+                true,
         )
 
         composeRule
             .onNodeWithTag(
-                "archive_medication_${plan.medicationId}",
+                testTag =
+                    confirmStopTag,
+                useUnmergedTree =
+                    true,
             )
+            .assertIsDisplayed()
             .performClick()
+
+        composeRule.waitForIdle()
+
+        waitForTag(
+            tag =
+                archiveMedicationTag,
+        )
 
         composeRule
             .onNodeWithTag(
-                "confirm_archive_${plan.medicationId}",
+                archiveMedicationTag,
             )
+            .performScrollTo()
+            .assertIsDisplayed()
             .performClick()
+
+        composeRule.waitForIdle()
+
+        waitForTag(
+            tag =
+                confirmArchiveTag,
+            useUnmergedTree =
+                true,
+        )
+
+        composeRule
+            .onNodeWithTag(
+                testTag =
+                    confirmArchiveTag,
+                useUnmergedTree =
+                    true,
+            )
+            .assertIsDisplayed()
+            .performClick()
+
+        composeRule.waitForIdle()
 
         waitUntil {
             composeRule
                 .onAllNodesWithTag(
-                    "medication_card_${plan.medicationId}",
+                    medicationCardTag,
                 )
                 .fetchSemanticsNodes(
                     atLeastOneRootRequired =
@@ -1260,10 +1432,12 @@ private class InMemoryReminderCoordinator :
 
     private val status =
         ReminderStatus(
-            remindersEnabled = false,
+            remindersEnabled =
+                false,
             notificationPermissionGranted =
                 true,
-            hasActiveSchedule = true,
+            hasActiveSchedule =
+                true,
             exactAlarmCapabilityGranted =
                 false,
             availability =

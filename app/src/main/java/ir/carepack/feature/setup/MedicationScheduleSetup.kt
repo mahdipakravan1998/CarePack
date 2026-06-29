@@ -7,7 +7,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -51,9 +53,12 @@ import ir.carepack.feature.careplan.withEndDate
 import ir.carepack.feature.careplan.withStartDate
 import ir.carepack.feature.careplan.withTimeDraft
 import ir.carepack.feature.careplan.withValidationErrors
+import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDateTime
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,324 +69,631 @@ import kotlinx.coroutines.launch
 data class MedicationScheduleUiState(
     val medicationName: String = "",
     val instruction: String = "",
-    val schedule: ScheduleFormUiState,
-    val errors: Map<CarePlanField, String> = emptyMap(),
+    val schedule:
+    ScheduleFormUiState,
+    val errors:
+    Map<CarePlanField, String> =
+        emptyMap(),
     val isSaving: Boolean = false,
     val generalError: String? = null,
 )
 
 sealed interface MedicationScheduleEvent {
-    data object Completed : MedicationScheduleEvent
+
+    data object Completed :
+        MedicationScheduleEvent
 }
 
 class MedicationScheduleViewModel(
     private val recipientId: String,
-    private val carePlanService: CarePlanService,
-    private val setupPreferenceStore: SetupPreferenceStore,
-    private val completeInitialSetup: Boolean,
+    private val carePlanService:
+    CarePlanService,
+    private val setupPreferenceStore:
+    SetupPreferenceStore,
+    private val completeInitialSetup:
+    Boolean,
     clock: Clock,
     zoneProvider: ZoneProvider,
 ) : ViewModel() {
 
-    private val initialDateTime = LocalDateTime.ofInstant(
-        clock.instant(),
-        zoneProvider.currentZone(),
-    )
-        .plusMinutes(DEFAULT_FUTURE_MINUTES)
-        .withSecond(0)
-        .withNano(0)
+    private val initialDateTime =
+        LocalDateTime.ofInstant(
+            clock.instant(),
+            zoneProvider.currentZone(),
+        )
+            .plusMinutes(
+                DEFAULT_FUTURE_MINUTES,
+            )
+            .withSecond(0)
+            .withNano(0)
 
-    private val mutableState = MutableStateFlow(
-        MedicationScheduleUiState(
-            schedule = ScheduleFormUiState(
-                weekdays = setOf(initialDateTime.dayOfWeek),
-                minutesOfDay = listOf(initialDateTime.toLocalTime().toMinuteOfDay()),
-                timeDraft = "",
-                startDateText = "",
-                endDateText = "",
-                zoneId = zoneProvider.currentZone().id,
+    private val mutableState =
+        MutableStateFlow(
+            MedicationScheduleUiState(
+                schedule =
+                    ScheduleFormUiState(
+                        weekdays =
+                            setOf(
+                                initialDateTime
+                                    .dayOfWeek,
+                            ),
+                        minutesOfDay =
+                            listOf(
+                                initialDateTime
+                                    .toLocalTime()
+                                    .toMinuteOfDay(),
+                            ),
+                        timeDraft = "",
+                        startDateText = "",
+                        endDateText = "",
+                        zoneId =
+                            zoneProvider
+                                .currentZone()
+                                .id,
+                    ),
             ),
-        ),
-    )
+        )
 
-    val state = mutableState.asStateFlow()
+    val state =
+        mutableState.asStateFlow()
 
-    private val eventChannel = Channel<MedicationScheduleEvent>(Channel.BUFFERED)
-    val events = eventChannel.receiveAsFlow()
+    private val eventChannel =
+        Channel<MedicationScheduleEvent>(
+            capacity =
+                Channel.BUFFERED,
+        )
 
-    fun onMedicationNameChanged(value: String) {
-        mutableState.update { current ->
+    val events =
+        eventChannel.receiveAsFlow()
+
+    fun onMedicationNameChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                current ->
             current.copy(
-                medicationName = value,
-                errors = current.errors - CarePlanField.MEDICATION_NAME,
+                medicationName =
+                    value,
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .MEDICATION_NAME,
                 generalError = null,
             )
         }
     }
 
-    fun onInstructionChanged(value: String) {
-        mutableState.update { current ->
+    fun onInstructionChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                current ->
             current.copy(
-                instruction = value,
-                errors = current.errors - CarePlanField.INSTRUCTION,
+                instruction =
+                    value,
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .INSTRUCTION,
                 generalError = null,
             )
         }
     }
 
-    fun onWeekdayToggled(day: DayOfWeek) =
-        updateSchedule { it.toggleWeekday(day) }
-
-    fun onTimeDraftChanged(value: String) =
-        updateSchedule { it.withTimeDraft(value) }
-
-    fun addTime() =
-        updateSchedule(clearGeneralError = false) { it.addDraftTime() }
-
-    fun removeTime(minuteOfDay: Int) =
-        updateSchedule(clearGeneralError = false) {
-            it.removeTime(minuteOfDay)
+    fun onWeekdayToggled(
+        day: DayOfWeek,
+    ) {
+        updateSchedule {
+            it.toggleWeekday(
+                day,
+            )
         }
+    }
 
-    fun onStartDateChanged(value: String) =
-        updateSchedule { it.withStartDate(value) }
+    fun onTimeDraftChanged(
+        value: String,
+    ) {
+        updateSchedule {
+            it.withTimeDraft(
+                value,
+            )
+        }
+    }
 
-    fun onEndDateChanged(value: String) =
-        updateSchedule { it.withEndDate(value) }
+    fun addTime() {
+        updateSchedule(
+            clearGeneralError = false,
+        ) {
+            it.addDraftTime()
+        }
+    }
+
+    fun removeTime(
+        minuteOfDay: Int,
+    ) {
+        updateSchedule(
+            clearGeneralError = false,
+        ) {
+            it.removeTime(
+                minuteOfDay,
+            )
+        }
+    }
+
+    fun onStartDateChanged(
+        value: String,
+    ) {
+        updateSchedule {
+            it.withStartDate(
+                value,
+            )
+        }
+    }
+
+    fun onEndDateChanged(
+        value: String,
+    ) {
+        updateSchedule {
+            it.withEndDate(
+                value,
+            )
+        }
+    }
 
     fun save() {
-        val current = mutableState.value
+        val current =
+            mutableState.value
+
         if (current.isSaving) {
             return
         }
 
-        val parsedDates = current.schedule.parseDates()
-        if (parsedDates.errors.isNotEmpty()) {
-            mutableState.update { state ->
+        val parsedDates =
+            current
+                .schedule
+                .parseDates()
+
+        if (
+            parsedDates
+                .errors
+                .isNotEmpty()
+        ) {
+            mutableState.update {
+                    state ->
                 state.copy(
-                    schedule = state.schedule.withDateErrors(parsedDates.errors),
+                    schedule =
+                        state
+                            .schedule
+                            .withDateErrors(
+                                parsedDates.errors,
+                            ),
                 )
             }
+
             return
         }
 
         viewModelScope.launch {
-            mutableState.update { state ->
+            mutableState.update {
+                    state ->
                 state.copy(
                     isSaving = true,
                     errors = emptyMap(),
-                    schedule = state.schedule.clearErrors(),
+                    schedule =
+                        state
+                            .schedule
+                            .clearErrors(),
                     generalError = null,
                 )
             }
 
             try {
-                val state = mutableState.value
+                val state =
+                    mutableState.value
+
                 when (
-                    val outcome = carePlanService.createMedicationAndSchedule(
-                        CreateMedicationScheduleCommand(
-                            recipientId = recipientId,
-                            medicationName = state.medicationName,
-                            instruction = state.instruction,
-                            weekdays = state.schedule.weekdays,
-                            minutesOfDay = state.schedule.minutesOfDay,
-                            startDate = parsedDates.startDate,
-                            endDate = parsedDates.endDate,
-                            zoneId = state.schedule.zoneId,
-                        ),
-                    )
+                    val outcome =
+                        carePlanService
+                            .createMedicationAndSchedule(
+                                CreateMedicationScheduleCommand(
+                                    recipientId =
+                                        recipientId,
+                                    medicationName =
+                                        state
+                                            .medicationName,
+                                    instruction =
+                                        state
+                                            .instruction,
+                                    weekdays =
+                                        state
+                                            .schedule
+                                            .weekdays,
+                                    minutesOfDay =
+                                        state
+                                            .schedule
+                                            .minutesOfDay,
+                                    startDate =
+                                        parsedDates
+                                            .startDate,
+                                    endDate =
+                                        parsedDates
+                                            .endDate,
+                                    zoneId =
+                                        state
+                                            .schedule
+                                            .zoneId,
+                                ),
+                            )
                 ) {
-                    is CreateMedicationScheduleOutcome.Created -> {
+                    is CreateMedicationScheduleOutcome
+                    .Created -> {
                         if (completeInitialSetup) {
-                            setupPreferenceStore.markSetupComplete()
+                            setupPreferenceStore
+                                .markSetupComplete()
                         }
-                        eventChannel.send(MedicationScheduleEvent.Completed)
+
+                        eventChannel.send(
+                            MedicationScheduleEvent
+                                .Completed,
+                        )
                     }
 
-                    is CreateMedicationScheduleOutcome.Invalid -> {
-                        val fieldErrors = outcome.errors.toFieldErrors()
-                        mutableState.update { currentState ->
+                    is CreateMedicationScheduleOutcome
+                    .Invalid -> {
+                        val fieldErrors =
+                            outcome
+                                .errors
+                                .toFieldErrors()
+
+                        mutableState.update {
+                                currentState ->
                             currentState.copy(
-                                errors = fieldErrors.filterKeys {
-                                    it in MEDICATION_FIELDS
-                                },
-                                schedule = currentState.schedule
-                                    .withValidationErrors(fieldErrors),
+                                errors =
+                                    fieldErrors
+                                        .filterKeys {
+                                                field ->
+                                            field in
+                                                    MEDICATION_FIELDS
+                                        },
+                                schedule =
+                                    currentState
+                                        .schedule
+                                        .withValidationErrors(
+                                            fieldErrors,
+                                        ),
                             )
                         }
                     }
 
-                    CreateMedicationScheduleOutcome.RecipientNotFound -> {
-                        showGeneralError("فرد تحت مراقبت پیدا نشد.")
+                    CreateMedicationScheduleOutcome
+                        .RecipientNotFound -> {
+                        showGeneralError(
+                            "فرد تحت مراقبت پیدا نشد.",
+                        )
                     }
                 }
+            } catch (
+                cancellationException:
+                CancellationException,
+            ) {
+                throw cancellationException
             } catch (_: Exception) {
-                showGeneralError("ذخیره‌سازی انجام نشد. دوباره تلاش کنید.")
+                showGeneralError(
+                    "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
+                )
             } finally {
-                mutableState.update { it.copy(isSaving = false) }
+                mutableState.update {
+                        current ->
+                    current.copy(
+                        isSaving = false,
+                    )
+                }
             }
         }
     }
 
     private fun updateSchedule(
-        clearGeneralError: Boolean = true,
-        transform: (ScheduleFormUiState) -> ScheduleFormUiState,
+        clearGeneralError:
+        Boolean = true,
+        transform:
+            (
+            ScheduleFormUiState,
+        ) -> ScheduleFormUiState,
     ) {
-        mutableState.update { current ->
+        mutableState.update {
+                current ->
             current.copy(
-                schedule = transform(current.schedule),
-                generalError = if (clearGeneralError) {
-                    null
-                } else {
-                    current.generalError
-                },
+                schedule =
+                    transform(
+                        current.schedule,
+                    ),
+                generalError =
+                    if (
+                        clearGeneralError
+                    ) {
+                        null
+                    } else {
+                        current
+                            .generalError
+                    },
             )
         }
     }
 
-    private fun showGeneralError(message: String) {
-        mutableState.update { it.copy(generalError = message) }
+    private fun showGeneralError(
+        message: String,
+    ) {
+        mutableState.update {
+                current ->
+            current.copy(
+                generalError =
+                    message,
+            )
+        }
     }
 
     companion object {
+
         fun factory(
             recipientId: String,
-            carePlanService: CarePlanService,
-            setupPreferenceStore: SetupPreferenceStore,
-            completeInitialSetup: Boolean,
+            carePlanService:
+            CarePlanService,
+            setupPreferenceStore:
+            SetupPreferenceStore,
+            completeInitialSetup:
+            Boolean,
             clock: Clock,
-            zoneProvider: ZoneProvider,
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                MedicationScheduleViewModel(
-                    recipientId = recipientId,
-                    carePlanService = carePlanService,
-                    setupPreferenceStore = setupPreferenceStore,
-                    completeInitialSetup = completeInitialSetup,
-                    clock = clock,
-                    zoneProvider = zoneProvider,
-                )
+            zoneProvider:
+            ZoneProvider,
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
+                initializer {
+                    MedicationScheduleViewModel(
+                        recipientId =
+                            recipientId,
+                        carePlanService =
+                            carePlanService,
+                        setupPreferenceStore =
+                            setupPreferenceStore,
+                        completeInitialSetup =
+                            completeInitialSetup,
+                        clock = clock,
+                        zoneProvider =
+                            zoneProvider,
+                    )
+                }
             }
-        }
 
-        private const val DEFAULT_FUTURE_MINUTES = 2L
+        private const val DEFAULT_FUTURE_MINUTES =
+            2L
 
-        private val MEDICATION_FIELDS = setOf(
-            CarePlanField.MEDICATION_NAME,
-            CarePlanField.INSTRUCTION,
-        )
+        private val MEDICATION_FIELDS =
+            setOf(
+                CarePlanField
+                    .MEDICATION_NAME,
+                CarePlanField
+                    .INSTRUCTION,
+            )
     }
 }
 
 @Composable
 fun MedicationScheduleRoute(
-    viewModel: MedicationScheduleViewModel,
+    viewModel:
+    MedicationScheduleViewModel,
     onCompleted: () -> Unit,
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val state by
+    viewModel
+        .state
+        .collectAsStateWithLifecycle()
 
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
+    LaunchedEffect(
+        viewModel,
+    ) {
+        viewModel.events.collect {
+                event ->
             when (event) {
-                MedicationScheduleEvent.Completed -> onCompleted()
+                MedicationScheduleEvent
+                    .Completed -> {
+                    onCompleted()
+                }
             }
         }
     }
 
     MedicationScheduleScreen(
         state = state,
-        onMedicationNameChanged = viewModel::onMedicationNameChanged,
-        onInstructionChanged = viewModel::onInstructionChanged,
-        onWeekdayToggled = viewModel::onWeekdayToggled,
-        onTimeDraftChanged = viewModel::onTimeDraftChanged,
-        onAddTime = viewModel::addTime,
-        onRemoveTime = viewModel::removeTime,
-        onStartDateChanged = viewModel::onStartDateChanged,
-        onEndDateChanged = viewModel::onEndDateChanged,
-        onSave = viewModel::save,
+        onMedicationNameChanged =
+            viewModel::
+            onMedicationNameChanged,
+        onInstructionChanged =
+            viewModel::
+            onInstructionChanged,
+        onWeekdayToggled =
+            viewModel::onWeekdayToggled,
+        onTimeDraftChanged =
+            viewModel::onTimeDraftChanged,
+        onAddTime =
+            viewModel::addTime,
+        onRemoveTime =
+            viewModel::removeTime,
+        onStartDateChanged =
+            viewModel::onStartDateChanged,
+        onEndDateChanged =
+            viewModel::onEndDateChanged,
+        onSave =
+            viewModel::save,
     )
 }
 
 @Composable
 fun MedicationScheduleScreen(
-    state: MedicationScheduleUiState,
-    onMedicationNameChanged: (String) -> Unit,
-    onInstructionChanged: (String) -> Unit,
-    onWeekdayToggled: (DayOfWeek) -> Unit,
-    onTimeDraftChanged: (String) -> Unit,
+    state:
+    MedicationScheduleUiState,
+    onMedicationNameChanged:
+        (String) -> Unit,
+    onInstructionChanged:
+        (String) -> Unit,
+    onWeekdayToggled:
+        (DayOfWeek) -> Unit,
+    onTimeDraftChanged:
+        (String) -> Unit,
     onAddTime: () -> Unit,
-    onRemoveTime: (Int) -> Unit,
-    onStartDateChanged: (String) -> Unit,
-    onEndDateChanged: (String) -> Unit,
+    onRemoveTime:
+        (Int) -> Unit,
+    onStartDateChanged:
+        (String) -> Unit,
+    onEndDateChanged:
+        (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Scaffold(modifier = modifier.fillMaxSize()) { contentPadding ->
-        Column(
-            modifier = Modifier
+    Scaffold(
+        modifier =
+            modifier
                 .fillMaxSize()
-                .padding(contentPadding)
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Top,
+                .testTag(
+                    "medication_schedule_screen",
+                ),
+    ) { contentPadding ->
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(
+                        contentPadding,
+                    )
+                    .imePadding()
+                    .navigationBarsPadding()
+                    .verticalScroll(
+                        rememberScrollState(),
+                    )
+                    .padding(
+                        horizontal = 24.dp,
+                        vertical = 16.dp,
+                    ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    16.dp,
+                ),
         ) {
             Text(
-                text = stringResource(R.string.medication_schedule_title),
-                style = MaterialTheme.typography.headlineMedium,
+                text =
+                    stringResource(
+                        R.string
+                            .medication_schedule_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .headlineMedium,
+                modifier =
+                    Modifier
+                        .carePackHeading()
+                        .testTag(
+                            "medication_schedule_title",
+                        ),
             )
-
-            Spacer(Modifier.height(24.dp))
 
             MedicationTextFields(
-                medicationName = state.medicationName,
-                instruction = state.instruction,
-                errors = state.errors,
-                enabled = !state.isSaving,
-                onMedicationNameChanged = onMedicationNameChanged,
-                onInstructionChanged = onInstructionChanged,
+                medicationName =
+                    state.medicationName,
+                instruction =
+                    state.instruction,
+                errors =
+                    state.errors,
+                enabled =
+                    !state.isSaving,
+                onMedicationNameChanged =
+                    onMedicationNameChanged,
+                onInstructionChanged =
+                    onInstructionChanged,
                 instructionMinLines = 3,
-                medicationNameTestTag = "medication_name",
-                instructionTestTag = "medication_instruction",
+                medicationNameTestTag =
+                    "medication_name",
+                instructionTestTag =
+                    "medication_instruction",
             )
-
-            Spacer(Modifier.height(20.dp))
 
             ScheduleFormFields(
-                state = state.schedule,
-                callbacks = ScheduleFormCallbacks(
-                    onWeekdayToggled = onWeekdayToggled,
-                    onTimeDraftChanged = onTimeDraftChanged,
-                    onAddTime = onAddTime,
-                    onRemoveTime = onRemoveTime,
-                    onStartDateChanged = onStartDateChanged,
-                    onEndDateChanged = onEndDateChanged,
-                ),
-                enabled = !state.isSaving,
+                state =
+                    state.schedule,
+                callbacks =
+                    ScheduleFormCallbacks(
+                        onWeekdayToggled =
+                            onWeekdayToggled,
+                        onTimeDraftChanged =
+                            onTimeDraftChanged,
+                        onAddTime =
+                            onAddTime,
+                        onRemoveTime =
+                            onRemoveTime,
+                        onStartDateChanged =
+                            onStartDateChanged,
+                        onEndDateChanged =
+                            onEndDateChanged,
+                    ),
+                enabled =
+                    !state.isSaving,
+                modifier =
+                    Modifier.testTag(
+                        "medication_schedule_form",
+                    ),
             )
 
-            state.generalError?.let { error ->
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = error,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.testTag("schedule_error"),
-                )
-            }
+            state.generalError
+                ?.let { error ->
+                    Text(
+                        text =
+                            error,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .error,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .carePackPoliteLiveRegion()
+                                .testTag(
+                                    "schedule_error",
+                                ),
+                    )
+                }
 
-            Spacer(Modifier.height(24.dp))
+            Spacer(
+                modifier =
+                    Modifier.height(
+                        8.dp,
+                    ),
+            )
 
             Button(
                 onClick = onSave,
-                enabled = !state.isSaving,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("medication_schedule_save"),
+                enabled =
+                    !state.isSaving,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "medication_schedule_save",
+                        ),
             ) {
                 if (state.isSaving) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.size(
+                                24.dp,
+                            ),
+                    )
                 } else {
-                    Text(stringResource(R.string.create_care_plan))
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .create_care_plan,
+                            ),
+                    )
                 }
             }
         }

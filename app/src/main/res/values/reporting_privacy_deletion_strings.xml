@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="carepack_settings_title">تنظیمات</string>
+    <string name="carepack_settings_description">یادآوری‌ها، گزارش امروز، حریم خصوصی و حذف کامل اطلاعات را از این بخش مدیریت کنید.</string>
+
+    <string name="carepack_settings_reminders">تنظیمات یادآوری</string>
+    <string name="carepack_settings_reminders_description">دسترسی اعلان، وضعیت یادآوری دقیق یا تقریبی و برنامه‌های فعال را بررسی کنید.</string>
+
+    <string name="carepack_settings_today_report">گزارش امروز</string>
+    <string name="carepack_settings_today_report_description">متن دقیق گزارش امروز را پیش‌نمایش، کپی یا با انتخاب صریح خودتان اشتراک‌گذاری کنید.</string>
+
+    <string name="carepack_settings_privacy">حریم خصوصی</string>
+    <string name="carepack_settings_privacy_description">نحوه نگهداری محلی، اشتراک‌گذاری، پشتیبان‌گیری و حذف اطلاعات را بخوانید.</string>
+
+    <string name="carepack_settings_delete_all">حذف همه اطلاعات</string>
+    <string name="carepack_settings_delete_all_description">تمام اطلاعات متعلق به کرپک را پس از تأیید صریح و غیرقابل‌بازگشت حذف کنید.</string>
+
+    <string name="carepack_today_report_title">پیش‌نمایش گزارش امروز</string>
+    <string name="carepack_today_report_date">تاریخ گزارش: %1$s</string>
+    <string name="carepack_include_recipient_name">نمایش نام فرد تحت مراقبت</string>
+    <string name="carepack_include_recipient_name_description">در حالت خاموش، نام فرد در متن پیش‌نمایش، نسخه کپی‌شده و متن اشتراک‌گذاری‌شده قرار نمی‌گیرد.</string>
+    <string name="carepack_report_loading">در حال ساخت گزارش امروز…</string>
+    <string name="carepack_report_preview_heading">متن دقیق قابل اشتراک‌گذاری</string>
+    <string name="carepack_share_destination_notice">اشتراک‌گذاری فقط پس از انتخاب دکمه انجام می‌شود. پس از ارسال، نگهداری یا انتقال متن در اختیار برنامه مقصد است و کرپک نمی‌تواند نسخه‌های ایجادشده در برنامه مقصد را حذف کند.</string>
+    <string name="carepack_copy_report">کپی متن</string>
+    <string name="carepack_share_report">اشتراک‌گذاری</string>
+    <string name="carepack_report_copied">متن گزارش در کلیپ‌بورد کپی شد.</string>
+    <string name="carepack_share_chooser_opened">فهرست برنامه‌های قابل اشتراک‌گذاری باز شد.</string>
+    <string name="carepack_no_share_target">برنامه‌ای برای دریافت متن اشتراک‌گذاری‌شده در دسترس نیست.</string>
+    <string name="carepack_share_action_failed">این عملیات روی دستگاه انجام نشد.</string>
+
+    <string name="carepack_privacy_title">حریم خصوصی</string>
+    <string name="carepack_privacy_summary">این توضیحات داخل برنامه و بدون نیاز به اینترنت در دسترس است.</string>
+
+    <string name="carepack_privacy_local_storage_title">نگهداری محلی اطلاعات</string>
+    <string name="carepack_privacy_local_storage_body">اطلاعات فرد تحت مراقبت، داروها، برنامه‌ها، نوبت‌ها و گزارش‌های مراقب در فضای خصوصی همین برنامه روی دستگاه نگهداری می‌شود. کرپک برای انتقال این اطلاعات به سرور یا حساب آنلاین از اینترنت استفاده نمی‌کند.</string>
+
+    <string name="carepack_privacy_permissions_title">دسترسی‌های اندروید</string>
+    <string name="carepack_privacy_permissions_body">دسترسی اعلان برای نمایش یادآوری، دسترسی زمان‌بندی دقیق برای افزایش دقت یادآوری و دریافت رویداد راه‌اندازی دستگاه برای بازسازی یادآوری‌های متعلق به کرپک استفاده می‌شود. قابلیت‌های اصلی ثبت مراقبت بدون اجازه اعلان نیز قابل استفاده هستند.</string>
+
+    <string name="carepack_privacy_sharing_title">کپی و اشتراک‌گذاری</string>
+    <string name="carepack_privacy_sharing_body">کرپک هیچ گزارشی را خودکار ارسال نمی‌کند. ابتدا متن کامل را نمایش می‌دهد و فقط پس از انتخاب صریح شما، متن را در کلیپ‌بورد قرار می‌دهد یا انتخابگر استاندارد اندروید را باز می‌کند. مقصد انتخاب‌شده مسئول نگهداری و استفاده بعدی از متن است.</string>
+
+    <string name="carepack_privacy_backup_title">پشتیبان‌گیری و انتقال دستگاه</string>
+    <string name="carepack_privacy_backup_body">اطلاعات کرپک از پشتیبان‌گیری ابری و انتقال خودکار داده اندروید کنار گذاشته شده است. بررسی نهایی این رفتار روی دستگاه‌های انتشار در مرحله آماده‌سازی نسخه انتشار انجام می‌شود.</string>
+
+    <string name="carepack_privacy_deletion_title">حذف کامل اطلاعات</string>
+    <string name="carepack_privacy_deletion_body">حذف همه اطلاعات، داده‌های دامنه، تنظیمات، یادآوری‌های زمان‌بندی‌شده، اعلان‌های فعال و فایل‌های موقت متعلق به کرپک را پاک می‌کند. اگر برنامه هنگام حذف بسته شود، پاک‌سازی در اجرای بعدی پیش از نمایش اطلاعات مراقبت ادامه پیدا می‌کند.</string>
+
+    <string name="carepack_privacy_medical_title">محدودیت پزشکی</string>
+    <string name="carepack_privacy_medical_body">کرپک ابزار ثبت و یادآوری مراقبت است و تشخیص، تجویز، تأیید مصرف دارو، توصیه پزشک یا داروساز و خدمات اورژانسی را جایگزین نمی‌کند.</string>
+
+    <string name="carepack_open_public_policy">باز کردن سیاست عمومی حریم خصوصی</string>
+    <string name="carepack_policy_address_unavailable">نشانی عمومی سیاست حریم خصوصی هنوز برای نسخه انتشار تنظیم نشده است. اطلاعات حریم خصوصی داخل همین صفحه همچنان کامل و در دسترس است.</string>
+    <string name="carepack_policy_no_browser">برنامه‌ای برای باز کردن سیاست عمومی حریم خصوصی در دسترس نیست. اطلاعات داخل همین صفحه همچنان قابل مطالعه است.</string>
+    <string name="carepack_policy_open_blocked">اندروید اجازه باز کردن نشانی سیاست عمومی حریم خصوصی را نداد. اطلاعات داخل همین صفحه همچنان در دسترس است.</string>
+    <string name="carepack_dismiss_message">بستن پیام</string>
+
+    <string name="carepack_delete_all_title">حذف همه اطلاعات کرپک</string>
+    <string name="carepack_delete_all_warning_title">این عملیات غیرقابل‌بازگشت است</string>
+    <string name="carepack_delete_all_warning_body">پس از تکمیل حذف، اطلاعات مراقبت داخل کرپک قابل بازیابی نیست و برنامه به وضعیت اولین اجرا بازمی‌گردد.</string>
+
+    <string name="carepack_delete_all_scope_title">مواردی که حذف می‌شوند</string>
+    <string name="carepack_delete_all_scope_body">• فرد تحت مراقبت\n• داروها و نسخه‌های برنامه\n• نوبت‌ها و سابقه ثبت مراقب\n• تنظیمات و وضعیت راه‌اندازی\n• یادآوری‌ها و اعلان‌های متعلق به کرپک\n• پیش‌نمایش‌ها و فایل‌های موقت متعلق به کرپک</string>
+    <string name="carepack_delete_all_external_limit">این عملیات نمی‌تواند متن‌هایی را که قبلاً در کلیپ‌بورد، برنامه مقصد اشتراک‌گذاری یا بخش‌های خارج از کرپک ذخیره شده‌اند حذف کند.</string>
+
+    <string name="carepack_delete_all_action">حذف همه اطلاعات</string>
+    <string name="carepack_delete_all_progress">در حال حذف کامل اطلاعات… برنامه را نبندید.</string>
+    <string name="carepack_delete_all_failed">حذف کامل نشد. تا زمان تکمیل پاک‌سازی، اطلاعات مراقبت نباید دوباره نمایش داده شوند. دوباره تلاش کنید.</string>
+
+    <string name="carepack_delete_confirmation_title">تأیید حذف دائمی</string>
+    <string name="carepack_delete_confirmation_body">آیا مطمئن هستید که می‌خواهید تمام اطلاعات متعلق به کرپک را حذف کنید؟ این عملیات قابل بازگشت نیست.</string>
+    <string name="carepack_delete_confirmation_action">حذف دائمی</string>
+</resources>

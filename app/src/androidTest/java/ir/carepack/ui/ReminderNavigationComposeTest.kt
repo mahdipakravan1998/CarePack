@@ -29,8 +29,13 @@ import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.domain.reminder.TimezoneObservation
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.report.RoomTodayReportFormatter
 import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
+import ir.carepack.testing.RecordingDataDeletionCoordinator
+import ir.carepack.testing.RecordingPrivacyPolicyGateway
+import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.testing.SequenceIdSource
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.Clock
@@ -217,6 +222,18 @@ class ReminderNavigationComposeTest {
                         NavigationReminderCoordinator(),
                     notificationPermissionGateway =
                         NavigationNotificationPermissionGateway(),
+                    todayReportFormatter =
+                        RoomTodayReportFormatter(
+                            database = database,
+                        ),
+                    privacyPreferenceStore =
+                        InstrumentedPrivacyPreferenceStore(),
+                    textShareGateway =
+                        RecordingTextShareGateway(),
+                    privacyPolicyGateway =
+                        RecordingPrivacyPolicyGateway(),
+                    dataDeletionCoordinator =
+                        RecordingDataDeletionCoordinator(),
                     clock = fixedClock,
                     zoneProvider =
                         zoneProvider,

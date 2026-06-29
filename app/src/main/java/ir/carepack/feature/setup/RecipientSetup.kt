@@ -7,8 +7,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -33,6 +38,9 @@ import ir.carepack.R
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
+import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,13 +55,15 @@ data class RecipientSetupUiState(
 )
 
 sealed interface RecipientSetupEvent {
+
     data class Continue(
         val recipientId: String,
     ) : RecipientSetupEvent
 }
 
 class RecipientSetupViewModel(
-    private val carePlanService: CarePlanService,
+    private val carePlanService:
+    CarePlanService,
 ) : ViewModel() {
 
     private val mutableState =
@@ -66,7 +76,8 @@ class RecipientSetupViewModel(
 
     private val eventChannel =
         Channel<RecipientSetupEvent>(
-            capacity = Channel.BUFFERED,
+            capacity =
+                Channel.BUFFERED,
         )
 
     val events =
@@ -76,54 +87,68 @@ class RecipientSetupViewModel(
         newValue: String,
     ) {
         mutableState.update {
-            it.copy(
-                displayName = newValue,
-                errorMessage = null,
+                currentState ->
+            currentState.copy(
+                displayName =
+                    newValue,
+                errorMessage =
+                    null,
             )
         }
     }
 
     fun save() {
-        if (mutableState.value.isSaving) {
+        val currentState =
+            mutableState.value
+
+        if (currentState.isSaving) {
             return
         }
 
         viewModelScope.launch {
             mutableState.update {
-                it.copy(
+                    state ->
+                state.copy(
                     isSaving = true,
                     errorMessage = null,
                 )
             }
 
             try {
+                val displayName =
+                    mutableState
+                        .value
+                        .displayName
+
                 val outcome =
                     carePlanService
                         .createRecipient(
                             CreateRecipientCommand(
                                 displayName =
-                                    mutableState
-                                        .value
-                                        .displayName,
+                                    displayName,
                             ),
                         )
 
                 when (outcome) {
                     is CreateRecipientOutcome.Created -> {
                         eventChannel.send(
-                            RecipientSetupEvent.Continue(
-                                recipientId =
-                                    outcome.recipientId,
-                            ),
+                            RecipientSetupEvent
+                                .Continue(
+                                    recipientId =
+                                        outcome
+                                            .recipientId,
+                                ),
                         )
                     }
 
                     is CreateRecipientOutcome.AlreadyExists -> {
                         eventChannel.send(
-                            RecipientSetupEvent.Continue(
-                                recipientId =
-                                    outcome.recipientId,
-                            ),
+                            RecipientSetupEvent
+                                .Continue(
+                                    recipientId =
+                                        outcome
+                                            .recipientId,
+                                ),
                         )
                     }
 
@@ -136,23 +161,31 @@ class RecipientSetupViewModel(
                                 ?: "نام واردشده معتبر نیست."
 
                         mutableState.update {
-                            it.copy(
+                                state ->
+                            state.copy(
                                 errorMessage =
                                     errorMessage,
                             )
                         }
                     }
                 }
+            } catch (
+                cancellationException:
+                CancellationException,
+            ) {
+                throw cancellationException
             } catch (_: Exception) {
                 mutableState.update {
-                    it.copy(
+                        state ->
+                    state.copy(
                         errorMessage =
                             "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
                     )
                 }
             } finally {
                 mutableState.update {
-                    it.copy(
+                        state ->
+                    state.copy(
                         isSaving = false,
                     )
                 }
@@ -161,10 +194,12 @@ class RecipientSetupViewModel(
     }
 
     companion object {
+
         fun factory(
-            carePlanService: CarePlanService,
-        ): ViewModelProvider.Factory {
-            return viewModelFactory {
+            carePlanService:
+            CarePlanService,
+        ): ViewModelProvider.Factory =
+            viewModelFactory {
                 initializer {
                     RecipientSetupViewModel(
                         carePlanService =
@@ -172,13 +207,13 @@ class RecipientSetupViewModel(
                     )
                 }
             }
-        }
     }
 }
 
 @Composable
 fun RecipientSetupRoute(
-    viewModel: RecipientSetupViewModel,
+    viewModel:
+    RecipientSetupViewModel,
     onContinue: (String) -> Unit,
 ) {
     val state by
@@ -186,11 +221,16 @@ fun RecipientSetupRoute(
         .state
         .collectAsStateWithLifecycle()
 
-    LaunchedEffect(viewModel) {
-        viewModel.events.collect { event ->
+    LaunchedEffect(
+        viewModel,
+    ) {
+        viewModel.events.collect {
+                event ->
             when (event) {
                 is RecipientSetupEvent.Continue -> {
-                    onContinue(event.recipientId)
+                    onContinue(
+                        event.recipientId,
+                    )
                 }
             }
         }
@@ -200,47 +240,70 @@ fun RecipientSetupRoute(
         state = state,
         onDisplayNameChanged =
             viewModel::onDisplayNameChanged,
-        onSave = viewModel::save,
+        onSave =
+            viewModel::save,
     )
 }
 
 @Composable
 fun RecipientSetupScreen(
-    state: RecipientSetupUiState,
-    onDisplayNameChanged: (String) -> Unit,
+    state:
+    RecipientSetupUiState,
+    onDisplayNameChanged:
+        (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
-        modifier = modifier.fillMaxSize(),
+        modifier =
+            modifier
+                .fillMaxSize()
+                .testTag(
+                    "recipient_setup_screen",
+                ),
     ) { contentPadding ->
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(contentPadding)
+                    .padding(
+                        contentPadding,
+                    )
+                    .navigationBarsPadding()
                     .imePadding()
                     .verticalScroll(
                         rememberScrollState(),
                     )
-                    .padding(24.dp),
+                    .padding(
+                        horizontal = 24.dp,
+                        vertical = 16.dp,
+                    ),
             verticalArrangement =
                 Arrangement.Top,
         ) {
             Text(
                 text =
                     stringResource(
-                        R.string.recipient_title,
+                        R.string
+                            .recipient_title,
                     ),
                 style =
                     MaterialTheme
                         .typography
                         .headlineMedium,
+                modifier =
+                    Modifier
+                        .carePackHeading()
+                        .testTag(
+                            "recipient_title",
+                        ),
             )
 
             Spacer(
                 modifier =
-                    Modifier.height(8.dp),
+                    Modifier.height(
+                        8.dp,
+                    ),
             )
 
             Text(
@@ -257,13 +320,18 @@ fun RecipientSetupScreen(
 
             Spacer(
                 modifier =
-                    Modifier.height(24.dp),
+                    Modifier.height(
+                        24.dp,
+                    ),
             )
 
             OutlinedTextField(
-                value = state.displayName,
+                value =
+                    state.displayName,
                 onValueChange =
                     onDisplayNameChanged,
+                enabled =
+                    !state.isSaving,
                 label = {
                     Text(
                         text =
@@ -275,7 +343,21 @@ fun RecipientSetupScreen(
                 },
                 singleLine = true,
                 isError =
-                    state.errorMessage != null,
+                    state.errorMessage !=
+                            null,
+                keyboardOptions =
+                    KeyboardOptions(
+                        imeAction =
+                            ImeAction.Done,
+                    ),
+                keyboardActions =
+                    KeyboardActions(
+                        onDone = {
+                            if (!state.isSaving) {
+                                onSave()
+                            }
+                        },
+                    ),
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -284,38 +366,48 @@ fun RecipientSetupScreen(
                         ),
             )
 
-            state.errorMessage?.let {
-                    errorMessage ->
-                Spacer(
-                    modifier =
-                        Modifier.height(8.dp),
-                )
+            state.errorMessage
+                ?.let { errorMessage ->
+                    Spacer(
+                        modifier =
+                            Modifier.height(
+                                8.dp,
+                            ),
+                    )
 
-                Text(
-                    text = errorMessage,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .error,
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyMedium,
-                    modifier =
-                        Modifier.testTag(
-                            "recipient_error",
-                        ),
-                )
-            }
+                    Text(
+                        text =
+                            errorMessage,
+                        color =
+                            MaterialTheme
+                                .colorScheme
+                                .error,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyMedium,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .carePackPoliteLiveRegion()
+                                .testTag(
+                                    "recipient_error",
+                                ),
+                    )
+                }
 
             Spacer(
                 modifier =
-                    Modifier.height(24.dp),
+                    Modifier.height(
+                        24.dp,
+                    ),
             )
 
             Button(
-                onClick = onSave,
-                enabled = !state.isSaving,
+                onClick =
+                    onSave,
+                enabled =
+                    !state.isSaving,
                 modifier =
                     Modifier
                         .fillMaxWidth()
@@ -324,7 +416,12 @@ fun RecipientSetupScreen(
                         ),
             ) {
                 if (state.isSaving) {
-                    CircularProgressIndicator()
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.size(
+                                24.dp,
+                            ),
+                    )
                 } else {
                     Text(
                         text =
