@@ -9,10 +9,10 @@ data class ScheduleDefinitionRow(
     val zoneId: String,
     val effectiveFromEpochMillis: Long,
     val effectiveUntilEpochMillis: Long?,
-    val startDateEpochDay: Long?,
-    val endDateEpochDay: Long?,
+    val startEpochDay: Long?,
+    val endEpochDay: Long?,
     val medicationNameSnapshot: String,
-    val medicationInstructionSnapshot: String,
+    val instructionSnapshot: String,
 )
 
 data class OpenScheduleVersionRow(
@@ -22,8 +22,8 @@ data class OpenScheduleVersionRow(
     val versionNumber: Int,
     val weekdayMask: Int,
     val zoneId: String,
-    val startDateEpochDay: Long?,
-    val endDateEpochDay: Long?,
+    val startEpochDay: Long?,
+    val endEpochDay: Long?,
 )
 
 data class MedicationScheduleOverviewRow(
@@ -38,17 +38,17 @@ data class MedicationScheduleOverviewRow(
     val weekdayMask: Int?,
     val zoneId: String?,
     val effectiveFromEpochMillis: Long?,
-    val startDateEpochDay: Long?,
-    val endDateEpochDay: Long?,
+    val startEpochDay: Long?,
+    val endEpochDay: Long?,
     val minuteOfDay: Int?,
 )
 
 data class ReminderTargetRow(
     val scheduleSeriesId: String,
     val occurrenceId: String,
-    val localDateEpochDay: Long,
+    val localEpochDay: Long,
     val minuteOfDay: Int,
-    val zoneId: String,
+    val zoneIdSnapshot: String,
     val scheduledAtEpochMillis: Long,
     val medicationNameSnapshot: String,
 )

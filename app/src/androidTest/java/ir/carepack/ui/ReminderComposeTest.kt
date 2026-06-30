@@ -316,8 +316,14 @@ class ReminderComposeTest {
                                         "Europe/Berlin",
                                 ),
                         ),
+                    onTodaySelected = {},
+                    onHistorySelected = {},
+                    onRetry = {},
                     onOccurrenceSelected = {},
                     onManageCarePlan = {},
+                    onOpenTodayReport = {},
+                    onOpenSettings = {},
+                    onReminderSettings = {},
                     onReviewSchedules = {
                         reviewInvoked.set(
                             true,
@@ -343,14 +349,12 @@ class ReminderComposeTest {
                 "timezone_warning_body",
             )
             .assertIsDisplayed()
-            .assertTextEquals(
-                context.getString(
-                    R.string
-                        .timezone_warning_body,
-                    "Asia/Tehran",
-                    "Europe/Berlin",
-                ),
+
+        composeRule
+            .onNodeWithTag(
+                "timezone_warning_zones",
             )
+            .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
@@ -415,44 +419,50 @@ class ReminderComposeTest {
                                             .NOTIFICATION_PERMISSION_REQUIRED,
                                 ),
                         ),
+                    onTodaySelected = {},
+                    onHistorySelected = {
+                        historyCount
+                            .incrementAndGet()
+                    },
+                    onRetry = {},
                     onOccurrenceSelected = {},
                     onManageCarePlan = {
                         manageCarePlanCount
                             .incrementAndGet()
                     },
+                    onOpenTodayReport = {},
+                    onOpenSettings = {},
                     onReminderSettings = {
                         reminderSettingsCount
                             .incrementAndGet()
                     },
-                    onShowHistory = {
-                        historyCount
-                            .incrementAndGet()
-                    },
+                    onReviewSchedules = {},
+                    onDismissTimezoneWarning = {},
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
-                "today_notification_unavailable",
+                "today_notification_missing",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "manage_care_plan",
+                "today_manage_care_plan",
             )
             .performClick()
 
         composeRule
             .onNodeWithTag(
-                "history_section",
+                "history_section_button",
             )
             .performClick()
 
         composeRule
             .onNodeWithTag(
-                "today_reminder_status_settings",
+                "today_notification_missing_settings",
             )
             .performClick()
 

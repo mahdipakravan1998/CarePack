@@ -8,11 +8,11 @@ import ir.carepack.domain.model.HistoryItem
 import ir.carepack.domain.model.OccurrenceCancellationReason
 import ir.carepack.domain.model.OccurrenceDetail
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.model.TemporalPhase
+import ir.carepack.domain.model.TemporalStatus
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
-import ir.carepack.domain.temporal.TemporalClassifier
+import ir.carepack.domain.temporal.TemporalStatusClassifier
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -21,31 +21,55 @@ import kotlinx.coroutines.flow.combine
 
 class RoomTodayQueryService(
     private val database: CarePackDatabase,
-    private val temporalClassifier: TemporalClassifier = TemporalClassifier(),
+    private val temporalStatusClassifier:
+    TemporalStatusClassifier = TemporalStatusClassifier(),
 ) : TodayQueryService {
+
     override fun observeToday(
         localDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<TodayModel> {
-        val reportingDao = database.reportingDao()
+        val reportingDao =
+            database.reportingDao()
 
         return combine(
             reportingDao.observeMedicationCount(),
-            reportingDao.observeToday(localDate.toEpochDay()),
+            reportingDao.observeToday(
+                localEpochDay =
+                    localDate.toEpochDay(),
+            ),
             now,
         ) { medicationCount, rows, currentInstant ->
-            val items = rows.map { row ->
-                row.toMappedOccurrence(currentInstant, temporalClassifier).toTodayItem()
-            }
+            val items =
+                rows.map { row ->
+                    row
+                        .toMappedOccurrence(
+                            now = currentInstant,
+                            classifier =
+                                temporalStatusClassifier,
+                        )
+                        .toTodayItem()
+                }
 
             TodayModel(
                 localDate = localDate,
                 items = items,
-                emptyState = when {
-                    items.isNotEmpty() -> null
-                    medicationCount == 0 -> TodayEmptyState.NO_MEDICATIONS
-                    else -> TodayEmptyState.NO_OCCURRENCES
-                },
+                emptyState =
+                    when {
+                        items.isNotEmpty() -> {
+                            null
+                        }
+
+                        medicationCount == 0 -> {
+                            TodayEmptyState
+                                .NO_MEDICATIONS
+                        }
+
+                        else -> {
+                            TodayEmptyState
+                                .NO_OCCURRENCES
+                        }
+                    },
             )
         }
     }
@@ -53,47 +77,80 @@ class RoomTodayQueryService(
     override fun observeOccurrence(
         occurrenceId: String,
         now: Flow<Instant>,
-    ): Flow<OccurrenceDetail?> = combine(
-        database.reportingDao().observeOccurrence(occurrenceId),
-        now,
-    ) { row, currentInstant ->
-        row?.toMappedOccurrence(currentInstant, temporalClassifier)?.toOccurrenceDetail()
-    }
+    ): Flow<OccurrenceDetail?> =
+        combine(
+            database
+                .reportingDao()
+                .observeOccurrence(
+                    occurrenceId,
+                ),
+            now,
+        ) { row, currentInstant ->
+            row
+                ?.toMappedOccurrence(
+                    now = currentInstant,
+                    classifier =
+                        temporalStatusClassifier,
+                )
+                ?.toOccurrenceDetail()
+        }
 
     override fun observeRecentHistory(
         anchorDate: LocalDate,
         now: Flow<Instant>,
     ): Flow<List<HistoryDay>> {
-        val startDate = anchorDate.minusDays(HISTORY_PREVIOUS_DAYS)
+        val startDate =
+            anchorDate.minusDays(
+                HISTORY_PREVIOUS_DAYS,
+            )
 
         return combine(
-            database.reportingDao().observeHistory(
-                startEpochDay = startDate.toEpochDay(),
-                endEpochDay = anchorDate.toEpochDay(),
-            ),
+            database
+                .reportingDao()
+                .observeHistory(
+                    startEpochDay =
+                        startDate.toEpochDay(),
+                    endEpochDay =
+                        anchorDate.toEpochDay(),
+                ),
             now,
         ) { rows, currentInstant ->
             rows
                 .map { row ->
-                    row.toMappedOccurrence(currentInstant, temporalClassifier).toHistoryItem()
+                    row
+                        .toMappedOccurrence(
+                            now = currentInstant,
+                            classifier =
+                                temporalStatusClassifier,
+                        )
+                        .toHistoryItem()
                 }
-                .groupBy(HistoryItem::localDate)
+                .groupBy(
+                    HistoryItem::localDate,
+                )
                 .entries
-                .sortedByDescending { entry -> entry.key }
+                .sortedByDescending { entry ->
+                    entry.key
+                }
                 .map { (localDate, items) ->
                     HistoryDay(
                         localDate = localDate,
-                        items = items.sortedWith(
-                            compareBy<HistoryItem>(HistoryItem::scheduledAt)
-                                .thenBy(HistoryItem::occurrenceId),
-                        ),
+                        items =
+                            items.sortedWith(
+                                compareBy<HistoryItem>(
+                                    HistoryItem::scheduledAt,
+                                ).thenBy(
+                                    HistoryItem::occurrenceId,
+                                ),
+                            ),
                     )
                 }
         }
     }
 
     private companion object {
-        const val HISTORY_PREVIOUS_DAYS = 7L
+        const val HISTORY_PREVIOUS_DAYS =
+            7L
     }
 }
 
@@ -107,87 +164,172 @@ private data class MappedOccurrence(
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val zoneId: String,
-    val temporalPhase: TemporalPhase,
+    val temporalStatus: TemporalStatus,
     val isOverdue: Boolean,
-    val cancellationReason: OccurrenceCancellationReason?,
+    val cancellationReason:
+    OccurrenceCancellationReason?,
 )
 
 private fun ReportingOccurrenceRow.toMappedOccurrence(
     now: Instant,
-    classifier: TemporalClassifier,
+    classifier: TemporalStatusClassifier,
 ): MappedOccurrence {
-    val mappedLifecycle = OccurrenceLifecycle.valueOf(lifecycle)
-    val mappedReportState = reportState?.let(CaregiverReportState::valueOf)
-    val scheduledAt = Instant.ofEpochMilli(scheduledAtEpochMillis)
-    val phase = classifier.classify(scheduledAt = scheduledAt, now = now)
+    val mappedLifecycle =
+        OccurrenceLifecycle.valueOf(
+            lifecycle,
+        )
+
+    val mappedReportState =
+        reportState?.let(
+            CaregiverReportState::valueOf,
+        )
+
+    val scheduledAt =
+        Instant.ofEpochMilli(
+            scheduledAtEpochMillis,
+        )
+
+    val phase =
+        classifier.classify(
+            scheduledAt = scheduledAt,
+            now = now,
+        )
 
     return MappedOccurrence(
         occurrenceId = occurrenceId,
-        localDate = LocalDate.ofEpochDay(localDateEpochDay),
-        localTime = minuteOfDay.toLocalTime(),
+        localDate =
+            LocalDate.ofEpochDay(
+                localEpochDay,
+            ),
+        localTime =
+            minuteOfDay.toLocalTime(),
         scheduledAt = scheduledAt,
-        medicationName = medicationNameSnapshot,
-        medicationInstruction = medicationInstructionSnapshot,
-        lifecycle = mappedLifecycle,
-        reportState = mappedReportState,
-        zoneId = zoneId,
-        temporalPhase = phase,
-        isOverdue = classifier.isOverdue(
-            lifecycle = mappedLifecycle,
-            reportState = mappedReportState,
-            phase = phase,
-        ),
-        cancellationReason = cancellationReason?.let { storedValue ->
-            runCatching { OccurrenceCancellationReason.valueOf(storedValue) }.getOrNull()
-        },
+        medicationName =
+            medicationNameSnapshot,
+        medicationInstruction =
+            instructionSnapshot,
+        lifecycle =
+            mappedLifecycle,
+        reportState =
+            mappedReportState,
+        zoneId =
+            zoneIdSnapshot,
+        temporalStatus =
+            phase,
+        isOverdue =
+            classifier.isOverdue(
+                lifecycle =
+                    mappedLifecycle,
+                reportState =
+                    mappedReportState,
+                phase = phase,
+            ),
+        cancellationReason =
+            cancellationReason?.let {
+                    storedValue ->
+                runCatching {
+                    OccurrenceCancellationReason
+                        .valueOf(
+                            storedValue,
+                        )
+                }.getOrNull()
+            },
     )
 }
 
-private fun MappedOccurrence.toTodayItem() = TodayItem(
-    occurrenceId = occurrenceId,
-    localDate = localDate,
-    localTime = localTime,
-    medicationName = medicationName,
-    medicationInstruction = medicationInstruction,
-    lifecycle = lifecycle,
-    reportState = reportState,
-    scheduledAt = scheduledAt,
-    temporalPhase = temporalPhase,
-    isOverdue = isOverdue,
-)
+private fun MappedOccurrence.toTodayItem():
+        TodayItem =
+    TodayItem(
+        occurrenceId =
+            occurrenceId,
+        localDate =
+            localDate,
+        localTime =
+            localTime,
+        medicationName =
+            medicationName,
+        medicationInstruction =
+            medicationInstruction,
+        lifecycle =
+            lifecycle,
+        reportState =
+            reportState,
+        scheduledAt =
+            scheduledAt,
+        temporalStatus =
+            temporalStatus,
+        isOverdue =
+            isOverdue,
+    )
 
-private fun MappedOccurrence.toOccurrenceDetail() = OccurrenceDetail(
-    occurrenceId = occurrenceId,
-    localDate = localDate,
-    localTime = localTime,
-    scheduledAt = scheduledAt,
-    medicationName = medicationName,
-    medicationInstruction = medicationInstruction,
-    lifecycle = lifecycle,
-    reportState = reportState,
-    zoneId = zoneId,
-    temporalPhase = temporalPhase,
-    isOverdue = isOverdue,
-    cancellationReason = cancellationReason,
-)
+private fun MappedOccurrence.toOccurrenceDetail():
+        OccurrenceDetail =
+    OccurrenceDetail(
+        occurrenceId =
+            occurrenceId,
+        localDate =
+            localDate,
+        localTime =
+            localTime,
+        scheduledAt =
+            scheduledAt,
+        medicationName =
+            medicationName,
+        medicationInstruction =
+            medicationInstruction,
+        lifecycle =
+            lifecycle,
+        reportState =
+            reportState,
+        zoneId =
+            zoneId,
+        temporalStatus =
+            temporalStatus,
+        isOverdue =
+            isOverdue,
+        cancellationReason =
+            cancellationReason,
+    )
 
-private fun MappedOccurrence.toHistoryItem() = HistoryItem(
-    occurrenceId = occurrenceId,
-    localDate = localDate,
-    localTime = localTime,
-    scheduledAt = scheduledAt,
-    medicationName = medicationName,
-    medicationInstruction = medicationInstruction,
-    lifecycle = lifecycle,
-    reportState = reportState,
-    temporalPhase = temporalPhase,
-    isOverdue = isOverdue,
-)
+private fun MappedOccurrence.toHistoryItem():
+        HistoryItem =
+    HistoryItem(
+        occurrenceId =
+            occurrenceId,
+        localDate =
+            localDate,
+        localTime =
+            localTime,
+        scheduledAt =
+            scheduledAt,
+        medicationName =
+            medicationName,
+        medicationInstruction =
+            medicationInstruction,
+        lifecycle =
+            lifecycle,
+        reportState =
+            reportState,
+        temporalStatus =
+            temporalStatus,
+        isOverdue =
+            isOverdue,
+    )
 
-private fun Int.toLocalTime(): LocalTime {
-    require(this in 0 until MINUTES_PER_DAY)
-    return LocalTime.of(this / MINUTES_PER_HOUR, this % MINUTES_PER_HOUR)
+private fun Int.toLocalTime():
+        LocalTime {
+    require(
+        this in 0 until MINUTES_PER_DAY,
+    )
+
+    return LocalTime.of(
+        this / MINUTES_PER_HOUR,
+        this % MINUTES_PER_HOUR,
+    )
 }
 
-private const val MINUTES_PER_HOUR = 60
-private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
+private const val MINUTES_PER_HOUR =
+    60
+
+private const val MINUTES_PER_DAY =
+    24 * MINUTES_PER_HOUR

@@ -9,12 +9,50 @@ import org.junit.Test
 class CarePlanValidationContractTest {
 
     @Test
-    fun medicationNameAtMaximum_isAccepted() {
+    fun recipientNameLength120_isAccepted() {
         val value =
-            "د".repeat(
-                CarePlanLimits
-                    .MEDICATION_NAME_MAX_LENGTH,
-            )
+            "ر".repeat(120)
+
+        val result =
+            CarePlanValidation
+                .validateRecipientName(value)
+
+        assertTrue(
+            result is ValidationResult.Valid,
+        )
+
+        assertEquals(
+            value,
+            result.valueOrNull(),
+        )
+    }
+
+    @Test
+    fun recipientNameLength121_isRejected() {
+        val value =
+            "ر".repeat(121)
+
+        val result =
+            CarePlanValidation
+                .validateRecipientName(value)
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
+
+        assertTrue(
+            result.errorsOrEmpty()
+                .any {
+                    it.field ==
+                            CarePlanField.RECIPIENT_NAME
+                },
+        )
+    }
+
+    @Test
+    fun medicationNameLength120_isAccepted() {
+        val value =
+            "د".repeat(120)
 
         val result =
             CarePlanValidation
@@ -34,12 +72,9 @@ class CarePlanValidationContractTest {
     }
 
     @Test
-    fun medicationNameAboveMaximum_isRejected() {
+    fun medicationNameLength121_isRejected() {
         val value =
-            "د".repeat(
-                CarePlanLimits
-                    .MEDICATION_NAME_MAX_LENGTH + 1,
-            )
+            "د".repeat(121)
 
         val result =
             CarePlanValidation
@@ -47,6 +82,10 @@ class CarePlanValidationContractTest {
                     rawName = value,
                     rawInstruction = "دستور",
                 )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
 
         assertTrue(
             result.errorsOrEmpty()
@@ -58,12 +97,9 @@ class CarePlanValidationContractTest {
     }
 
     @Test
-    fun instructionAtMaximum_isAccepted() {
+    fun instructionLength1000_isAccepted() {
         val value =
-            "ت".repeat(
-                CarePlanLimits
-                    .INSTRUCTION_MAX_LENGTH,
-            )
+            "ت".repeat(1000)
 
         val result =
             CarePlanValidation
@@ -83,12 +119,9 @@ class CarePlanValidationContractTest {
     }
 
     @Test
-    fun instructionAboveMaximum_isRejected() {
+    fun instructionLength1001_isRejected() {
         val value =
-            "ت".repeat(
-                CarePlanLimits
-                    .INSTRUCTION_MAX_LENGTH + 1,
-            )
+            "ت".repeat(1001)
 
         val result =
             CarePlanValidation
@@ -96,6 +129,10 @@ class CarePlanValidationContractTest {
                     rawName = "دارو",
                     rawInstruction = value,
                 )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
 
         assertTrue(
             result.errorsOrEmpty()
@@ -151,10 +188,7 @@ class CarePlanValidationContractTest {
     @Test
     fun supplementaryUnicodeCharacters_areCountedAsCharacters() {
         val value =
-            "😀".repeat(
-                CarePlanLimits
-                    .RECIPIENT_NAME_MAX_LENGTH,
-            )
+            "😀".repeat(120)
 
         val accepted =
             CarePlanValidation

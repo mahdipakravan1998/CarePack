@@ -8,12 +8,12 @@ import kotlinx.coroutines.flow.Flow
 
 data class ReportingOccurrenceRow(
     val occurrenceId: String,
-    val localDateEpochDay: Long,
+    val localEpochDay: Long,
     val minuteOfDay: Int,
-    val zoneId: String,
+    val zoneIdSnapshot: String,
     val scheduledAtEpochMillis: Long,
     val medicationNameSnapshot: String,
-    val medicationInstructionSnapshot: String,
+    val instructionSnapshot: String,
     val lifecycle: String,
     val cancellationReason: String?,
     val reportState: String?,
@@ -34,18 +34,18 @@ interface ReportingDao {
         """
         SELECT
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
+            occurrence.localEpochDay
+                AS localEpochDay,
             occurrence.minuteOfDay
                 AS minuteOfDay,
-            occurrence.zoneId
-                AS zoneId,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -55,8 +55,8 @@ interface ReportingDao {
         FROM occurrences AS occurrence
         LEFT JOIN caregiver_reports AS report
             ON report.occurrenceId = occurrence.id
-        WHERE occurrence.localDateEpochDay
-                = :localDateEpochDay
+        WHERE occurrence.localEpochDay
+                = :localEpochDay
           AND occurrence.lifecycle != 'CANCELLED'
         ORDER BY
             occurrence.scheduledAtEpochMillis,
@@ -64,25 +64,25 @@ interface ReportingDao {
         """,
     )
     fun observeToday(
-        localDateEpochDay: Long,
+        localEpochDay: Long,
     ): Flow<List<ReportingOccurrenceRow>>
 
     @Query(
         """
         SELECT
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
+            occurrence.localEpochDay
+                AS localEpochDay,
             occurrence.minuteOfDay
                 AS minuteOfDay,
-            occurrence.zoneId
-                AS zoneId,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -92,8 +92,8 @@ interface ReportingDao {
         FROM occurrences AS occurrence
         LEFT JOIN caregiver_reports AS report
             ON report.occurrenceId = occurrence.id
-        WHERE occurrence.localDateEpochDay
-                = :localDateEpochDay
+        WHERE occurrence.localEpochDay
+                = :localEpochDay
           AND occurrence.lifecycle != 'CANCELLED'
         ORDER BY
             occurrence.scheduledAtEpochMillis,
@@ -101,25 +101,25 @@ interface ReportingDao {
         """,
     )
     suspend fun getTodayForReport(
-        localDateEpochDay: Long,
+        localEpochDay: Long,
     ): List<ReportingOccurrenceRow>
 
     @Query(
         """
         SELECT
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
+            occurrence.localEpochDay
+                AS localEpochDay,
             occurrence.minuteOfDay
                 AS minuteOfDay,
-            occurrence.zoneId
-                AS zoneId,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -129,11 +129,11 @@ interface ReportingDao {
         FROM occurrences AS occurrence
         LEFT JOIN caregiver_reports AS report
             ON report.occurrenceId = occurrence.id
-        WHERE occurrence.localDateEpochDay
+        WHERE occurrence.localEpochDay
                 BETWEEN :startEpochDay
                 AND :endEpochDay
         ORDER BY
-            occurrence.localDateEpochDay DESC,
+            occurrence.localEpochDay DESC,
             occurrence.scheduledAtEpochMillis,
             occurrence.id
         """,
@@ -147,18 +147,18 @@ interface ReportingDao {
         """
         SELECT
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay
-                AS localDateEpochDay,
+            occurrence.localEpochDay
+                AS localEpochDay,
             occurrence.minuteOfDay
                 AS minuteOfDay,
-            occurrence.zoneId
-                AS zoneId,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot,
-            occurrence.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason

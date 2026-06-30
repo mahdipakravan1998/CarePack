@@ -20,6 +20,7 @@ data class CareRecipientEntity(
     val singletonSlot: Int,
     val displayName: String,
     val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
 )
 
 @Entity(
@@ -34,6 +35,7 @@ data class CareRecipientEntity(
     ],
     indices = [
         Index(value = ["careRecipientId"]),
+        Index(value = ["archivedAtEpochMillis"]),
     ],
 )
 data class MedicationEntity(
@@ -41,8 +43,9 @@ data class MedicationEntity(
     val id: String,
     val careRecipientId: String,
     val name: String,
-    val instruction: String,
+    val instructionText: String,
     val createdAtEpochMillis: Long,
+    val updatedAtEpochMillis: Long,
     val stoppedAtEpochMillis: Long?,
     val archivedAtEpochMillis: Long?,
 )
@@ -66,7 +69,6 @@ data class ScheduleSeriesEntity(
     val id: String,
     val medicationId: String,
     val createdAtEpochMillis: Long,
-    val stoppedAtEpochMillis: Long?,
 )
 
 @Entity(
@@ -75,22 +77,16 @@ data class ScheduleSeriesEntity(
         ForeignKey(
             entity = ScheduleSeriesEntity::class,
             parentColumns = ["id"],
-            childColumns = ["seriesId"],
-            onDelete = ForeignKey.RESTRICT,
-        ),
-        ForeignKey(
-            entity = MedicationEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["medicationId"],
+            childColumns = ["scheduleSeriesId"],
             onDelete = ForeignKey.RESTRICT,
         ),
     ],
     indices = [
-        Index(value = ["seriesId"]),
-        Index(value = ["medicationId"]),
+        Index(value = ["scheduleSeriesId"]),
+        Index(value = ["effectiveUntilEpochMillis"]),
         Index(
             value = [
-                "seriesId",
+                "scheduleSeriesId",
                 "versionNumber",
             ],
             unique = true,
@@ -100,18 +96,16 @@ data class ScheduleSeriesEntity(
 data class ScheduleVersionEntity(
     @PrimaryKey
     val id: String,
-    val seriesId: String,
-    val medicationId: String,
+    val scheduleSeriesId: String,
     val versionNumber: Int,
     val weekdayMask: Int,
+    val startEpochDay: Long?,
+    val endEpochDay: Long?,
     val zoneId: String,
     val effectiveFromEpochMillis: Long,
     val effectiveUntilEpochMillis: Long?,
-    val startDateEpochDay: Long?,
-    val endDateEpochDay: Long?,
-    val medicationNameSnapshot: String,
-    val medicationInstructionSnapshot: String,
     val createdAtEpochMillis: Long,
+    val supersededReason: String?,
 )
 
 @Entity(
@@ -141,12 +135,6 @@ data class ScheduleTimeEntity(
     tableName = "occurrences",
     foreignKeys = [
         ForeignKey(
-            entity = ScheduleSeriesEntity::class,
-            parentColumns = ["id"],
-            childColumns = ["scheduleSeriesId"],
-            onDelete = ForeignKey.RESTRICT,
-        ),
-        ForeignKey(
             entity = ScheduleVersionEntity::class,
             parentColumns = ["id"],
             childColumns = ["scheduleVersionId"],
@@ -160,14 +148,19 @@ data class ScheduleTimeEntity(
         ),
     ],
     indices = [
-        Index(value = ["scheduleSeriesId"]),
         Index(value = ["scheduleVersionId"]),
         Index(value = ["medicationId"]),
-        Index(value = ["localDateEpochDay"]),
+        Index(value = ["scheduledAtEpochMillis"]),
+        Index(
+            value = [
+                "localEpochDay",
+                "lifecycle",
+            ],
+        ),
         Index(
             value = [
                 "scheduleVersionId",
-                "localDateEpochDay",
+                "localEpochDay",
                 "minuteOfDay",
             ],
             unique = true,
@@ -177,19 +170,18 @@ data class ScheduleTimeEntity(
 data class OccurrenceEntity(
     @PrimaryKey
     val id: String,
-    val scheduleSeriesId: String,
     val scheduleVersionId: String,
     val medicationId: String,
-    val localDateEpochDay: Long,
+    val localEpochDay: Long,
     val minuteOfDay: Int,
-    val zoneId: String,
+    val zoneIdSnapshot: String,
     val scheduledAtEpochMillis: Long,
     val medicationNameSnapshot: String,
-    val medicationInstructionSnapshot: String,
+    val instructionSnapshot: String,
     val lifecycle: String,
-    val createdAtEpochMillis: Long,
     val cancelledAtEpochMillis: Long?,
     val cancellationReason: String?,
+    val createdAtEpochMillis: Long,
 )
 
 @Entity(

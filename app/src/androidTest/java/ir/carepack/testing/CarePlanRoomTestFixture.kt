@@ -10,9 +10,11 @@ import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
 import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.reminder.RoomReminderScheduleSource
 import ir.carepack.domain.today.RoomTodayQueryService
 import java.time.DayOfWeek
 import java.time.Instant
@@ -26,95 +28,228 @@ internal class CarePlanRoomTestFixture private constructor(
     val idSource: IncrementingIdSource,
 ) : AutoCloseable {
 
-    val occurrenceGenerator = RoomOccurrenceGenerator(
-        database = database,
-        idSource = idSource,
-        candidateResolver = OccurrenceCandidateResolver(),
-    )
+    val occurrenceGenerator =
+        RoomOccurrenceGenerator(
+            database = database,
+            idSource = idSource,
+            candidateResolver =
+                OccurrenceCandidateResolver(),
+        )
 
-    val carePlanService = RoomCarePlanService(
-        database = database,
-        occurrenceGenerator = occurrenceGenerator,
-        clock = clock,
-        idSource = idSource,
-    )
+    val carePlanService =
+        RoomCarePlanService(
+            database = database,
+            occurrenceGenerator =
+                occurrenceGenerator,
+            clock = clock,
+            idSource = idSource,
+        )
 
-    val reportService = RoomCaregiverReportService(
-        database = database,
-        clock = clock,
-    )
+    val reportService =
+        RoomCaregiverReportService(
+            database = database,
+            clock = clock,
+        )
 
-    val todayQueryService = RoomTodayQueryService(database)
+    val todayQueryService =
+        RoomTodayQueryService(
+            database = database,
+        )
+
+    val reminderScheduleSource =
+        RoomReminderScheduleSource(
+            database = database,
+        )
 
     suspend fun createOrGetRecipient(
-        displayName: String = DEFAULT_RECIPIENT_NAME,
-    ): String = when (
-        val outcome = carePlanService.createRecipient(
-            CreateRecipientCommand(displayName = displayName),
-        )
-    ) {
-        is CreateRecipientOutcome.Created -> outcome.recipientId
-        is CreateRecipientOutcome.AlreadyExists -> outcome.recipientId
-        is CreateRecipientOutcome.Invalid -> error(
-            "Test recipient creation failed: ${outcome.errors}",
-        )
-    }
+        displayName: String =
+            DEFAULT_RECIPIENT_NAME,
+    ): String =
+        when (
+            val outcome =
+                carePlanService.createRecipient(
+                    CreateRecipientCommand(
+                        displayName =
+                            displayName,
+                    ),
+                )
+        ) {
+            is CreateRecipientOutcome.Created -> {
+                outcome.recipientId
+            }
+
+            is CreateRecipientOutcome.AlreadyExists -> {
+                outcome.recipientId
+            }
+
+            is CreateRecipientOutcome.Invalid -> {
+                error(
+                    "Test recipient creation failed: ${outcome.errors}",
+                )
+            }
+        }
 
     suspend fun createPlan(
         recipientId: String? = null,
-        medicationName: String = DEFAULT_MEDICATION_NAME,
-        instruction: String = DEFAULT_INSTRUCTION,
-        weekdays: Set<DayOfWeek> = DayOfWeek.entries.toSet(),
+        medicationName: String =
+            DEFAULT_MEDICATION_NAME,
+        instruction: String =
+            DEFAULT_INSTRUCTION,
+        weekdays: Set<DayOfWeek> =
+            DayOfWeek.entries.toSet(),
         minutesOfDay: List<Int>,
         startDate: LocalDate? = null,
         endDate: LocalDate? = null,
         zoneId: String = DEFAULT_ZONE_ID,
     ): CreatedTestPlan {
-        val resolvedRecipientId = recipientId ?: createOrGetRecipient()
-        val outcome = carePlanService.createMedicationAndSchedule(
-            CreateMedicationScheduleCommand(
-                recipientId = resolvedRecipientId,
-                medicationName = medicationName,
-                instruction = instruction,
-                weekdays = weekdays,
-                minutesOfDay = minutesOfDay,
-                startDate = startDate,
-                endDate = endDate,
-                zoneId = zoneId,
-            ),
-        )
-        val created = outcome as? CreateMedicationScheduleOutcome.Created
-            ?: error("Test care-plan creation failed: $outcome")
+        val resolvedRecipientId =
+            recipientId ?: createOrGetRecipient()
 
-        return CreatedTestPlan(
-            recipientId = resolvedRecipientId,
-            medicationId = created.medicationId,
-            scheduleSeriesId = created.scheduleSeriesId,
-            scheduleVersionId = created.scheduleVersionId,
-            occurrenceIds = created.occurrenceIds,
-        )
+        val outcome =
+            carePlanService
+                .createMedicationAndSchedule(
+                    CreateMedicationScheduleCommand(
+                        recipientId =
+                            resolvedRecipientId,
+                        medicationName =
+                            medicationName,
+                        instruction =
+                            instruction,
+                        weekdays =
+                            weekdays,
+                        minutesOfDay =
+                            minutesOfDay,
+                        startDate =
+                            startDate,
+                        endDate =
+                            endDate,
+                        zoneId =
+                            zoneId,
+                    ),
+                )
+
+        return when (outcome) {
+            is CreateMedicationScheduleOutcome.Created -> {
+                CreatedTestPlan(
+                    recipientId =
+                        resolvedRecipientId,
+                    medicationId =
+                        outcome.medicationId,
+                    scheduleSeriesId =
+                        outcome.scheduleSeriesId,
+                    scheduleVersionId =
+                        outcome.scheduleVersionId,
+                    occurrenceIds =
+                        outcome.occurrenceIds,
+                )
+            }
+
+            CreateMedicationScheduleOutcome.RecipientNotFound -> {
+                error(
+                    "Test care-plan creation failed: recipient not found.",
+                )
+            }
+
+            is CreateMedicationScheduleOutcome.Invalid -> {
+                error(
+                    "Test care-plan creation failed: ${outcome.errors}",
+                )
+            }
+        }
     }
 
-    fun moveTo(instant: Instant) {
-        clock.currentInstant = instant
-    }
+    suspend fun occurrencesForMedication(
+        medicationId: String,
+    ): List<OccurrenceEntity> =
+        database
+            .occurrenceDao()
+            .getForMedication(
+                medicationId,
+            )
 
-    suspend fun guaranteeWindow(anchorDate: LocalDate) {
-        occurrenceGenerator.guaranteeWindowForAll(
-            anchorDate = anchorDate,
-            now = clock.instant(),
+    suspend fun occurrenceOn(
+        medicationId: String,
+        date: LocalDate,
+        minuteOfDay: Int,
+    ): OccurrenceEntity =
+        occurrencesForMedication(
+            medicationId,
         )
-    }
+            .first {
+                it.localEpochDay ==
+                        date.toEpochDay() &&
+                        it.minuteOfDay ==
+                        minuteOfDay
+            }
 
     suspend fun occurrenceForDate(
         scheduleVersionId: String,
         date: LocalDate,
-    ): OccurrenceEntity = checkNotNull(
-        database.occurrenceDao()
-            .getForVersion(scheduleVersionId)
-            .firstOrNull { it.localDateEpochDay == date.toEpochDay() },
+    ): OccurrenceEntity =
+        checkNotNull(
+            database
+                .occurrenceDao()
+                .getForVersion(
+                    scheduleVersionId,
+                )
+                .firstOrNull {
+                    it.localEpochDay ==
+                            date.toEpochDay()
+                },
+        ) {
+            "No occurrence exists for schedule version $scheduleVersionId on $date."
+        }
+
+    suspend fun report(
+        occurrenceId: String,
+        state: CaregiverReportState,
     ) {
-        "No occurrence exists for schedule version $scheduleVersionId on $date."
+        reportService.setReport(
+            occurrenceId =
+                occurrenceId,
+            newState =
+                state,
+        )
+    }
+
+    suspend fun generateAll(
+        anchorDate: LocalDate =
+            clock
+                .instant()
+                .atZone(
+                    ZoneOffset.UTC,
+                )
+                .toLocalDate(),
+    ) {
+        occurrenceGenerator
+            .guaranteeWindowForAll(
+                anchorDate = anchorDate,
+                now = clock.instant(),
+            )
+    }
+
+    suspend fun guaranteeWindow(
+        anchorDate: LocalDate,
+    ) {
+        generateAll(
+            anchorDate =
+                anchorDate,
+        )
+    }
+
+    fun advanceTo(
+        instant: Instant,
+    ) {
+        clock.currentInstant =
+            instant
+    }
+
+    fun moveTo(
+        instant: Instant,
+    ) {
+        advanceTo(
+            instant,
+        )
     }
 
     override fun close() {
@@ -122,28 +257,59 @@ internal class CarePlanRoomTestFixture private constructor(
     }
 
     companion object {
+
+        const val DEFAULT_RECIPIENT_NAME =
+            "مادر"
+
+        const val DEFAULT_MEDICATION_NAME =
+            "داروی صبح"
+
+        const val DEFAULT_INSTRUCTION =
+            "بعد از صبحانه"
+
+        const val DEFAULT_ZONE_ID =
+            "UTC"
+
+        val DEFAULT_INSTANT: Instant =
+            Instant.parse(
+                "2026-06-24T08:00:00Z",
+            )
+
         fun create(
-            initialInstant: Instant,
-            idPrefix: String = "test-id",
-            clockZone: ZoneId = ZoneOffset.UTC,
-            context: Context = ApplicationProvider.getApplicationContext(),
+            initialInstant: Instant =
+                DEFAULT_INSTANT,
+            idPrefix: String =
+                "room-fixture-id",
+            clockZone: ZoneId =
+                ZoneOffset.UTC,
+            context: Context =
+                ApplicationProvider
+                    .getApplicationContext(),
         ): CarePlanRoomTestFixture {
-            val database = Room.inMemoryDatabaseBuilder(
-                context,
-                CarePackDatabase::class.java,
-            ).build()
+            val database =
+                Room
+                    .inMemoryDatabaseBuilder(
+                        context,
+                        CarePackDatabase::class.java,
+                    )
+                    .build()
 
             return CarePlanRoomTestFixture(
                 database = database,
-                clock = MutableTestClock(initialInstant, clockZone),
-                idSource = IncrementingIdSource(idPrefix),
+                clock =
+                    MutableTestClock(
+                        initialInstant =
+                            initialInstant,
+                        zone =
+                            clockZone,
+                    ),
+                idSource =
+                    IncrementingIdSource(
+                        prefix =
+                            idPrefix,
+                    ),
             )
         }
-
-        private const val DEFAULT_RECIPIENT_NAME = "فرد نمونه"
-        private const val DEFAULT_MEDICATION_NAME = "داروی نمونه"
-        private const val DEFAULT_INSTRUCTION = "دستور نمونه"
-        private const val DEFAULT_ZONE_ID = "Asia/Tehran"
     }
 }
 

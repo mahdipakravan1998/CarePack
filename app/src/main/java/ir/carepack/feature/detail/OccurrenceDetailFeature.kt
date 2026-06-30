@@ -52,7 +52,7 @@ import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.feature.reporting.reportStateText
-import ir.carepack.feature.reporting.temporalPhaseText
+import ir.carepack.feature.reporting.temporalStatusText
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import java.time.Clock
@@ -80,29 +80,23 @@ data class OccurrenceDetailUiState(
     val isLoading: Boolean = true,
     val occurrence: OccurrenceDetail? = null,
     val isSaving: Boolean = false,
-    val pendingReportState:
-    CaregiverReportState? = null,
+    val pendingReportState: CaregiverReportState? = null,
     val undo: UndoUiState? = null,
     val errorMessage: String? = null,
 )
 
 class OccurrenceDetailViewModel(
     private val occurrenceId: String,
-    todayQueryService:
-    TodayQueryService,
-    private val caregiverReportService:
-    CaregiverReportService,
-    clock: Clock =
-        Clock.systemUTC(),
-    now: Flow<Instant> =
-        tickingNow(clock),
+    todayQueryService: TodayQueryService,
+    private val caregiverReportService: CaregiverReportService,
+    clock: Clock = Clock.systemUTC(),
+    now: Flow<Instant> = tickingNow(clock),
 ) : ViewModel() {
 
     private val sharedNow =
         now.shareIn(
             scope = viewModelScope,
-            started =
-                SharingStarted.Eagerly,
+            started = SharingStarted.Eagerly,
             replay = 1,
         )
 
@@ -123,45 +117,34 @@ class OccurrenceDetailViewModel(
     init {
         todayQueryService
             .observeOccurrence(
-                occurrenceId =
-                    occurrenceId,
+                occurrenceId = occurrenceId,
                 now = sharedNow,
             )
             .onEach { occurrence ->
-                mutableState.update {
-                        current ->
+                mutableState.update { current ->
                     val pendingStateWasPersisted =
-                        current
-                            .pendingReportState !=
-                                null &&
-                                current
-                                    .pendingReportState ==
-                                occurrence
-                                    ?.reportState
+                        current.pendingReportState != null &&
+                                current.pendingReportState ==
+                                occurrence?.reportState
 
                     current.copy(
                         isLoading = false,
                         occurrence = occurrence,
                         pendingReportState =
-                            if (
-                                pendingStateWasPersisted
-                            ) {
+                            if (pendingStateWasPersisted) {
                                 null
                             } else {
-                                current
-                                    .pendingReportState
+                                current.pendingReportState
                             },
                         errorMessage = null,
                     )
                 }
             }
             .catch {
-                mutableState.update {
-                        current ->
+                mutableState.update { current ->
                     current.copy(
                         isLoading = false,
-                        pendingReportState =
-                            null,
+                        pendingReportState = null,
                         errorMessage =
                             "خواندن جزئیات انجام نشد.",
                     )
@@ -173,8 +156,7 @@ class OccurrenceDetailViewModel(
     }
 
     fun setReport(
-        newState:
-        CaregiverReportState,
+        newState: CaregiverReportState,
     ) {
         val currentState =
             mutableState.value
@@ -195,9 +177,7 @@ class OccurrenceDetailViewModel(
             currentState.pendingReportState
                 ?: occurrence.reportState
 
-        if (
-            displayedState == newState
-        ) {
+        if (displayedState == newState) {
             return
         }
 
@@ -205,8 +185,7 @@ class OccurrenceDetailViewModel(
             mutableState.update {
                 it.copy(
                     isSaving = true,
-                    pendingReportState =
-                        newState,
+                    pendingReportState = newState,
                     errorMessage = null,
                 )
             }
@@ -214,13 +193,10 @@ class OccurrenceDetailViewModel(
             try {
                 when (
                     val outcome =
-                        caregiverReportService
-                            .setReport(
-                                occurrenceId =
-                                    occurrenceId,
-                                newState =
-                                    newState,
-                            )
+                        caregiverReportService.setReport(
+                            occurrenceId = occurrenceId,
+                            newState = newState,
+                        )
                 ) {
                     is SetReportOutcome.Changed -> {
                         showUndo(
@@ -228,20 +204,17 @@ class OccurrenceDetailViewModel(
                         )
                     }
 
-                    is SetReportOutcome
-                    .Unchanged -> {
+                    is SetReportOutcome.Unchanged -> {
                         clearPendingReportState()
                     }
 
-                    SetReportOutcome
-                        .OccurrenceNotFound -> {
+                    SetReportOutcome.OccurrenceNotFound -> {
                         showError(
                             "نوبت پیدا نشد.",
                         )
                     }
 
-                    SetReportOutcome
-                        .CancelledOccurrenceRejected -> {
+                    SetReportOutcome.CancelledOccurrenceRejected -> {
                         showError(
                             "برای نوبت لغوشده نمی‌توان گزارش تازه‌ای ثبت کرد.",
                         )
@@ -265,14 +238,10 @@ class OccurrenceDetailViewModel(
         token: Long,
     ) {
         val undoState =
-            mutableState
-                .value
-                .undo
+            mutableState.value.undo
                 ?: return
 
-        if (
-            undoState.token != token
-        ) {
+        if (undoState.token != token) {
             return
         }
 
@@ -281,8 +250,7 @@ class OccurrenceDetailViewModel(
         mutableState.update {
             it.copy(
                 undo = null,
-                pendingReportState =
-                    null,
+                pendingReportState = null,
                 errorMessage = null,
             )
         }
@@ -295,20 +263,17 @@ class OccurrenceDetailViewModel(
                             undoState.change,
                         )
                 ) {
-                    is UndoReportOutcome
-                    .Restored -> {
+                    is UndoReportOutcome.Restored -> {
                         clearPendingReportState()
                     }
 
-                    UndoReportOutcome
-                        .NoLongerCurrent -> {
+                    UndoReportOutcome.NoLongerCurrent -> {
                         showError(
                             "این تغییر دیگر قابل بازگردانی نیست.",
                         )
                     }
 
-                    UndoReportOutcome
-                        .OccurrenceNotFound -> {
+                    UndoReportOutcome.OccurrenceNotFound -> {
                         showError(
                             "نوبت پیدا نشد.",
                         )
@@ -331,8 +296,7 @@ class OccurrenceDetailViewModel(
 
         val undoState =
             UndoUiState(
-                token =
-                    undoTokenCounter,
+                token = undoTokenCounter,
                 change = change,
             )
 
@@ -349,12 +313,8 @@ class OccurrenceDetailViewModel(
                     UNDO_DURATION_MILLIS,
                 )
 
-                mutableState.update {
-                        current ->
-                    if (
-                        current.undo?.token ==
-                        undoState.token
-                    ) {
+                mutableState.update { current ->
+                    if (current.undo?.token == undoState.token) {
                         current.copy(
                             undo = null,
                         )
@@ -368,8 +328,7 @@ class OccurrenceDetailViewModel(
     private fun clearPendingReportState() {
         mutableState.update {
             it.copy(
-                pendingReportState =
-                    null,
+                pendingReportState = null,
             )
         }
     }
@@ -379,8 +338,7 @@ class OccurrenceDetailViewModel(
     ) {
         mutableState.update {
             it.copy(
-                pendingReportState =
-                    null,
+                pendingReportState = null,
                 errorMessage = message,
             )
         }
@@ -393,22 +351,16 @@ class OccurrenceDetailViewModel(
 
         fun factory(
             occurrenceId: String,
-            todayQueryService:
-            TodayQueryService,
-            caregiverReportService:
-            CaregiverReportService,
-            clock: Clock =
-                Clock.systemUTC(),
+            todayQueryService: TodayQueryService,
+            caregiverReportService: CaregiverReportService,
+            clock: Clock = Clock.systemUTC(),
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
                     OccurrenceDetailViewModel(
-                        occurrenceId =
-                            occurrenceId,
-                        todayQueryService =
-                            todayQueryService,
-                        caregiverReportService =
-                            caregiverReportService,
+                        occurrenceId = occurrenceId,
+                        todayQueryService = todayQueryService,
+                        caregiverReportService = caregiverReportService,
                         clock = clock,
                     )
                 }
@@ -418,8 +370,7 @@ class OccurrenceDetailViewModel(
 
 @Composable
 fun OccurrenceDetailRoute(
-    viewModel:
-    OccurrenceDetailViewModel,
+    viewModel: OccurrenceDetailViewModel,
     onBack: () -> Unit,
 ) {
     val state by
@@ -429,10 +380,8 @@ fun OccurrenceDetailRoute(
 
     OccurrenceDetailScreen(
         state = state,
-        onSetReport =
-            viewModel::setReport,
-        onUndo =
-            viewModel::undo,
+        onSetReport = viewModel::setReport,
+        onUndo = viewModel::undo,
         onBack = onBack,
     )
 }
@@ -440,8 +389,7 @@ fun OccurrenceDetailRoute(
 @Composable
 fun OccurrenceDetailScreen(
     state: OccurrenceDetailUiState,
-    onSetReport:
-        (CaregiverReportState) -> Unit,
+    onSetReport: (CaregiverReportState) -> Unit,
     onUndo: (Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
@@ -513,14 +461,12 @@ fun OccurrenceDetailScreen(
 
                 OccurrenceDetailContent(
                     state = state,
-                    onSetReport =
-                        onSetReport,
+                    onSetReport = onSetReport,
                 )
             }
         }
 
-        state.undo?.let {
-                undoState ->
+        state.undo?.let { undoState ->
             Snackbar(
                 modifier =
                     Modifier
@@ -552,7 +498,7 @@ fun OccurrenceDetailScreen(
                             text =
                                 stringResource(
                                     R.string
-                                        .pr3_undo,
+                                        .undo_report_change,
                                 ),
                         )
                     }
@@ -561,8 +507,7 @@ fun OccurrenceDetailScreen(
                 Text(
                     text =
                         stringResource(
-                            R.string
-                                .pr3_report_changed,
+                            R.string.report_changed,
                         ),
                 )
             }
@@ -573,8 +518,7 @@ fun OccurrenceDetailScreen(
 @Composable
 private fun OccurrenceDetailContent(
     state: OccurrenceDetailUiState,
-    onSetReport:
-        (CaregiverReportState) -> Unit,
+    onSetReport: (CaregiverReportState) -> Unit,
 ) {
     when {
         state.isLoading -> {
@@ -596,8 +540,7 @@ private fun OccurrenceDetailContent(
         state.errorMessage != null &&
                 state.occurrence == null -> {
             Text(
-                text =
-                    state.errorMessage,
+                text = state.errorMessage,
                 color =
                     MaterialTheme
                         .colorScheme
@@ -615,8 +558,7 @@ private fun OccurrenceDetailContent(
             Text(
                 text =
                     stringResource(
-                        R.string
-                            .pr3_occurrence_not_found,
+                        R.string.occurrence_not_found,
                     ),
                 modifier =
                     Modifier
@@ -667,8 +609,7 @@ private fun OccurrenceDetailContent(
             DetailLabelValue(
                 label =
                     stringResource(
-                        R.string
-                            .pr3_scheduled_date,
+                        R.string.scheduled_date,
                     ),
                 value =
                     occurrence
@@ -680,8 +621,7 @@ private fun OccurrenceDetailContent(
             DetailLabelValue(
                 label =
                     stringResource(
-                        R.string
-                            .pr3_schedule_zone,
+                        R.string.schedule_zone,
                     ),
                 value =
                     occurrence.zoneId,
@@ -691,12 +631,11 @@ private fun OccurrenceDetailContent(
             DetailLabelValue(
                 label =
                     stringResource(
-                        R.string
-                            .pr3_temporal_phase,
+                        R.string.temporal_status_label,
                     ),
                 value =
-                    temporalPhaseText(
-                        occurrence.temporalPhase,
+                    temporalStatusText(
+                        occurrence.temporalStatus,
                     ),
             )
 
@@ -736,18 +675,15 @@ private fun OccurrenceDetailContent(
 
             ReportStatusCard(
                 occurrence = occurrence,
-                displayedReportState =
-                    displayedReportState,
+                displayedReportState = displayedReportState,
             )
 
             if (BuildConfig.DEBUG) {
                 Text(
                     text =
                         stringResource(
-                            R.string
-                                .debug_occurrence_id,
-                            occurrence
-                                .occurrenceId,
+                            R.string.debug_occurrence_id,
+                            occurrence.occurrenceId,
                         ),
                     style =
                         MaterialTheme
@@ -764,11 +700,9 @@ private fun OccurrenceDetailContent(
                 )
             }
 
-            state.errorMessage?.let {
-                    errorMessage ->
+            state.errorMessage?.let { errorMessage ->
                 Text(
-                    text =
-                        errorMessage,
+                    text = errorMessage,
                     color =
                         MaterialTheme
                             .colorScheme
@@ -789,8 +723,7 @@ private fun OccurrenceDetailContent(
                 Text(
                     text =
                         stringResource(
-                            R.string
-                                .pr3_cancelled_report_disabled,
+                            R.string.cancelled_report_disabled,
                         ),
                     color =
                         MaterialTheme
@@ -806,12 +739,9 @@ private fun OccurrenceDetailContent(
             } else {
                 ReportActions(
                     occurrence = occurrence,
-                    currentState =
-                        displayedReportState,
-                    isSaving =
-                        state.isSaving,
-                    onSetReport =
-                        onSetReport,
+                    currentState = displayedReportState,
+                    isSaving = state.isSaving,
+                    onSetReport = onSetReport,
                 )
             }
 
@@ -870,14 +800,12 @@ private fun DetailLabelValue(
 @Composable
 private fun ReportStatusCard(
     occurrence: OccurrenceDetail,
-    displayedReportState:
-    CaregiverReportState?,
+    displayedReportState: CaregiverReportState?,
 ) {
     val statusText =
         if (occurrence.isOverdue) {
             stringResource(
-                R.string
-                    .pr3_recording_time_passed,
+                R.string.recording_time_passed,
             )
         } else {
             reportStateText(
@@ -908,8 +836,7 @@ private fun ReportStatusCard(
             Text(
                 text =
                     stringResource(
-                        R.string
-                            .pr3_current_report,
+                        R.string.current_report,
                     ),
                 style =
                     MaterialTheme
@@ -918,8 +845,7 @@ private fun ReportStatusCard(
             )
 
             Text(
-                text =
-                    statusText,
+                text = statusText,
                 style =
                     MaterialTheme
                         .typography
@@ -936,11 +862,9 @@ private fun ReportStatusCard(
 @Composable
 private fun ReportActions(
     occurrence: OccurrenceDetail,
-    currentState:
-    CaregiverReportState?,
+    currentState: CaregiverReportState?,
     isSaving: Boolean,
-    onSetReport:
-        (CaregiverReportState) -> Unit,
+    onSetReport: (CaregiverReportState) -> Unit,
 ) {
     val timeText =
         occurrence
@@ -960,8 +884,7 @@ private fun ReportActions(
         Text(
             text =
                 stringResource(
-                    R.string
-                        .pr3_current_report,
+                    R.string.current_report,
                 ),
             style =
                 MaterialTheme
@@ -974,23 +897,18 @@ private fun ReportActions(
         ReportActionButton(
             text =
                 stringResource(
-                    R.string
-                        .pr3_action_given,
+                    R.string.report_action_given,
                 ),
             accessibilityLabel =
                 "ثبت داده شدن ${occurrence.medicationName} برای ساعت $timeText",
             selected =
                 currentState ==
-                        CaregiverReportState
-                            .GIVEN,
-            enabled =
-                !isSaving,
-            testTag =
-                "record_given",
+                        CaregiverReportState.GIVEN,
+            enabled = !isSaving,
+            testTag = "record_given",
             onClick = {
                 onSetReport(
-                    CaregiverReportState
-                        .GIVEN,
+                    CaregiverReportState.GIVEN,
                 )
             },
         )
@@ -998,23 +916,18 @@ private fun ReportActions(
         ReportActionButton(
             text =
                 stringResource(
-                    R.string
-                        .pr3_action_not_given,
+                    R.string.report_action_not_given,
                 ),
             accessibilityLabel =
                 "ثبت داده نشدن ${occurrence.medicationName} برای ساعت $timeText",
             selected =
                 currentState ==
-                        CaregiverReportState
-                            .NOT_GIVEN,
-            enabled =
-                !isSaving,
-            testTag =
-                "record_not_given",
+                        CaregiverReportState.NOT_GIVEN,
+            enabled = !isSaving,
+            testTag = "record_not_given",
             onClick = {
                 onSetReport(
-                    CaregiverReportState
-                        .NOT_GIVEN,
+                    CaregiverReportState.NOT_GIVEN,
                 )
             },
         )
@@ -1022,23 +935,18 @@ private fun ReportActions(
         ReportActionButton(
             text =
                 stringResource(
-                    R.string
-                        .pr3_action_unknown,
+                    R.string.report_action_unknown,
                 ),
             accessibilityLabel =
                 "ثبت مشخص نبودن نتیجه ${occurrence.medicationName} برای ساعت $timeText",
             selected =
                 currentState ==
-                        CaregiverReportState
-                            .UNKNOWN,
-            enabled =
-                !isSaving,
-            testTag =
-                "record_unknown",
+                        CaregiverReportState.UNKNOWN,
+            enabled = !isSaving,
+            testTag = "record_unknown",
             onClick = {
                 onSetReport(
-                    CaregiverReportState
-                        .UNKNOWN,
+                    CaregiverReportState.UNKNOWN,
                 )
             },
         )
@@ -1065,8 +973,7 @@ private fun ReportActions(
                 CircularProgressIndicator()
 
                 Text(
-                    text =
-                        "در حال ذخیره گزارش…",
+                    text = "در حال ذخیره گزارش…",
                     style =
                         MaterialTheme
                             .typography
@@ -1116,14 +1023,10 @@ private fun ReportActionButton(
         colors =
             ButtonDefaults
                 .outlinedButtonColors(
-                    containerColor =
-                        containerColor,
-                    contentColor =
-                        contentColor,
-                    disabledContainerColor =
-                        containerColor,
-                    disabledContentColor =
-                        contentColor,
+                    containerColor = containerColor,
+                    contentColor = contentColor,
+                    disabledContainerColor = containerColor,
+                    disabledContentColor = contentColor,
                 ),
         border =
             BorderStroke(

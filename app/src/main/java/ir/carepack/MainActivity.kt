@@ -139,9 +139,6 @@ class MainActivity :
                                 textShareGateway =
                                     container
                                         .textShareGateway,
-                                privacyPolicyGateway =
-                                    container
-                                        .privacyPolicyGateway,
                                 dataDeletionCoordinator =
                                     container
                                         .dataDeletionCoordinator,
