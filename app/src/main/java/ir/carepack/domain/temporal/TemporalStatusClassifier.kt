@@ -2,38 +2,38 @@ package ir.carepack.domain.temporal
 
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.model.TemporalPhase
+import ir.carepack.domain.model.TemporalStatus
 import java.time.Duration
 import java.time.Instant
 
-class TemporalClassifier {
+class TemporalStatusClassifier {
 
     fun classify(
         scheduledAt: Instant,
         now: Instant,
-    ): TemporalPhase {
+    ): TemporalStatus {
         if (now.isBefore(scheduledAt)) {
-            return TemporalPhase.UPCOMING
+            return TemporalStatus.UPCOMING
         }
 
         val dueUntil =
             scheduledAt.plus(DUE_DURATION)
 
         return if (now.isBefore(dueUntil)) {
-            TemporalPhase.DUE
+            TemporalStatus.DUE
         } else {
-            TemporalPhase.PAST
+            TemporalStatus.PAST
         }
     }
 
     fun isOverdue(
         lifecycle: OccurrenceLifecycle,
         reportState: CaregiverReportState?,
-        phase: TemporalPhase,
+        phase: TemporalStatus,
     ): Boolean {
         return lifecycle ==
                 OccurrenceLifecycle.ACTIVE &&
-                phase == TemporalPhase.PAST &&
+                phase == TemporalStatus.PAST &&
                 reportState == null
     }
 

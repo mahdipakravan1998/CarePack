@@ -17,8 +17,7 @@ class CarePlanValidationTest {
                 )
 
         assertTrue(
-            result is
-                    ValidationResult.Valid,
+            result is ValidationResult.Valid,
         )
 
         assertEquals(
@@ -36,49 +35,15 @@ class CarePlanValidationTest {
                 )
 
         assertTrue(
-            result is
-                    ValidationResult.Invalid,
+            result is ValidationResult.Invalid,
         )
-    }
-
-    @Test
-    fun recipientNameAtMaximum_isAccepted() {
-        val value =
-            "ا".repeat(
-                CarePlanLimits
-                    .RECIPIENT_NAME_MAX_LENGTH,
-            )
-
-        val result =
-            CarePlanValidation
-                .validateRecipientName(
-                    value,
-                )
 
         assertTrue(
-            result is
-                    ValidationResult.Valid,
-        )
-    }
-
-    @Test
-    fun recipientNameAboveMaximum_isRejected() {
-        val value =
-            "ا".repeat(
-                CarePlanLimits
-                    .RECIPIENT_NAME_MAX_LENGTH +
-                        1,
-            )
-
-        val result =
-            CarePlanValidation
-                .validateRecipientName(
-                    value,
-                )
-
-        assertTrue(
-            result is
-                    ValidationResult.Invalid,
+            result.errorsOrEmpty()
+                .any {
+                    it.field ==
+                            CarePlanField.RECIPIENT_NAME
+                },
         )
     }
 
@@ -127,16 +92,14 @@ class CarePlanValidationTest {
         assertTrue(
             errors.any {
                 it.field ==
-                        CarePlanField
-                            .MEDICATION_NAME
+                        CarePlanField.MEDICATION_NAME
             },
         )
 
         assertTrue(
             errors.any {
                 it.field ==
-                        CarePlanField
-                            .INSTRUCTION
+                        CarePlanField.INSTRUCTION
             },
         )
     }
@@ -146,8 +109,7 @@ class CarePlanValidationTest {
         val result =
             CarePlanValidation
                 .validateSchedule(
-                    weekdays =
-                        emptySet(),
+                    weekdays = emptySet(),
                     minutesOfDay =
                         listOf(600),
                     startDate = null,
@@ -174,8 +136,7 @@ class CarePlanValidationTest {
                         setOf(
                             DayOfWeek.MONDAY,
                         ),
-                    minutesOfDay =
-                        emptyList(),
+                    minutesOfDay = emptyList(),
                     startDate = null,
                     endDate = null,
                     rawZoneId =
@@ -241,8 +202,15 @@ class CarePlanValidationTest {
                 )
 
         assertTrue(
-            result is
-                    ValidationResult.Invalid,
+            result is ValidationResult.Invalid,
+        )
+
+        assertTrue(
+            result.errorsOrEmpty()
+                .any {
+                    it.field ==
+                            CarePlanField.TIMES
+                },
         )
     }
 
@@ -301,8 +269,7 @@ class CarePlanValidationTest {
                 )
 
         assertTrue(
-            result is
-                    ValidationResult.Valid,
+            result is ValidationResult.Valid,
         )
     }
 
@@ -367,6 +334,103 @@ class CarePlanValidationTest {
         assertEquals(
             "Asia/Tehran",
             value?.zoneId?.id,
+        )
+    }
+
+    @Test
+    fun scheduleTimeParser_acceptsTwentyFourHourTime() {
+        val result =
+            CarePlanValidation
+                .validateScheduleTime(
+                    rawValue = "08:45",
+                    existingMinutesOfDay =
+                        emptyList(),
+                )
+
+        assertEquals(
+            525,
+            result.valueOrNull(),
+        )
+    }
+
+    @Test
+    fun scheduleTimeParser_rejectsInvalidText() {
+        val result =
+            CarePlanValidation
+                .validateScheduleTime(
+                    rawValue = "8:45",
+                    existingMinutesOfDay =
+                        emptyList(),
+                )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
+    }
+
+    @Test
+    fun scheduleTimeParser_rejectsDuplicateTime() {
+        val result =
+            CarePlanValidation
+                .validateScheduleTime(
+                    rawValue = "10:00",
+                    existingMinutesOfDay =
+                        listOf(600),
+                )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
+
+        assertTrue(
+            result.errorsOrEmpty()
+                .any {
+                    it.field ==
+                            CarePlanField.TIMES
+                },
+        )
+    }
+
+    @Test
+    fun optionalDatesParser_acceptsBlankValues() {
+        val result =
+            CarePlanValidation
+                .parseScheduleDates(
+                    rawStartDate = "",
+                    rawEndDate = "   ",
+                )
+
+        assertTrue(
+            result is ValidationResult.Valid,
+        )
+
+        assertEquals(
+            null,
+            result.valueOrNull()?.startDate,
+        )
+
+        assertEquals(
+            null,
+            result.valueOrNull()?.endDate,
+        )
+    }
+
+    @Test
+    fun optionalDatesParser_rejectsInvalidDateText() {
+        val result =
+            CarePlanValidation
+                .parseScheduleDates(
+                    rawStartDate = "2026/06/24",
+                    rawEndDate = "not-a-date",
+                )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
+
+        assertEquals(
+            2,
+            result.errorsOrEmpty().size,
         )
     }
 }

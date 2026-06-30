@@ -37,13 +37,16 @@ interface CareRecipientDao {
     @Query(
         """
         UPDATE care_recipients
-        SET displayName = :displayName
+        SET
+            displayName = :displayName,
+            updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE id = :recipientId
         """,
     )
     suspend fun updateDisplayName(
         recipientId: String,
         displayName: String,
+        updatedAtEpochMillis: Long,
     ): Int
 
     @Query(
@@ -77,7 +80,8 @@ interface MedicationDao {
         UPDATE medications
         SET
             name = :name,
-            instruction = :instruction
+            instructionText = :instructionText,
+            updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE id = :medicationId
           AND stoppedAtEpochMillis IS NULL
           AND archivedAtEpochMillis IS NULL
@@ -86,13 +90,16 @@ interface MedicationDao {
     suspend fun updateText(
         medicationId: String,
         name: String,
-        instruction: String,
+        instructionText: String,
+        updatedAtEpochMillis: Long,
     ): Int
 
     @Query(
         """
         UPDATE medications
-        SET stoppedAtEpochMillis = :stoppedAtEpochMillis
+        SET
+            stoppedAtEpochMillis = :stoppedAtEpochMillis,
+            updatedAtEpochMillis = :stoppedAtEpochMillis
         WHERE id = :medicationId
           AND stoppedAtEpochMillis IS NULL
           AND archivedAtEpochMillis IS NULL
@@ -106,7 +113,9 @@ interface MedicationDao {
     @Query(
         """
         UPDATE medications
-        SET archivedAtEpochMillis = :archivedAtEpochMillis
+        SET
+            archivedAtEpochMillis = :archivedAtEpochMillis,
+            updatedAtEpochMillis = :archivedAtEpochMillis
         WHERE id = :medicationId
           AND stoppedAtEpochMillis IS NOT NULL
           AND archivedAtEpochMillis IS NULL
@@ -122,7 +131,7 @@ interface MedicationDao {
         SELECT
             medication.id AS medicationId,
             medication.name AS medicationName,
-            medication.instruction AS medicationInstruction,
+            medication.instructionText AS medicationInstruction,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
@@ -134,15 +143,14 @@ interface MedicationDao {
             version.zoneId AS zoneId,
             version.effectiveFromEpochMillis
                 AS effectiveFromEpochMillis,
-            version.startDateEpochDay AS startDateEpochDay,
-            version.endDateEpochDay AS endDateEpochDay,
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay,
             scheduleTime.minuteOfDay AS minuteOfDay
         FROM medications AS medication
         LEFT JOIN schedule_series AS series
             ON series.medicationId = medication.id
-           AND series.stoppedAtEpochMillis IS NULL
         LEFT JOIN schedule_versions AS version
-            ON version.seriesId = series.id
+            ON version.scheduleSeriesId = series.id
            AND version.effectiveUntilEpochMillis IS NULL
         LEFT JOIN schedule_times AS scheduleTime
             ON scheduleTime.scheduleVersionId = version.id
@@ -161,7 +169,7 @@ interface MedicationDao {
         SELECT
             medication.id AS medicationId,
             medication.name AS medicationName,
-            medication.instruction AS medicationInstruction,
+            medication.instructionText AS medicationInstruction,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
@@ -173,15 +181,14 @@ interface MedicationDao {
             version.zoneId AS zoneId,
             version.effectiveFromEpochMillis
                 AS effectiveFromEpochMillis,
-            version.startDateEpochDay AS startDateEpochDay,
-            version.endDateEpochDay AS endDateEpochDay,
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay,
             scheduleTime.minuteOfDay AS minuteOfDay
         FROM medications AS medication
         LEFT JOIN schedule_series AS series
             ON series.medicationId = medication.id
-           AND series.stoppedAtEpochMillis IS NULL
         LEFT JOIN schedule_versions AS version
-            ON version.seriesId = series.id
+            ON version.scheduleSeriesId = series.id
            AND version.effectiveUntilEpochMillis IS NULL
         LEFT JOIN schedule_times AS scheduleTime
             ON scheduleTime.scheduleVersionId = version.id
@@ -221,8 +228,8 @@ interface ScheduleDao {
         """
         SELECT
             version.id AS scheduleVersionId,
-            version.seriesId AS scheduleSeriesId,
-            version.medicationId AS medicationId,
+            version.scheduleSeriesId AS scheduleSeriesId,
+            series.medicationId AS medicationId,
             version.weekdayMask AS weekdayMask,
             scheduleTime.minuteOfDay AS minuteOfDay,
             version.zoneId AS zoneId,
@@ -230,13 +237,15 @@ interface ScheduleDao {
                 AS effectiveFromEpochMillis,
             version.effectiveUntilEpochMillis
                 AS effectiveUntilEpochMillis,
-            version.startDateEpochDay AS startDateEpochDay,
-            version.endDateEpochDay AS endDateEpochDay,
-            version.medicationNameSnapshot
-                AS medicationNameSnapshot,
-            version.medicationInstructionSnapshot
-                AS medicationInstructionSnapshot
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay,
+            medication.name AS medicationNameSnapshot,
+            medication.instructionText AS instructionSnapshot
         FROM schedule_versions AS version
+        INNER JOIN schedule_series AS series
+            ON series.id = version.scheduleSeriesId
+        INNER JOIN medications AS medication
+            ON medication.id = series.medicationId
         INNER JOIN schedule_times AS scheduleTime
             ON scheduleTime.scheduleVersionId = version.id
         WHERE version.id = :scheduleVersionId
@@ -251,8 +260,10 @@ interface ScheduleDao {
         """
         SELECT DISTINCT version.id
         FROM schedule_versions AS version
+        INNER JOIN schedule_series AS series
+            ON series.id = version.scheduleSeriesId
         INNER JOIN medications AS medication
-            ON medication.id = version.medicationId
+            ON medication.id = series.medicationId
         WHERE medication.archivedAtEpochMillis IS NULL
           AND version.effectiveFromEpochMillis
                 < :windowEndExclusiveEpochMillis
@@ -273,19 +284,22 @@ interface ScheduleDao {
         """
         SELECT
             version.id AS scheduleVersionId,
-            version.seriesId AS scheduleSeriesId,
-            version.medicationId AS medicationId,
+            version.scheduleSeriesId AS scheduleSeriesId,
+            series.medicationId AS medicationId,
             version.versionNumber AS versionNumber,
             version.weekdayMask AS weekdayMask,
             version.zoneId AS zoneId,
-            version.startDateEpochDay AS startDateEpochDay,
-            version.endDateEpochDay AS endDateEpochDay
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay
         FROM schedule_versions AS version
         INNER JOIN schedule_series AS series
-            ON series.id = version.seriesId
-        WHERE version.medicationId = :medicationId
+            ON series.id = version.scheduleSeriesId
+        INNER JOIN medications AS medication
+            ON medication.id = series.medicationId
+        WHERE series.medicationId = :medicationId
           AND version.effectiveUntilEpochMillis IS NULL
-          AND series.stoppedAtEpochMillis IS NULL
+          AND medication.stoppedAtEpochMillis IS NULL
+          AND medication.archivedAtEpochMillis IS NULL
         ORDER BY version.versionNumber
         """,
     )
@@ -308,7 +322,9 @@ interface ScheduleDao {
     @Query(
         """
         UPDATE schedule_versions
-        SET effectiveUntilEpochMillis = :effectiveUntilEpochMillis
+        SET
+            effectiveUntilEpochMillis = :effectiveUntilEpochMillis,
+            supersededReason = :supersededReason
         WHERE id = :scheduleVersionId
           AND effectiveUntilEpochMillis IS NULL
         """,
@@ -316,26 +332,14 @@ interface ScheduleDao {
     suspend fun closeVersion(
         scheduleVersionId: String,
         effectiveUntilEpochMillis: Long,
-    ): Int
-
-    @Query(
-        """
-        UPDATE schedule_series
-        SET stoppedAtEpochMillis = :stoppedAtEpochMillis
-        WHERE medicationId = :medicationId
-          AND stoppedAtEpochMillis IS NULL
-        """,
-    )
-    suspend fun stopOpenSeriesForMedication(
-        medicationId: String,
-        stoppedAtEpochMillis: Long,
+        supersededReason: String,
     ): Int
 
     @Query(
         """
         SELECT COUNT(*)
         FROM schedule_versions
-        WHERE seriesId = :seriesId
+        WHERE scheduleSeriesId = :scheduleSeriesId
           AND effectiveFromEpochMillis <= :instantEpochMillis
           AND (
                 effectiveUntilEpochMillis IS NULL
@@ -345,7 +349,7 @@ interface ScheduleDao {
         """,
     )
     suspend fun countVersionsActiveAt(
-        seriesId: String,
+        scheduleSeriesId: String,
         instantEpochMillis: Long,
     ): Int
 
@@ -366,9 +370,8 @@ interface ScheduleDao {
         INNER JOIN medications AS medication
             ON medication.id = series.medicationId
         INNER JOIN schedule_versions AS version
-            ON version.seriesId = series.id
-        WHERE series.stoppedAtEpochMillis IS NULL
-          AND medication.stoppedAtEpochMillis IS NULL
+            ON version.scheduleSeriesId = series.id
+        WHERE medication.stoppedAtEpochMillis IS NULL
           AND medication.archivedAtEpochMillis IS NULL
           AND version.effectiveUntilEpochMillis IS NULL
         """,
@@ -406,14 +409,14 @@ interface OccurrenceDao {
         SELECT *
         FROM occurrences
         WHERE scheduleVersionId = :scheduleVersionId
-          AND localDateEpochDay = :localDateEpochDay
+          AND localEpochDay = :localEpochDay
           AND minuteOfDay = :minuteOfDay
         LIMIT 1
         """,
     )
     suspend fun getByLogicalKey(
         scheduleVersionId: String,
-        localDateEpochDay: Long,
+        localEpochDay: Long,
         minuteOfDay: Int,
     ): OccurrenceEntity?
 
@@ -459,23 +462,24 @@ interface OccurrenceDao {
     @Query(
         """
         SELECT
-            occurrence.scheduleSeriesId AS scheduleSeriesId,
+            version.scheduleSeriesId AS scheduleSeriesId,
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay AS localDateEpochDay,
+            occurrence.localEpochDay AS localEpochDay,
             occurrence.minuteOfDay AS minuteOfDay,
-            occurrence.zoneId AS zoneId,
+            occurrence.zoneIdSnapshot AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot
         FROM occurrences AS occurrence
+        INNER JOIN schedule_versions AS version
+            ON version.id = occurrence.scheduleVersionId
         INNER JOIN schedule_series AS series
-            ON series.id = occurrence.scheduleSeriesId
+            ON series.id = version.scheduleSeriesId
         INNER JOIN medications AS medication
             ON medication.id = occurrence.medicationId
         WHERE occurrence.lifecycle = 'ACTIVE'
           AND occurrence.scheduledAtEpochMillis > :nowEpochMillis
-          AND series.stoppedAtEpochMillis IS NULL
           AND medication.stoppedAtEpochMillis IS NULL
           AND medication.archivedAtEpochMillis IS NULL
           AND NOT EXISTS (
@@ -486,8 +490,10 @@ interface OccurrenceDao {
           AND NOT EXISTS (
               SELECT 1
               FROM occurrences AS earlierOccurrence
-              WHERE earlierOccurrence.scheduleSeriesId =
-                    occurrence.scheduleSeriesId
+              INNER JOIN schedule_versions AS earlierVersion
+                  ON earlierVersion.id = earlierOccurrence.scheduleVersionId
+              WHERE earlierVersion.scheduleSeriesId =
+                    version.scheduleSeriesId
                 AND earlierOccurrence.lifecycle = 'ACTIVE'
                 AND earlierOccurrence.scheduledAtEpochMillis >
                     :nowEpochMillis
@@ -509,7 +515,7 @@ interface OccurrenceDao {
                 )
           )
         ORDER BY
-            occurrence.scheduleSeriesId,
+            version.scheduleSeriesId,
             occurrence.scheduledAtEpochMillis,
             occurrence.id
         """,
@@ -521,23 +527,24 @@ interface OccurrenceDao {
     @Query(
         """
         SELECT
-            occurrence.scheduleSeriesId AS scheduleSeriesId,
+            version.scheduleSeriesId AS scheduleSeriesId,
             occurrence.id AS occurrenceId,
-            occurrence.localDateEpochDay AS localDateEpochDay,
+            occurrence.localEpochDay AS localEpochDay,
             occurrence.minuteOfDay AS minuteOfDay,
-            occurrence.zoneId AS zoneId,
+            occurrence.zoneIdSnapshot AS zoneIdSnapshot,
             occurrence.scheduledAtEpochMillis
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot
         FROM occurrences AS occurrence
+        INNER JOIN schedule_versions AS version
+            ON version.id = occurrence.scheduleVersionId
         INNER JOIN schedule_series AS series
-            ON series.id = occurrence.scheduleSeriesId
+            ON series.id = version.scheduleSeriesId
         INNER JOIN medications AS medication
             ON medication.id = occurrence.medicationId
         WHERE occurrence.id = :occurrenceId
           AND occurrence.lifecycle = 'ACTIVE'
-          AND series.stoppedAtEpochMillis IS NULL
           AND medication.stoppedAtEpochMillis IS NULL
           AND medication.archivedAtEpochMillis IS NULL
           AND NOT EXISTS (
@@ -604,7 +611,7 @@ interface OccurrenceDao {
         """
         SELECT COUNT(*)
         FROM occurrences
-        WHERE localDateEpochDay
+        WHERE localEpochDay
             BETWEEN :startEpochDay AND :endEpochDay
         """,
     )

@@ -3,7 +3,6 @@ package ir.carepack.domain.report
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.ReportingOccurrenceRow
 import ir.carepack.domain.model.CaregiverReportState
-import ir.carepack.domain.model.OccurrenceLifecycle
 import java.time.LocalDate
 import java.time.LocalTime
 
@@ -33,20 +32,12 @@ internal class RoomTodayReportFormatter(
             database
                 .reportingDao()
                 .getTodayForReport(
-                    localDateEpochDay =
+                    localEpochDay =
                         date.toEpochDay(),
                 )
-                .asSequence()
-                .filter { row ->
-                    row.lifecycle !=
-                            OccurrenceLifecycle
-                                .CANCELLED
-                                .name
-                }
                 .map(
                     ReportingOccurrenceRow::toTodayReportEntry,
                 )
-                .toList()
 
         return textBuilder.build(
             date = date,
@@ -67,7 +58,7 @@ private fun ReportingOccurrenceRow.toTodayReportEntry():
         medicationName =
             medicationNameSnapshot,
         medicationInstruction =
-            medicationInstructionSnapshot,
+            instructionSnapshot,
         reportState =
             reportState?.let(
                 CaregiverReportState::valueOf,

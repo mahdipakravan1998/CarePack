@@ -10,7 +10,7 @@
     <string name="carepack_settings_today_report_description">متن دقیق گزارش امروز را پیش‌نمایش، کپی یا با انتخاب صریح خودتان اشتراک‌گذاری کنید.</string>
 
     <string name="carepack_settings_privacy">حریم خصوصی</string>
-    <string name="carepack_settings_privacy_description">نحوه نگهداری محلی، اشتراک‌گذاری، پشتیبان‌گیری و حذف اطلاعات را بخوانید.</string>
+    <string name="carepack_settings_privacy_description">خلاصه کوتاه نگهداری محلی و حذف اطلاعات را بخوانید.</string>
 
     <string name="carepack_settings_delete_all">حذف همه اطلاعات</string>
     <string name="carepack_settings_delete_all_description">تمام اطلاعات متعلق به کرپک را پس از تأیید صریح و غیرقابل‌بازگشت حذف کنید.</string>
@@ -30,31 +30,7 @@
     <string name="carepack_share_action_failed">این عملیات روی دستگاه انجام نشد.</string>
 
     <string name="carepack_privacy_title">حریم خصوصی</string>
-    <string name="carepack_privacy_summary">این توضیحات داخل برنامه و بدون نیاز به اینترنت در دسترس است.</string>
-
-    <string name="carepack_privacy_local_storage_title">نگهداری محلی اطلاعات</string>
-    <string name="carepack_privacy_local_storage_body">اطلاعات فرد تحت مراقبت، داروها، برنامه‌ها، نوبت‌ها و گزارش‌های مراقب در فضای خصوصی همین برنامه روی دستگاه نگهداری می‌شود. کرپک برای انتقال این اطلاعات به سرور یا حساب آنلاین از اینترنت استفاده نمی‌کند.</string>
-
-    <string name="carepack_privacy_permissions_title">دسترسی‌های اندروید</string>
-    <string name="carepack_privacy_permissions_body">دسترسی اعلان برای نمایش یادآوری، دسترسی زمان‌بندی دقیق برای افزایش دقت یادآوری و دریافت رویداد راه‌اندازی دستگاه برای بازسازی یادآوری‌های متعلق به کرپک استفاده می‌شود. قابلیت‌های اصلی ثبت مراقبت بدون اجازه اعلان نیز قابل استفاده هستند.</string>
-
-    <string name="carepack_privacy_sharing_title">کپی و اشتراک‌گذاری</string>
-    <string name="carepack_privacy_sharing_body">کرپک هیچ گزارشی را خودکار ارسال نمی‌کند. ابتدا متن کامل را نمایش می‌دهد و فقط پس از انتخاب صریح شما، متن را در کلیپ‌بورد قرار می‌دهد یا انتخابگر استاندارد اندروید را باز می‌کند. مقصد انتخاب‌شده مسئول نگهداری و استفاده بعدی از متن است.</string>
-
-    <string name="carepack_privacy_backup_title">پشتیبان‌گیری و انتقال دستگاه</string>
-    <string name="carepack_privacy_backup_body">اطلاعات کرپک از پشتیبان‌گیری ابری و انتقال خودکار داده اندروید کنار گذاشته شده است. بررسی نهایی این رفتار روی دستگاه‌های انتشار در مرحله آماده‌سازی نسخه انتشار انجام می‌شود.</string>
-
-    <string name="carepack_privacy_deletion_title">حذف کامل اطلاعات</string>
-    <string name="carepack_privacy_deletion_body">حذف همه اطلاعات، داده‌های دامنه، تنظیمات، یادآوری‌های زمان‌بندی‌شده، اعلان‌های فعال و فایل‌های موقت متعلق به کرپک را پاک می‌کند. اگر برنامه هنگام حذف بسته شود، پاک‌سازی در اجرای بعدی پیش از نمایش اطلاعات مراقبت ادامه پیدا می‌کند.</string>
-
-    <string name="carepack_privacy_medical_title">محدودیت پزشکی</string>
-    <string name="carepack_privacy_medical_body">کرپک ابزار ثبت و یادآوری مراقبت است و تشخیص، تجویز، تأیید مصرف دارو، توصیه پزشک یا داروساز و خدمات اورژانسی را جایگزین نمی‌کند.</string>
-
-    <string name="carepack_open_public_policy">باز کردن سیاست عمومی حریم خصوصی</string>
-    <string name="carepack_policy_address_unavailable">نشانی عمومی سیاست حریم خصوصی هنوز برای نسخه انتشار تنظیم نشده است. اطلاعات حریم خصوصی داخل همین صفحه همچنان کامل و در دسترس است.</string>
-    <string name="carepack_policy_no_browser">برنامه‌ای برای باز کردن سیاست عمومی حریم خصوصی در دسترس نیست. اطلاعات داخل همین صفحه همچنان قابل مطالعه است.</string>
-    <string name="carepack_policy_open_blocked">اندروید اجازه باز کردن نشانی سیاست عمومی حریم خصوصی را نداد. اطلاعات داخل همین صفحه همچنان در دسترس است.</string>
-    <string name="carepack_dismiss_message">بستن پیام</string>
+    <string name="carepack_privacy_minimal_summary">اطلاعات کرپک روی همین دستگاه ذخیره می‌شود. برنامه دسترسی اینترنت ندارد، حساب کاربری، تحلیل‌گر، تبلیغات و همگام‌سازی ابری ندارد. اشتراک‌گذاری گزارش فقط با انتخاب صریح شما انجام می‌شود. حذف همه اطلاعات، داده‌های محلی، تنظیمات، یادآوری‌ها، اعلان‌ها و فایل‌های موقت متعلق به کرپک را پاک می‌کند. کرپک ابزار ثبت و یادآوری است و توصیه یا تأیید پزشکی ارائه نمی‌کند.</string>
 
     <string name="carepack_delete_all_title">حذف همه اطلاعات کرپک</string>
     <string name="carepack_delete_all_warning_title">این عملیات غیرقابل‌بازگشت است</string>

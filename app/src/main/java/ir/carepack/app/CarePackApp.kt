@@ -59,7 +59,6 @@ import ir.carepack.feature.today.TodayViewModel
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.DataDeletionCoordinator
-import ir.carepack.settings.privacy.PrivacyPolicyGateway
 import java.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -176,8 +175,7 @@ class AppViewModel(
                             Routes.Onboarding
                         }
 
-                        is SetupProgress
-                        .RecipientOnly -> {
+                        is SetupProgress.RecipientOnly -> {
                             Routes.medicationSchedule(
                                 progress.recipientId,
                             )
@@ -251,8 +249,6 @@ fun CarePackApp(
     PrivacyPreferenceStore,
     textShareGateway:
     TextShareGateway,
-    privacyPolicyGateway:
-    PrivacyPolicyGateway,
     dataDeletionCoordinator:
     DataDeletionCoordinator,
     clock: Clock,
@@ -320,8 +316,6 @@ fun CarePackApp(
                     privacyPreferenceStore,
                 textShareGateway =
                     textShareGateway,
-                privacyPolicyGateway =
-                    privacyPolicyGateway,
                 dataDeletionCoordinator =
                     dataDeletionCoordinator,
                 clock = clock,
@@ -359,8 +353,6 @@ private fun CarePackNavigation(
     PrivacyPreferenceStore,
     textShareGateway:
     TextShareGateway,
-    privacyPolicyGateway:
-    PrivacyPolicyGateway,
     dataDeletionCoordinator:
     DataDeletionCoordinator,
     clock: Clock,
@@ -378,25 +370,23 @@ private fun CarePackNavigation(
     ) {
         val occurrenceId =
             notificationOccurrenceId
-                ?: return@LaunchedEffect
 
-        navController.navigate(
-            Routes.occurrenceDetail(
-                occurrenceId =
+        if (!occurrenceId.isNullOrBlank()) {
+            navController.navigate(
+                Routes.occurrenceDetail(
                     occurrenceId,
-            ),
-        ) {
-            launchSingleTop = true
-        }
+                ),
+            ) {
+                launchSingleTop = true
+            }
 
-        onNotificationOccurrenceHandled()
+            onNotificationOccurrenceHandled()
+        }
     }
 
     NavHost(
-        navController =
-            navController,
-        startDestination =
-            startRoute,
+        navController = navController,
+        startDestination = startRoute,
     ) {
         composable(
             Routes.Onboarding,
@@ -405,7 +395,15 @@ private fun CarePackNavigation(
                 onContinue = {
                     navController.navigate(
                         Routes.Recipient,
-                    )
+                    ) {
+                        popUpTo(
+                            Routes.Onboarding,
+                        ) {
+                            inclusive = true
+                        }
+
+                        launchSingleTop = true
+                    }
                 },
             )
         }
@@ -433,20 +431,26 @@ private fun CarePackNavigation(
                         Routes.medicationSchedule(
                             recipientId,
                         ),
-                    )
+                    ) {
+                        popUpTo(
+                            Routes.Recipient,
+                        ) {
+                            inclusive = true
+                        }
+
+                        launchSingleTop = true
+                    }
                 },
             )
         }
 
         composable(
             route =
-                Routes
-                    .MedicationSchedulePattern,
+                Routes.MedicationSchedulePattern,
             arguments =
                 listOf(
                     navArgument(
-                        Routes
-                            .RecipientIdArgument,
+                        Routes.RecipientIdArgument,
                     ) {
                         type =
                             NavType.StringType
@@ -458,8 +462,7 @@ private fun CarePackNavigation(
                     backStackEntry
                         .arguments
                         ?.getString(
-                            Routes
-                                .RecipientIdArgument,
+                            Routes.RecipientIdArgument,
                         ),
                 )
 
@@ -491,9 +494,7 @@ private fun CarePackNavigation(
                         Routes.Today,
                     ) {
                         popUpTo(
-                            navController
-                                .graph
-                                .startDestinationId,
+                            Routes.Onboarding,
                         ) {
                             inclusive = true
                         }
@@ -511,18 +512,17 @@ private fun CarePackNavigation(
                     TodayViewModel =
                 viewModel(
                     factory =
-                        TodayViewModel
-                            .factory(
-                                todayQueryService =
-                                    todayQueryService,
-                                reminderCoordinator =
-                                    reminderCoordinator,
-                                reminderPreferenceStore =
-                                    reminderPreferenceStore,
-                                clock = clock,
-                                zoneProvider =
-                                    zoneProvider,
-                            ),
+                        TodayViewModel.factory(
+                            todayQueryService =
+                                todayQueryService,
+                            reminderCoordinator =
+                                reminderCoordinator,
+                            reminderPreferenceStore =
+                                reminderPreferenceStore,
+                            clock = clock,
+                            zoneProvider =
+                                zoneProvider,
+                        ),
                 )
 
             TodayRoute(
@@ -571,19 +571,17 @@ private fun CarePackNavigation(
                     CarePlanViewModel =
                 viewModel(
                     factory =
-                        CarePlanViewModel
-                            .factory(
-                                carePlanService =
-                                    carePlanService,
-                            ),
+                        CarePlanViewModel.factory(
+                            carePlanService =
+                                carePlanService,
+                        ),
                 )
 
             CarePlanRoute(
                 viewModel =
                     carePlanViewModel,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
                 onAddMedication = {
                         recipientId ->
@@ -617,8 +615,7 @@ private fun CarePackNavigation(
         ) {
             SettingsScreen(
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
                 onOpenReminderSettings = {
                     navController.navigate(
@@ -646,27 +643,25 @@ private fun CarePackNavigation(
         composable(
             Routes.ReminderSettings,
         ) {
-            val reminderSettingsViewModel:
+            val reminderViewModel:
                     ReminderSettingsViewModel =
                 viewModel(
                     factory =
-                        ReminderSettingsViewModel
-                            .factory(
-                                preferenceStore =
-                                    reminderPreferenceStore,
-                                reminderCoordinator =
-                                    reminderCoordinator,
-                                notificationPermissionGateway =
-                                    notificationPermissionGateway,
-                            ),
+                        ReminderSettingsViewModel.factory(
+                            preferenceStore =
+                                reminderPreferenceStore,
+                            reminderCoordinator =
+                                reminderCoordinator,
+                            notificationPermissionGateway =
+                                notificationPermissionGateway,
+                        ),
                 )
 
             ReminderSettingsRoute(
                 viewModel =
-                    reminderSettingsViewModel,
+                    reminderViewModel,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
                 onReviewSchedules = {
                     navController.navigate(
@@ -683,8 +678,7 @@ private fun CarePackNavigation(
                 clock
                     .instant()
                     .atZone(
-                        zoneProvider
-                            .currentZone(),
+                        zoneProvider.currentZone(),
                     )
                     .toLocalDate()
 
@@ -698,8 +692,7 @@ private fun CarePackNavigation(
                 textShareGateway =
                     textShareGateway,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
@@ -708,11 +701,8 @@ private fun CarePackNavigation(
             Routes.Privacy,
         ) {
             PrivacyRoute(
-                privacyPolicyGateway =
-                    privacyPolicyGateway,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
@@ -728,9 +718,7 @@ private fun CarePackNavigation(
                         Routes.Onboarding,
                     ) {
                         popUpTo(
-                            navController
-                                .graph
-                                .startDestinationId,
+                            navController.graph.startDestinationId,
                         ) {
                             inclusive = true
                         }
@@ -739,21 +727,18 @@ private fun CarePackNavigation(
                     }
                 },
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
 
         composable(
             route =
-                Routes
-                    .AddMedicationPattern,
+                Routes.AddMedicationPattern,
             arguments =
                 listOf(
                     navArgument(
-                        Routes
-                            .RecipientIdArgument,
+                        Routes.RecipientIdArgument,
                     ) {
                         type =
                             NavType.StringType
@@ -765,8 +750,7 @@ private fun CarePackNavigation(
                     backStackEntry
                         .arguments
                         ?.getString(
-                            Routes
-                                .RecipientIdArgument,
+                            Routes.RecipientIdArgument,
                         ),
                 )
 
@@ -794,21 +778,18 @@ private fun CarePackNavigation(
                 viewModel =
                     medicationViewModel,
                 onCompleted = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
 
         composable(
             route =
-                Routes
-                    .EditMedicationTextPattern,
+                Routes.EditMedicationTextPattern,
             arguments =
                 listOf(
                     navArgument(
-                        Routes
-                            .MedicationIdArgument,
+                        Routes.MedicationIdArgument,
                     ) {
                         type =
                             NavType.StringType
@@ -820,8 +801,7 @@ private fun CarePackNavigation(
                     backStackEntry
                         .arguments
                         ?.getString(
-                            Routes
-                                .MedicationIdArgument,
+                            Routes.MedicationIdArgument,
                         ),
                 )
 
@@ -842,25 +822,21 @@ private fun CarePackNavigation(
                 viewModel =
                     medicationTextViewModel,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
                 onCompleted = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
 
         composable(
             route =
-                Routes
-                    .EditSchedulePattern,
+                Routes.EditSchedulePattern,
             arguments =
                 listOf(
                     navArgument(
-                        Routes
-                            .MedicationIdArgument,
+                        Routes.MedicationIdArgument,
                     ) {
                         type =
                             NavType.StringType
@@ -872,8 +848,7 @@ private fun CarePackNavigation(
                     backStackEntry
                         .arguments
                         ?.getString(
-                            Routes
-                                .MedicationIdArgument,
+                            Routes.MedicationIdArgument,
                         ),
                 )
 
@@ -896,25 +871,21 @@ private fun CarePackNavigation(
                 viewModel =
                     scheduleEditViewModel,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
                 onCompleted = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
 
         composable(
             route =
-                Routes
-                    .OccurrenceDetailPattern,
+                Routes.OccurrenceDetailPattern,
             arguments =
                 listOf(
                     navArgument(
-                        Routes
-                            .OccurrenceIdArgument,
+                        Routes.OccurrenceIdArgument,
                     ) {
                         type =
                             NavType.StringType
@@ -926,8 +897,7 @@ private fun CarePackNavigation(
                     backStackEntry
                         .arguments
                         ?.getString(
-                            Routes
-                                .OccurrenceIdArgument,
+                            Routes.OccurrenceIdArgument,
                         ),
                 )
 
@@ -943,6 +913,7 @@ private fun CarePackNavigation(
                                     todayQueryService,
                                 caregiverReportService =
                                     caregiverReportService,
+                                clock = clock,
                             ),
                 )
 
@@ -950,8 +921,7 @@ private fun CarePackNavigation(
                 viewModel =
                     occurrenceViewModel,
                 onBack = {
-                    navController
-                        .popBackStack()
+                    navController.popBackStack()
                 },
             )
         }
@@ -1005,8 +975,7 @@ private fun LaunchErrorScreen(
                 ),
         ) {
             Text(
-                text =
-                    "تلاش دوباره",
+                text = "تلاش دوباره",
             )
         }
     }

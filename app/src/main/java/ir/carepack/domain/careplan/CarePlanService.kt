@@ -8,9 +8,9 @@ import java.time.LocalTime
 import kotlinx.coroutines.flow.Flow
 
 object CarePlanLimits {
-    const val RECIPIENT_NAME_MAX_LENGTH = 80
+    const val RECIPIENT_NAME_MAX_LENGTH = 120
     const val MEDICATION_NAME_MAX_LENGTH = 120
-    const val INSTRUCTION_MAX_LENGTH = 500
+    const val INSTRUCTION_MAX_LENGTH = 1000
 }
 
 enum class CarePlanField {

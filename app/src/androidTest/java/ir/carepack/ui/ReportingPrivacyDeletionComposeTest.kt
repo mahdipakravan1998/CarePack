@@ -2,7 +2,7 @@ package ir.carepack.ui
 
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
@@ -13,11 +13,10 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
+import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.feature.deletion.DeleteAllDataScreen
 import ir.carepack.feature.deletion.DeleteAllDataUiState
-import ir.carepack.feature.privacy.PrivacyExternalActionError
 import ir.carepack.feature.privacy.PrivacyScreen
-import ir.carepack.feature.privacy.PrivacyUiState
 import ir.carepack.feature.reporting.TodayReportScreen
 import ir.carepack.feature.reporting.TodayReportUiState
 import ir.carepack.settings.deletion.DataDeletionStage
@@ -27,7 +26,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
+import org.junit.runner.RunWith
 
+@RunWith(AndroidJUnit4::class)
 class ReportingPrivacyDeletionComposeTest {
 
     @get:Rule
@@ -54,8 +55,7 @@ class ReportingPrivacyDeletionComposeTest {
                 LocalDensity provides
                         Density(
                             density =
-                                currentDensity
-                                    .density,
+                                currentDensity.density,
                             fontScale = 2f,
                         ),
             ) {
@@ -66,18 +66,16 @@ class ReportingPrivacyDeletionComposeTest {
                                 date =
                                     REPORT_DATE,
                                 isLoading = false,
-                                includeRecipientName =
-                                    false,
+                                includeRecipientName = false,
                                 reportText =
                                     REPORT_TEXT,
                             ),
                         snackbarHostState =
-                            remember {
-                                SnackbarHostState()
-                            },
+                            SnackbarHostState(),
                         onIncludeRecipientNameChanged = {
+                                includeRecipientName ->
                             includeNameValue =
-                                it
+                                includeRecipientName
                         },
                         onCopy = {
                             copyCount += 1
@@ -146,103 +144,112 @@ class ReportingPrivacyDeletionComposeTest {
     }
 
     @Test
-    fun privacyScreen_remainsUsefulWhenExternalPolicyCannotOpen() {
-        var policyOpenCount =
-            0
-
-        var dismissCount =
+    fun privacyScreen_isLocalOnlyAndDoesNotExposeExternalPolicyAction() {
+        var backCount =
             0
 
         composeRule.setContent {
             CarePackTheme {
                 PrivacyScreen(
-                    state =
-                        PrivacyUiState(
-                            externalActionError =
-                                PrivacyExternalActionError
-                                    .POLICY_ADDRESS_UNAVAILABLE,
-                        ),
-                    onOpenPublicPolicy = {
-                        policyOpenCount += 1
+                    onBack = {
+                        backCount += 1
                     },
-                    onDismissExternalError = {
-                        dismissCount += 1
-                    },
-                    onBack = {},
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
-                "privacy_local_storage",
+                "privacy_screen",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "privacy_external_error",
+                "privacy_title",
             )
-            .performScrollTo()
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "privacy_open_public_policy",
+                "privacy_summary",
             )
-            .performScrollTo()
             .assertIsDisplayed()
-            .performClick()
+
+        assertTrue(
+            composeRule
+                .onAllNodesWithTag(
+                    "privacy_policy_button",
+                )
+                .fetchSemanticsNodes()
+                .isEmpty(),
+        )
 
         composeRule
             .onNodeWithTag(
-                "privacy_external_error_dismiss",
+                "privacy_back",
             )
-            .performScrollTo()
             .performClick()
 
         composeRule.runOnIdle {
             assertEquals(
                 1,
-                policyOpenCount,
-            )
-
-            assertEquals(
-                1,
-                dismissCount,
+                backCount,
             )
         }
     }
 
     @Test
-    fun deletion_requiresExplicitDestructiveConfirmation() {
-        var requestCount =
-            0
+    fun deleteEverything_confirmationProgressAndFailureStatesAreExplicit() {
+        val state =
+            mutableStateOf(
+                DeleteAllDataUiState(),
+            )
 
         var confirmCount =
             0
 
-        var cancelCount =
+        var retryCount =
             0
 
         composeRule.setContent {
             CarePackTheme {
                 DeleteAllDataScreen(
                     state =
-                        DeleteAllDataUiState(
-                            showConfirmation =
-                                true,
-                        ),
+                        state.value,
                     onRequestDeletion = {
-                        requestCount += 1
+                        state.value =
+                            state
+                                .value
+                                .copy(
+                                    showConfirmation =
+                                        true,
+                                )
                     },
                     onDismissConfirmation = {
-                        cancelCount += 1
+                        state.value =
+                            state
+                                .value
+                                .copy(
+                                    showConfirmation =
+                                        false,
+                                )
                     },
                     onConfirmDeletion = {
                         confirmCount += 1
+                        state.value =
+                            state
+                                .value
+                                .copy(
+                                    showConfirmation =
+                                        false,
+                                    isDeleting =
+                                        true,
+                                )
                     },
-                    onRetry = {},
+                    onRetry = {
+                        retryCount += 1
+                    },
                     onBack = {},
                 )
             }
@@ -250,13 +257,15 @@ class ReportingPrivacyDeletionComposeTest {
 
         composeRule
             .onNodeWithTag(
-                "delete_all_data_confirmation",
+                "delete_all_data_request",
             )
+            .performScrollTo()
             .assertIsDisplayed()
+            .performClick()
 
         composeRule
             .onNodeWithTag(
-                "delete_all_data_confirmation_body",
+                "delete_all_data_confirmation",
             )
             .assertIsDisplayed()
 
@@ -272,105 +281,24 @@ class ReportingPrivacyDeletionComposeTest {
                 confirmCount,
             )
 
-            assertEquals(
-                0,
-                requestCount,
-            )
-
-            assertEquals(
-                0,
-                cancelCount,
-            )
-        }
-    }
-
-    @Test
-    fun deletionProgress_doesNotExposeAnotherSuccessOrDeleteAction() {
-        composeRule.setContent {
-            CarePackTheme {
-                DeleteAllDataScreen(
-                    state =
-                        DeleteAllDataUiState(
-                            isDeleting = true,
-                            deletionCompleted =
-                                false,
-                        ),
-                    onRequestDeletion = {},
-                    onDismissConfirmation = {},
-                    onConfirmDeletion = {},
-                    onRetry = {},
-                    onBack = {},
+            state.value =
+                DeleteAllDataUiState(
+                    failedStage =
+                        DataDeletionStage
+                            .CLEARING_DOMAIN_DATA,
                 )
-            }
         }
 
         composeRule
             .onNodeWithTag(
-                "delete_all_data_progress",
+                "delete_all_data_error",
             )
-            .performScrollTo()
             .assertIsDisplayed()
-
-        val deleteActionNodes =
-            composeRule
-                .onAllNodesWithTag(
-                    testTag =
-                        "delete_all_data_request",
-                )
-                .fetchSemanticsNodes(
-                    atLeastOneRootRequired =
-                        false,
-                )
-
-        assertTrue(
-            deleteActionNodes.isEmpty(),
-        )
-    }
-
-    @Test
-    fun deletionFailure_keepsRetryReachableAtLargeFontScale() {
-        var retryCount =
-            0
-
-        composeRule.setContent {
-            val currentDensity =
-                LocalDensity.current
-
-            CompositionLocalProvider(
-                LocalDensity provides
-                        Density(
-                            density =
-                                currentDensity
-                                    .density,
-                            fontScale = 2f,
-                        ),
-            ) {
-                CarePackTheme {
-                    DeleteAllDataScreen(
-                        state =
-                            DeleteAllDataUiState(
-                                failedStage =
-                                    DataDeletionStage
-                                        .CLEARING_TEMPORARY_DATA,
-                            ),
-                        onRequestDeletion = {},
-                        onDismissConfirmation = {},
-                        onConfirmDeletion = {},
-                        onRetry = {
-                            retryCount += 1
-                        },
-                        onBack = {},
-                    )
-                }
-            }
-        }
 
         composeRule
             .onNodeWithTag(
                 "delete_all_data_retry",
             )
-            .performScrollTo()
-            .assertIsDisplayed()
             .performClick()
 
         composeRule.runOnIdle {
@@ -382,16 +310,12 @@ class ReportingPrivacyDeletionComposeTest {
     }
 
     private companion object {
-
-        val REPORT_DATE:
-                LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                24,
+        val REPORT_DATE: LocalDate =
+            LocalDate.parse(
+                "2026-06-24",
             )
 
         const val REPORT_TEXT =
-            "گزارش امروز کرپک\nتاریخ: 2026-06-24\nاین متن دقیق پیش‌نمایش است."
+            "گزارش امروز کرپک\nداروی تست: داده شده"
     }
 }

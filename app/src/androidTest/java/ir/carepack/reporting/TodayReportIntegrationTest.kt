@@ -30,7 +30,7 @@ class TodayReportIntegrationTest {
                 initialInstant =
                     INITIAL_INSTANT,
                 idPrefix =
-                    "phase-five-report",
+                    "today-report-contract",
                 clockZone =
                     ZoneOffset.UTC,
             )

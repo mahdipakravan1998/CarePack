@@ -98,8 +98,7 @@ class RoomOccurrenceGenerator(
         }
     }
 
-    private suspend fun
-            generateVersionInCurrentTransaction(
+    private suspend fun generateVersionInCurrentTransaction(
         scheduleVersionId: String,
         anchorDate: LocalDate,
         now: Instant,
@@ -129,7 +128,8 @@ class RoomOccurrenceGenerator(
                 WINDOW_RADIUS_DAYS,
             )
 
-        var date = firstDate
+        var date =
+            firstDate
 
         while (!date.isAfter(lastDate)) {
             definitions.forEach { definition ->
@@ -153,7 +153,8 @@ class RoomOccurrenceGenerator(
                 }
             }
 
-            date = date.plusDays(1)
+            date =
+                date.plusDays(1)
         }
 
         return GenerationSummary(
@@ -173,19 +174,18 @@ class RoomOccurrenceGenerator(
         val proposed =
             OccurrenceEntity(
                 id = proposedId,
-                scheduleSeriesId =
-                    definition.scheduleSeriesId,
                 scheduleVersionId =
-                    definition.scheduleVersionId,
+                    definition
+                        .scheduleVersionId,
                 medicationId =
                     definition.medicationId,
-                localDateEpochDay =
+                localEpochDay =
                     candidate
                         .localDate
                         .toEpochDay(),
                 minuteOfDay =
                     candidate.minuteOfDay,
-                zoneId =
+                zoneIdSnapshot =
                     candidate.zoneId,
                 scheduledAtEpochMillis =
                     candidate
@@ -194,17 +194,17 @@ class RoomOccurrenceGenerator(
                 medicationNameSnapshot =
                     definition
                         .medicationNameSnapshot,
-                medicationInstructionSnapshot =
+                instructionSnapshot =
                     definition
                         .medicationInstructionSnapshot,
                 lifecycle =
                     OccurrenceLifecycle
                         .ACTIVE
                         .name,
-                createdAtEpochMillis =
-                    now.toEpochMilli(),
                 cancelledAtEpochMillis = null,
                 cancellationReason = null,
+                createdAtEpochMillis =
+                    now.toEpochMilli(),
             )
 
         val insertResult =
@@ -223,7 +223,7 @@ class RoomOccurrenceGenerator(
                             scheduleVersionId =
                                 definition
                                     .scheduleVersionId,
-                            localDateEpochDay =
+                            localEpochDay =
                                 candidate
                                     .localDate
                                     .toEpochDay(),
@@ -235,7 +235,9 @@ class RoomOccurrenceGenerator(
                 checkNotNull(
                     database
                         .occurrenceDao()
-                        .getById(proposedId),
+                        .getById(
+                            proposedId,
+                        ),
                 )
             }
 
@@ -261,18 +263,13 @@ class RoomOccurrenceGenerator(
         )
 
         check(
-            actual.scheduleSeriesId ==
-                    expected.scheduleSeriesId,
-        )
-
-        check(
             actual.medicationId ==
                     expected.medicationId,
         )
 
         check(
-            actual.localDateEpochDay ==
-                    expected.localDateEpochDay,
+            actual.localEpochDay ==
+                    expected.localEpochDay,
         )
 
         check(
@@ -281,8 +278,8 @@ class RoomOccurrenceGenerator(
         )
 
         check(
-            actual.zoneId ==
-                    expected.zoneId,
+            actual.zoneIdSnapshot ==
+                    expected.zoneIdSnapshot,
         )
 
         check(
@@ -296,10 +293,8 @@ class RoomOccurrenceGenerator(
         )
 
         check(
-            actual
-                .medicationInstructionSnapshot ==
-                    expected
-                        .medicationInstructionSnapshot,
+            actual.instructionSnapshot ==
+                    expected.instructionSnapshot,
         )
     }
 
@@ -333,16 +328,16 @@ private fun ScheduleDefinitionRow.toDomain():
                 Instant::ofEpochMilli,
             ),
         startDate =
-            startDateEpochDay?.let(
+            startEpochDay?.let(
                 LocalDate::ofEpochDay,
             ),
         endDate =
-            endDateEpochDay?.let(
+            endEpochDay?.let(
                 LocalDate::ofEpochDay,
             ),
         medicationNameSnapshot =
             medicationNameSnapshot,
         medicationInstructionSnapshot =
-            medicationInstructionSnapshot,
+            instructionSnapshot,
     )
 }

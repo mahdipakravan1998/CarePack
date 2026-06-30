@@ -18,14 +18,11 @@ import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.DataDeletionCoordinator
 import ir.carepack.settings.deletion.DataDeletionResult
-import ir.carepack.settings.privacy.OpenPrivacyPolicyResult
-import ir.carepack.settings.privacy.PrivacyPolicyGateway
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 
 internal class InstrumentedPrivacyPreferenceStore(
-    initialState:
-    PrivacyPreferenceState =
+    initialState: PrivacyPreferenceState =
         PrivacyPreferenceState(),
 ) : PrivacyPreferenceStore {
 
@@ -110,8 +107,7 @@ internal class RecordingTextShareGateway(
     override fun share(
         text: String,
     ): ShareTextResult {
-        sharedTexts +=
-            text
+        sharedTexts += text
 
         return shareResult
     }
@@ -119,27 +115,9 @@ internal class RecordingTextShareGateway(
     override fun copy(
         text: String,
     ): CopyTextResult {
-        copiedTexts +=
-            text
+        copiedTexts += text
 
         return copyResult
-    }
-}
-
-internal class RecordingPrivacyPolicyGateway(
-    var result:
-    OpenPrivacyPolicyResult =
-        OpenPrivacyPolicyResult.Opened,
-) : PrivacyPolicyGateway {
-
-    var openCount =
-        0
-
-    override fun openPublicPolicy():
-            OpenPrivacyPolicyResult {
-        openCount += 1
-
-        return result
     }
 }
 
@@ -196,14 +174,12 @@ internal class RecordingReminderCoordinator :
     override suspend fun reconcile(
         reason: ReconciliationReason,
     ): ReminderReconciliationResult {
-        reconciliationReasons +=
-            reason
+        reconciliationReasons += reason
 
         return ReminderReconciliationResult
             .Reconciled(
                 reason = reason,
-                status =
-                    currentStatus(),
+                status = currentStatus(),
                 scheduledCount = 0,
                 cancelledCount = 0,
             )
@@ -235,18 +211,15 @@ internal class RecordingNotificationGateway :
         0
 
     override fun post(
-        notification:
-        ReminderNotification,
+        notification: ReminderNotification,
     ) {
-        postedNotifications +=
-            notification
+        postedNotifications += notification
     }
 
     override fun cancel(
         occurrenceId: String,
     ) {
-        cancelledOccurrenceIds +=
-            occurrenceId
+        cancelledOccurrenceIds += occurrenceId
     }
 
     override fun cancelAll() {

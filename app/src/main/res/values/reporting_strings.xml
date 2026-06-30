@@ -1,45 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="pr3_today_section">امروز</string>
-    <string name="pr3_history_section">سابقه اخیر</string>
+    <string name="today_section">امروز</string>
+    <string name="history_section">سابقه اخیر</string>
 
-    <string name="pr3_no_medications_title">هنوز دارویی ثبت نشده است</string>
-    <string name="pr3_no_medications_body">برای دیدن نوبت‌های امروز، ابتدا یک دارو و برنامه آن را ثبت کنید.</string>
+    <string name="today_no_medications_title">هنوز دارویی ثبت نشده است</string>
+    <string name="today_no_medications_body">برای دیدن نوبت‌های امروز، ابتدا یک دارو و برنامه آن را ثبت کنید.</string>
 
-    <string name="pr3_no_occurrences_title">برای امروز نوبتی ثبت نشده است</string>
-    <string name="pr3_no_occurrences_body">دارو ثبت شده است، اما برنامه فعالی برای امروز وجود ندارد.</string>
+    <string name="today_no_occurrences_title">برای امروز نوبتی ثبت نشده است</string>
+    <string name="today_no_occurrences_body">دارو ثبت شده است، اما برنامه فعالی برای امروز وجود ندارد.</string>
 
-    <string name="pr3_history_empty_title">سابقه‌ای برای نمایش وجود ندارد</string>
-    <string name="pr3_history_empty_body">امروز و هفت روز تقویمی قبل از آن بررسی شدند.</string>
+    <string name="history_empty_title">سابقه‌ای برای نمایش وجود ندارد</string>
+    <string name="history_empty_body">امروز و هفت روز تقویمی قبل از آن بررسی شدند.</string>
 
-    <string name="pr3_report_no_report">هنوز گزارشی ثبت نشده است</string>
-    <string name="pr3_report_given">مراقب ثبت کرده است که دارو داده شده است</string>
-    <string name="pr3_report_not_given">مراقب ثبت کرده است که دارو داده نشده است</string>
-    <string name="pr3_report_unknown">مراقب صریحاً ثبت کرده است که نتیجه مشخص نیست</string>
+    <string name="report_no_report">هنوز گزارشی ثبت نشده است</string>
+    <string name="report_not_given">مراقب ثبت کرده است که دارو داده نشده است</string>
+    <string name="report_unknown">مراقب صریحاً ثبت کرده است که نتیجه مشخص نیست</string>
 
-    <string name="pr3_action_given">ثبت: داده شد</string>
-    <string name="pr3_action_not_given">ثبت: داده نشد</string>
-    <string name="pr3_action_unknown">ثبت: مشخص نیست</string>
+    <string name="report_action_given">ثبت: داده شد</string>
+    <string name="report_action_not_given">ثبت: داده نشد</string>
+    <string name="report_action_unknown">ثبت: مشخص نیست</string>
 
-    <string name="pr3_phase_upcoming">زمان ثبت این نوبت هنوز نرسیده است</string>
-    <string name="pr3_phase_due">زمان برنامه‌ریزی‌شده این نوبت فرا رسیده است</string>
-    <string name="pr3_phase_past">زمان برنامه‌ریزی‌شده این نوبت گذشته است</string>
+    <string name="temporal_status_upcoming">زمان ثبت این نوبت هنوز نرسیده است</string>
+    <string name="temporal_status_due">زمان برنامه‌ریزی‌شده این نوبت فرا رسیده است</string>
+    <string name="temporal_status_past">زمان برنامه‌ریزی‌شده این نوبت گذشته است</string>
 
-    <string name="pr3_recording_time_passed">زمان ثبت نتیجه این نوبت گذشته و هنوز گزارشی ثبت نشده است</string>
+    <string name="recording_time_passed">زمان ثبت نتیجه این نوبت گذشته و هنوز گزارشی ثبت نشده است</string>
 
-    <string name="pr3_current_report">گزارش فعلی مراقب</string>
-    <string name="pr3_temporal_phase">وضعیت زمانی</string>
-    <string name="pr3_scheduled_date">تاریخ برنامه‌ریزی‌شده</string>
-    <string name="pr3_schedule_zone">منطقه زمانی برنامه</string>
+    <string name="current_report">گزارش فعلی مراقب</string>
+    <string name="temporal_status_label">وضعیت زمانی</string>
+    <string name="scheduled_date">تاریخ برنامه‌ریزی‌شده</string>
 
-    <string name="pr3_cancelled_occurrence">این نوبت لغو شده است</string>
-    <string name="pr3_cancelled_report_disabled">این نوبت لغو شده است. گزارش قبلی، در صورت وجود، حفظ می‌شود اما گزارش تازه‌ای قابل ثبت نیست.</string>
+    <string name="cancelled_occurrence">این نوبت لغو شده است</string>
+    <string name="cancelled_report_disabled">این نوبت لغو شده است. گزارش قبلی، در صورت وجود، حفظ می‌شود اما گزارش تازه‌ای قابل ثبت نیست.</string>
 
-    <string name="pr3_report_changed">گزارش مراقب تغییر کرد</string>
-    <string name="pr3_undo">بازگردانی</string>
+    <string name="report_changed">گزارش مراقب تغییر کرد</string>
+    <string name="undo_report_change">بازگردانی</string>
 
-    <string name="pr3_retry">تلاش دوباره</string>
-    <string name="pr3_occurrence_not_found">نوبت پیدا نشد.</string>
+    <string name="retry_action">تلاش دوباره</string>
+    <string name="occurrence_not_found">نوبت پیدا نشد.</string>
 
 </resources>

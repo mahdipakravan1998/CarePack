@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "405135c8d109bb5d8b9a34d595b3bd11",
+    "identityHash": "bd5443693f6245660124ce262355a870",
     "entities": [
       {
         "tableName": "care_recipients",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `singletonSlot` INTEGER NOT NULL, `displayName` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `singletonSlot` INTEGER NOT NULL, `displayName` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`))",
         "fields": [
           {
             "fieldPath": "id",
@@ -31,6 +31,12 @@
             "columnName": "createdAtEpochMillis",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -53,7 +59,7 @@
       },
       {
         "tableName": "medications",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `careRecipientId` TEXT NOT NULL, `name` TEXT NOT NULL, `instruction` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`careRecipientId`) REFERENCES `care_recipients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `careRecipientId` TEXT NOT NULL, `name` TEXT NOT NULL, `instructionText` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `stoppedAtEpochMillis` INTEGER, `archivedAtEpochMillis` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`careRecipientId`) REFERENCES `care_recipients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -74,8 +80,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "instruction",
-            "columnName": "instruction",
+            "fieldPath": "instructionText",
+            "columnName": "instructionText",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -84,6 +90,22 @@
             "columnName": "createdAtEpochMillis",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtEpochMillis",
+            "columnName": "updatedAtEpochMillis",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "stoppedAtEpochMillis",
+            "columnName": "stoppedAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "archivedAtEpochMillis",
+            "columnName": "archivedAtEpochMillis",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -101,6 +123,15 @@
             ],
             "orders": [],
             "createSql": "CREATE INDEX IF NOT EXISTS `index_medications_careRecipientId` ON `${TABLE_NAME}` (`careRecipientId`)"
+          },
+          {
+            "name": "index_medications_archivedAtEpochMillis",
+            "unique": false,
+            "columnNames": [
+              "archivedAtEpochMillis"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_medications_archivedAtEpochMillis` ON `${TABLE_NAME}` (`archivedAtEpochMillis`)"
           }
         ],
         "foreignKeys": [
@@ -119,7 +150,7 @@
       },
       {
         "tableName": "schedule_series",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `stoppedAtEpochMillis` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -138,11 +169,6 @@
             "columnName": "createdAtEpochMillis",
             "affinity": "INTEGER",
             "notNull": true
-          },
-          {
-            "fieldPath": "stoppedAtEpochMillis",
-            "columnName": "stoppedAtEpochMillis",
-            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -178,7 +204,7 @@
       },
       {
         "tableName": "schedule_versions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `seriesId` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `versionNumber` INTEGER NOT NULL, `weekdayMask` INTEGER NOT NULL, `zoneId` TEXT NOT NULL, `effectiveFromEpochMillis` INTEGER NOT NULL, `effectiveUntilEpochMillis` INTEGER, `startDateEpochDay` INTEGER, `endDateEpochDay` INTEGER, `medicationNameSnapshot` TEXT NOT NULL, `medicationInstructionSnapshot` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`seriesId`) REFERENCES `schedule_series`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleSeriesId` TEXT NOT NULL, `versionNumber` INTEGER NOT NULL, `weekdayMask` INTEGER NOT NULL, `startEpochDay` INTEGER, `endEpochDay` INTEGER, `zoneId` TEXT NOT NULL, `effectiveFromEpochMillis` INTEGER NOT NULL, `effectiveUntilEpochMillis` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `supersededReason` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleSeriesId`) REFERENCES `schedule_series`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -187,14 +213,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "seriesId",
-            "columnName": "seriesId",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "medicationId",
-            "columnName": "medicationId",
+            "fieldPath": "scheduleSeriesId",
+            "columnName": "scheduleSeriesId",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -209,6 +229,16 @@
             "columnName": "weekdayMask",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "startEpochDay",
+            "columnName": "startEpochDay",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "endEpochDay",
+            "columnName": "endEpochDay",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "zoneId",
@@ -228,32 +258,15 @@
             "affinity": "INTEGER"
           },
           {
-            "fieldPath": "startDateEpochDay",
-            "columnName": "startDateEpochDay",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "endDateEpochDay",
-            "columnName": "endDateEpochDay",
-            "affinity": "INTEGER"
-          },
-          {
-            "fieldPath": "medicationNameSnapshot",
-            "columnName": "medicationNameSnapshot",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "medicationInstructionSnapshot",
-            "columnName": "medicationInstructionSnapshot",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
             "fieldPath": "createdAtEpochMillis",
             "columnName": "createdAtEpochMillis",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "supersededReason",
+            "columnName": "supersededReason",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -264,32 +277,32 @@
         },
         "indices": [
           {
-            "name": "index_schedule_versions_seriesId",
+            "name": "index_schedule_versions_scheduleSeriesId",
             "unique": false,
             "columnNames": [
-              "seriesId"
+              "scheduleSeriesId"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_schedule_versions_seriesId` ON `${TABLE_NAME}` (`seriesId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_schedule_versions_scheduleSeriesId` ON `${TABLE_NAME}` (`scheduleSeriesId`)"
           },
           {
-            "name": "index_schedule_versions_medicationId",
+            "name": "index_schedule_versions_effectiveUntilEpochMillis",
             "unique": false,
             "columnNames": [
-              "medicationId"
+              "effectiveUntilEpochMillis"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_schedule_versions_medicationId` ON `${TABLE_NAME}` (`medicationId`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_schedule_versions_effectiveUntilEpochMillis` ON `${TABLE_NAME}` (`effectiveUntilEpochMillis`)"
           },
           {
-            "name": "index_schedule_versions_seriesId_versionNumber",
+            "name": "index_schedule_versions_scheduleSeriesId_versionNumber",
             "unique": true,
             "columnNames": [
-              "seriesId",
+              "scheduleSeriesId",
               "versionNumber"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_schedule_versions_seriesId_versionNumber` ON `${TABLE_NAME}` (`seriesId`, `versionNumber`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_schedule_versions_scheduleSeriesId_versionNumber` ON `${TABLE_NAME}` (`scheduleSeriesId`, `versionNumber`)"
           }
         ],
         "foreignKeys": [
@@ -298,18 +311,7 @@
             "onDelete": "RESTRICT",
             "onUpdate": "NO ACTION",
             "columns": [
-              "seriesId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          },
-          {
-            "table": "medications",
-            "onDelete": "RESTRICT",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "medicationId"
+              "scheduleSeriesId"
             ],
             "referencedColumns": [
               "id"
@@ -368,17 +370,11 @@
       },
       {
         "tableName": "occurrences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleSeriesId` TEXT NOT NULL, `scheduleVersionId` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `localDateEpochDay` INTEGER NOT NULL, `minuteOfDay` INTEGER NOT NULL, `zoneId` TEXT NOT NULL, `scheduledAtEpochMillis` INTEGER NOT NULL, `medicationNameSnapshot` TEXT NOT NULL, `medicationInstructionSnapshot` TEXT NOT NULL, `lifecycle` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleSeriesId`) REFERENCES `schedule_series`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`scheduleVersionId`) REFERENCES `schedule_versions`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleVersionId` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `localEpochDay` INTEGER NOT NULL, `minuteOfDay` INTEGER NOT NULL, `zoneIdSnapshot` TEXT NOT NULL, `scheduledAtEpochMillis` INTEGER NOT NULL, `medicationNameSnapshot` TEXT NOT NULL, `instructionSnapshot` TEXT NOT NULL, `lifecycle` TEXT NOT NULL, `cancelledAtEpochMillis` INTEGER, `cancellationReason` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleVersionId`) REFERENCES `schedule_versions`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
             "columnName": "id",
-            "affinity": "TEXT",
-            "notNull": true
-          },
-          {
-            "fieldPath": "scheduleSeriesId",
-            "columnName": "scheduleSeriesId",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -395,8 +391,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "localDateEpochDay",
-            "columnName": "localDateEpochDay",
+            "fieldPath": "localEpochDay",
+            "columnName": "localEpochDay",
             "affinity": "INTEGER",
             "notNull": true
           },
@@ -407,8 +403,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "zoneId",
-            "columnName": "zoneId",
+            "fieldPath": "zoneIdSnapshot",
+            "columnName": "zoneIdSnapshot",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -425,8 +421,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "medicationInstructionSnapshot",
-            "columnName": "medicationInstructionSnapshot",
+            "fieldPath": "instructionSnapshot",
+            "columnName": "instructionSnapshot",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -435,6 +431,16 @@
             "columnName": "lifecycle",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "cancelledAtEpochMillis",
+            "columnName": "cancelledAtEpochMillis",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cancellationReason",
+            "columnName": "cancellationReason",
+            "affinity": "TEXT"
           },
           {
             "fieldPath": "createdAtEpochMillis",
@@ -450,15 +456,6 @@
           ]
         },
         "indices": [
-          {
-            "name": "index_occurrences_scheduleSeriesId",
-            "unique": false,
-            "columnNames": [
-              "scheduleSeriesId"
-            ],
-            "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_occurrences_scheduleSeriesId` ON `${TABLE_NAME}` (`scheduleSeriesId`)"
-          },
           {
             "name": "index_occurrences_scheduleVersionId",
             "unique": false,
@@ -478,38 +475,37 @@
             "createSql": "CREATE INDEX IF NOT EXISTS `index_occurrences_medicationId` ON `${TABLE_NAME}` (`medicationId`)"
           },
           {
-            "name": "index_occurrences_localDateEpochDay",
+            "name": "index_occurrences_scheduledAtEpochMillis",
             "unique": false,
             "columnNames": [
-              "localDateEpochDay"
+              "scheduledAtEpochMillis"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_occurrences_localDateEpochDay` ON `${TABLE_NAME}` (`localDateEpochDay`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_occurrences_scheduledAtEpochMillis` ON `${TABLE_NAME}` (`scheduledAtEpochMillis`)"
           },
           {
-            "name": "index_occurrences_scheduleVersionId_localDateEpochDay_minuteOfDay",
+            "name": "index_occurrences_localEpochDay_lifecycle",
+            "unique": false,
+            "columnNames": [
+              "localEpochDay",
+              "lifecycle"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_occurrences_localEpochDay_lifecycle` ON `${TABLE_NAME}` (`localEpochDay`, `lifecycle`)"
+          },
+          {
+            "name": "index_occurrences_scheduleVersionId_localEpochDay_minuteOfDay",
             "unique": true,
             "columnNames": [
               "scheduleVersionId",
-              "localDateEpochDay",
+              "localEpochDay",
               "minuteOfDay"
             ],
             "orders": [],
-            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_occurrences_scheduleVersionId_localDateEpochDay_minuteOfDay` ON `${TABLE_NAME}` (`scheduleVersionId`, `localDateEpochDay`, `minuteOfDay`)"
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_occurrences_scheduleVersionId_localEpochDay_minuteOfDay` ON `${TABLE_NAME}` (`scheduleVersionId`, `localEpochDay`, `minuteOfDay`)"
           }
         ],
         "foreignKeys": [
-          {
-            "table": "schedule_series",
-            "onDelete": "RESTRICT",
-            "onUpdate": "NO ACTION",
-            "columns": [
-              "scheduleSeriesId"
-            ],
-            "referencedColumns": [
-              "id"
-            ]
-          },
           {
             "table": "schedule_versions",
             "onDelete": "RESTRICT",
@@ -586,7 +582,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '405135c8d109bb5d8b9a34d595b3bd11')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd5443693f6245660124ce262355a870')"
     ]
   }
 }

@@ -4,7 +4,7 @@ import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.HistoryDay
 import ir.carepack.domain.model.OccurrenceDetail
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.model.TemporalPhase
+import ir.carepack.domain.model.TemporalStatus
 import ir.carepack.domain.model.TodayModel
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.ReportChange
@@ -388,8 +388,8 @@ private class FakeTodayQueryService :
                 OccurrenceLifecycle.ACTIVE,
             reportState = null,
             zoneId = "Asia/Tehran",
-            temporalPhase =
-                TemporalPhase.UPCOMING,
+            temporalStatus =
+                TemporalStatus.UPCOMING,
             isOverdue = false,
         )
 

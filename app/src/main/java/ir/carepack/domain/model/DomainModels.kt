@@ -26,7 +26,7 @@ enum class MedicationStatus {
     STOPPED,
 }
 
-enum class TemporalPhase {
+enum class TemporalStatus {
     UPCOMING,
     DUE,
     PAST,
@@ -61,8 +61,8 @@ data class TodayItem(
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val scheduledAt: Instant = Instant.EPOCH,
-    val temporalPhase: TemporalPhase =
-        TemporalPhase.UPCOMING,
+    val temporalStatus: TemporalStatus =
+        TemporalStatus.UPCOMING,
     val isOverdue: Boolean = false,
 )
 
@@ -82,8 +82,8 @@ data class OccurrenceDetail(
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val zoneId: String = "UTC",
-    val temporalPhase: TemporalPhase =
-        TemporalPhase.UPCOMING,
+    val temporalStatus: TemporalStatus =
+        TemporalStatus.UPCOMING,
     val isOverdue: Boolean = false,
     val cancellationReason:
     OccurrenceCancellationReason? = null,
@@ -98,7 +98,7 @@ data class HistoryItem(
     val medicationInstruction: String,
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
-    val temporalPhase: TemporalPhase,
+    val temporalStatus: TemporalStatus,
     val isOverdue: Boolean,
 )
 

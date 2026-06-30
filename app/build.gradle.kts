@@ -1,4 +1,6 @@
+import org.gradle.api.GradleException
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -7,9 +9,80 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val releaseTaskRequested =
+    gradle.startParameter.taskNames.any { taskName ->
+        taskName.contains(
+            other = "Release",
+            ignoreCase = true,
+        )
+    }
+
+val keystorePropertiesFile =
+    rootProject.file("keystore.properties")
+
+val keystoreProperties =
+    Properties().apply {
+        if (keystorePropertiesFile.exists()) {
+            keystorePropertiesFile.inputStream().use { input ->
+                load(input)
+            }
+        }
+    }
+
+fun releaseSigningProperty(name: String): String {
+    val value =
+        keystoreProperties
+            .getProperty(name)
+            ?.trim()
+            .orEmpty()
+
+    if (value.isBlank() && releaseTaskRequested) {
+        throw GradleException(
+            "Missing release signing property '$name' in keystore.properties.",
+        )
+    }
+
+    return value
+}
+
 android {
     namespace = "ir.carepack"
     compileSdk = 36
+
+    signingConfigs {
+        create("release") {
+            val releaseStoreFile =
+                releaseSigningProperty("storeFile")
+
+            val releaseStorePassword =
+                releaseSigningProperty("storePassword")
+
+            val releaseKeyAlias =
+                releaseSigningProperty("keyAlias")
+
+            val releaseKeyPassword =
+                releaseSigningProperty("keyPassword")
+
+            if (
+                releaseStoreFile.isNotBlank() &&
+                releaseStorePassword.isNotBlank() &&
+                releaseKeyAlias.isNotBlank() &&
+                releaseKeyPassword.isNotBlank()
+            ) {
+                storeFile =
+                    file(releaseStoreFile)
+
+                storePassword =
+                    releaseStorePassword
+
+                keyAlias =
+                    releaseKeyAlias
+
+                keyPassword =
+                    releaseKeyPassword
+            }
+        }
+    }
 
     defaultConfig {
         applicationId = "ir.carepack"
@@ -17,7 +90,7 @@ android {
         targetSdk = 36
 
         versionCode = 1
-        versionName = "1.0-pr1"
+        versionName = "1.0.0"
 
         testInstrumentationRunner =
             "androidx.test.runner.AndroidJUnitRunner"
@@ -30,11 +103,15 @@ android {
         }
 
         release {
-            isMinifyEnabled = false
+            signingConfig =
+                signingConfigs.getByName("release")
+
+            isMinifyEnabled = true
+            isShrinkResources = true
 
             proguardFiles(
                 getDefaultProguardFile(
-                    "proguard-android-optimize.txt"
+                    "proguard-android-optimize.txt",
                 ),
                 "proguard-rules.pro",
             )
@@ -63,7 +140,7 @@ android {
     sourceSets {
         getByName("androidTest") {
             assets.directories.add(
-                "$projectDir/schemas"
+                "$projectDir/schemas",
             )
         }
     }
@@ -101,27 +178,27 @@ dependencies {
     implementation(libs.androidx.activity.compose)
 
     implementation(
-        libs.androidx.lifecycle.runtime.ktx
+        libs.androidx.lifecycle.runtime.ktx,
     )
 
     implementation(
-        libs.androidx.lifecycle.runtime.compose
+        libs.androidx.lifecycle.runtime.compose,
     )
 
     implementation(
-        libs.androidx.lifecycle.viewmodel.ktx
+        libs.androidx.lifecycle.viewmodel.ktx,
     )
 
     implementation(
-        libs.androidx.lifecycle.viewmodel.compose
+        libs.androidx.lifecycle.viewmodel.compose,
     )
 
     implementation(
-        libs.androidx.navigation.compose
+        libs.androidx.navigation.compose,
     )
 
     implementation(
-        libs.androidx.datastore.preferences
+        libs.androidx.datastore.preferences,
     )
 
     implementation(libs.androidx.room.runtime)
@@ -130,7 +207,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     implementation(
-        libs.kotlinx.coroutines.android
+        libs.kotlinx.coroutines.android,
     )
 
     val composeBom =
@@ -142,64 +219,64 @@ dependencies {
     implementation(libs.androidx.compose.ui)
 
     implementation(
-        libs.androidx.compose.ui.graphics
+        libs.androidx.compose.ui.graphics,
     )
 
     implementation(
-        libs.androidx.compose.ui.tooling.preview
+        libs.androidx.compose.ui.tooling.preview,
     )
 
     implementation(
-        libs.androidx.compose.material3
+        libs.androidx.compose.material3,
     )
 
     testImplementation(libs.junit)
 
     testImplementation(
-        libs.kotlinx.coroutines.test
+        libs.kotlinx.coroutines.test,
     )
 
     androidTestImplementation(
-        libs.androidx.test.core
+        libs.androidx.test.core,
     )
 
     androidTestImplementation(
-        libs.androidx.test.runner
+        libs.androidx.test.runner,
     )
 
     androidTestImplementation(
-        libs.androidx.test.rules
+        libs.androidx.test.rules,
     )
 
     androidTestImplementation(
-        libs.androidx.test.ext.junit
+        libs.androidx.test.ext.junit,
     )
 
     androidTestImplementation(
-        libs.androidx.test.espresso.core
+        libs.androidx.test.espresso.core,
     )
 
     androidTestImplementation(
-        libs.androidx.test.uiautomator
+        libs.androidx.test.uiautomator,
     )
 
     androidTestImplementation(
-        libs.androidx.room.testing
+        libs.androidx.room.testing,
     )
 
     androidTestImplementation(
-        libs.kotlinx.coroutines.test
+        libs.kotlinx.coroutines.test,
     )
 
     androidTestImplementation(
-        libs.androidx.compose.ui.test.junit4
+        libs.androidx.compose.ui.test.junit4,
     )
 
     debugImplementation(
-        libs.androidx.compose.ui.tooling
+        libs.androidx.compose.ui.tooling,
     )
 
     debugImplementation(
-        libs.androidx.compose.ui.test.manifest
+        libs.androidx.compose.ui.test.manifest,
     )
 }

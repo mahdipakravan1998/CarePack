@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         OccurrenceEntity::class,
         CaregiverReportEntity::class,
     ],
-    version = 2,
+    version = 1,
     exportSchema = true,
 )
 abstract class CarePackDatabase : RoomDatabase() {

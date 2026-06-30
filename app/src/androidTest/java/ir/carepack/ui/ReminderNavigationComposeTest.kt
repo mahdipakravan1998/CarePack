@@ -1,24 +1,13 @@
 package ir.carepack.ui
 
-import android.content.Context
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.room.Room
-import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.app.CarePackApp
 import ir.carepack.core.time.ZoneProvider
-import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.preferences.SetupPreferenceStore
-import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
-import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
-import ir.carepack.domain.careplan.CreateRecipientCommand
-import ir.carepack.domain.careplan.CreateRecipientOutcome
-import ir.carepack.domain.careplan.RoomCarePlanService
-import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
-import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.reminder.AlarmFireResult
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
@@ -28,27 +17,20 @@ import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.domain.reminder.TimezoneObservation
-import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.report.RoomTodayReportFormatter
-import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.testing.CarePlanRoomTestFixture
 import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
 import ir.carepack.testing.RecordingDataDeletionCoordinator
-import ir.carepack.testing.RecordingPrivacyPolicyGateway
 import ir.carepack.testing.RecordingTextShareGateway
-import ir.carepack.testing.SequenceIdSource
 import ir.carepack.ui.theme.CarePackTheme
-import java.time.Clock
-import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -63,159 +45,50 @@ class ReminderNavigationComposeTest {
     val composeRule =
         createComposeRule()
 
-    private lateinit var database:
-            CarePackDatabase
-
-    private val fixedClock =
-        Clock.fixed(
-            Instant.parse(
-                "2026-06-24T08:00:00Z",
-            ),
-            ZoneOffset.UTC,
-        )
+    private lateinit var fixture:
+            CarePlanRoomTestFixture
 
     private val zoneProvider =
         ZoneProvider {
             ZoneId.of(
-                "Asia/Tehran",
+                "UTC",
             )
         }
 
     @Before
     fun setUp() {
-        val context =
-            ApplicationProvider
-                .getApplicationContext<Context>()
-
-        database =
-            Room.inMemoryDatabaseBuilder(
-                context,
-                CarePackDatabase::class.java,
-            ).build()
+        fixture =
+            CarePlanRoomTestFixture.create()
     }
 
     @After
     fun tearDown() {
-        database.close()
+        fixture.close()
     }
 
     @Test
     fun notificationOccurrence_navigatesToDetail_withoutCreatingReport() {
-        val ids =
-            SequenceIdSource(
-                "navigation-recipient",
-                "navigation-medication",
-                "navigation-series",
-                "navigation-version",
-                "navigation-occurrence",
-            )
-
-        val occurrenceGenerator =
-            RoomOccurrenceGenerator(
-                database = database,
-                idSource = ids,
-                candidateResolver =
-                    OccurrenceCandidateResolver(),
-            )
-
-        val carePlanService =
-            RoomCarePlanService(
-                database = database,
-                occurrenceGenerator =
-                    occurrenceGenerator,
-                clock = fixedClock,
-                idSource = ids,
-            )
-
         val occurrenceId =
             runBlocking {
-                val recipientOutcome =
-                    carePlanService
-                        .createRecipient(
-                            CreateRecipientCommand(
-                                displayName =
-                                    "فرد آزمون مسیر اعلان",
-                            ),
-                        )
-
-                val recipientId =
-                    when (recipientOutcome) {
-                        is CreateRecipientOutcome.Created -> {
-                            recipientOutcome.recipientId
-                        }
-
-                        is CreateRecipientOutcome.AlreadyExists -> {
-                            recipientOutcome.recipientId
-                        }
-
-                        is CreateRecipientOutcome.Invalid -> {
-                            error(
-                                "Recipient creation failed.",
-                            )
-                        }
-                    }
-
-                val planOutcome =
-                    carePlanService
-                        .createMedicationAndSchedule(
-                            CreateMedicationScheduleCommand(
-                                recipientId =
-                                    recipientId,
-                                medicationName =
-                                    "داروی مسیر اعلان",
-                                instruction =
-                                    "دستور مسیر اعلان",
-                                weekdays =
-                                    setOf(
-                                        DayOfWeek
-                                            .WEDNESDAY,
-                                    ),
-                                minutesOfDay =
-                                    listOf(
-                                        12 * 60,
-                                    ),
-                                startDate =
-                                    LocalDate.parse(
-                                        "2026-06-24",
-                                    ),
-                                endDate =
-                                    LocalDate.parse(
-                                        "2026-06-24",
-                                    ),
-                                zoneId =
-                                    "Asia/Tehran",
-                            ),
-                        )
-
-                val created =
-                    planOutcome as
-                            CreateMedicationScheduleOutcome
-                            .Created
-
-                created
-                    .occurrenceIds
-                    .single()
+                createNoonPlanAndReturnTodayOccurrenceId()
             }
 
-        val notificationWasHandled =
-            AtomicBoolean(false)
+        var notificationHandled =
+            false
 
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
                     carePlanService =
-                        carePlanService,
+                        fixture.carePlanService,
                     todayQueryService =
-                        RoomTodayQueryService(
-                            database = database,
-                        ),
+                        fixture.todayQueryService,
                     caregiverReportService =
-                        RoomCaregiverReportService(
-                            database = database,
-                            clock = fixedClock,
-                        ),
+                        fixture.reportService,
                     setupPreferenceStore =
-                        NavigationSetupPreferenceStore(),
+                        NavigationSetupPreferenceStore(
+                            setupComplete = true,
+                        ),
                     reminderPreferenceStore =
                         NavigationReminderPreferenceStore(),
                     reminderCoordinator =
@@ -224,25 +97,24 @@ class ReminderNavigationComposeTest {
                         NavigationNotificationPermissionGateway(),
                     todayReportFormatter =
                         RoomTodayReportFormatter(
-                            database = database,
+                            database =
+                                fixture.database,
                         ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
                     textShareGateway =
                         RecordingTextShareGateway(),
-                    privacyPolicyGateway =
-                        RecordingPrivacyPolicyGateway(),
                     dataDeletionCoordinator =
                         RecordingDataDeletionCoordinator(),
-                    clock = fixedClock,
+                    clock =
+                        fixture.clock,
                     zoneProvider =
                         zoneProvider,
                     notificationOccurrenceId =
                         occurrenceId,
                     onNotificationOccurrenceHandled = {
-                        notificationWasHandled.set(
-                            true,
-                        )
+                        notificationHandled =
+                            true
                     },
                 )
             }
@@ -250,36 +122,124 @@ class ReminderNavigationComposeTest {
 
         waitForTag(
             tag =
-                "record_given",
+                "occurrence_detail_screen",
         )
 
         composeRule
             .onNodeWithTag(
-                "record_given",
+                "detail_medication_name",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "debug_occurrence_id",
+                "record_given",
             )
             .assertIsDisplayed()
 
-        composeRule.runOnIdle {
-            assertTrue(
-                notificationWasHandled.get(),
-            )
-        }
+        assertTrue(
+            notificationHandled,
+        )
 
-        runBlocking {
-            assertNull(
-                database
+        assertNull(
+            runBlocking {
+                fixture
+                    .database
                     .reportingDao()
                     .getReport(
                         occurrenceId,
+                    )
+            },
+        )
+    }
+
+    @Test
+    fun blankNotificationOccurrence_keepsTodayAsDestination() {
+        runBlocking {
+            createNoonPlanAndReturnTodayOccurrenceId()
+        }
+
+        composeRule.setContent {
+            CarePackTheme {
+                CarePackApp(
+                    carePlanService =
+                        fixture.carePlanService,
+                    todayQueryService =
+                        fixture.todayQueryService,
+                    caregiverReportService =
+                        fixture.reportService,
+                    setupPreferenceStore =
+                        NavigationSetupPreferenceStore(
+                            setupComplete = true,
+                        ),
+                    reminderPreferenceStore =
+                        NavigationReminderPreferenceStore(),
+                    reminderCoordinator =
+                        NavigationReminderCoordinator(),
+                    notificationPermissionGateway =
+                        NavigationNotificationPermissionGateway(),
+                    todayReportFormatter =
+                        RoomTodayReportFormatter(
+                            database =
+                                fixture.database,
+                        ),
+                    privacyPreferenceStore =
+                        InstrumentedPrivacyPreferenceStore(),
+                    textShareGateway =
+                        RecordingTextShareGateway(),
+                    dataDeletionCoordinator =
+                        RecordingDataDeletionCoordinator(),
+                    clock =
+                        fixture.clock,
+                    zoneProvider =
+                        zoneProvider,
+                    notificationOccurrenceId =
+                        "",
+                )
+            }
+        }
+
+        waitForTag(
+            tag =
+                "today_screen",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "today_screen",
+            )
+            .assertIsDisplayed()
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .countReports()
+            },
+        )
+    }
+
+    private suspend fun createNoonPlanAndReturnTodayOccurrenceId():
+            String {
+        val plan =
+            fixture.createPlan(
+                minutesOfDay =
+                    listOf(
+                        NOON_MINUTE_OF_DAY,
                     ),
             )
-        }
+
+        return fixture
+            .occurrenceOn(
+                medicationId =
+                    plan.medicationId,
+                date = TODAY_DATE,
+                minuteOfDay =
+                    NOON_MINUTE_OF_DAY,
+            )
+            .id
     }
 
     private fun waitForTag(
@@ -287,38 +247,43 @@ class ReminderNavigationComposeTest {
     ) {
         composeRule.waitUntil(
             timeoutMillis =
-                TEST_TIMEOUT_MILLIS,
+                10_000,
         ) {
             composeRule
                 .onAllNodesWithTag(
-                    testTag = tag,
+                    tag,
                 )
-                .fetchSemanticsNodes(
-                    atLeastOneRootRequired =
-                        false,
-                )
+                .fetchSemanticsNodes()
                 .isNotEmpty()
         }
     }
 
     private companion object {
-        const val TEST_TIMEOUT_MILLIS =
-            20_000L
+        val TODAY_DATE: LocalDate =
+            LocalDate.parse(
+                "2026-06-24",
+            )
+
+        const val NOON_MINUTE_OF_DAY =
+            12 * 60
     }
 }
 
-private class NavigationSetupPreferenceStore :
-    SetupPreferenceStore {
+private class NavigationSetupPreferenceStore(
+    setupComplete: Boolean,
+) : SetupPreferenceStore {
 
-    private val mutableState =
-        MutableStateFlow(true)
+    private val mutableSetupComplete =
+        MutableStateFlow(
+            setupComplete,
+        )
 
     override val setupComplete:
             Flow<Boolean> =
-        mutableState
+        mutableSetupComplete
 
     override suspend fun markSetupComplete() {
-        mutableState.value =
+        mutableSetupComplete.value =
             true
     }
 }
@@ -326,85 +291,57 @@ private class NavigationSetupPreferenceStore :
 private class NavigationReminderPreferenceStore :
     ReminderPreferenceStore {
 
-    private val mutableState =
-        MutableStateFlow(
-            ReminderPreferenceState(
-                remindersEnabled =
-                    false,
-            ),
-        )
-
     override val state:
             Flow<ReminderPreferenceState> =
-        mutableState
+        MutableStateFlow(
+            ReminderPreferenceState(),
+        )
 
     override suspend fun setRemindersEnabled(
         enabled: Boolean,
     ) {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    remindersEnabled =
-                        enabled,
-                )
+        Unit
     }
 
     override suspend fun observeDeviceZone(
         zoneId: String,
-    ): TimezoneObservation {
-        return TimezoneObservation.Unchanged
-    }
+    ): TimezoneObservation =
+        TimezoneObservation.Initialized
 
     override suspend fun dismissTimezoneWarning() {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    timezoneWarning = null,
-                )
+        Unit
     }
 }
 
 private class NavigationReminderCoordinator :
     ReminderCoordinator {
 
-    private val status =
+    override suspend fun currentStatus():
+            ReminderStatus =
         ReminderStatus(
-            remindersEnabled =
-                false,
-            notificationPermissionGranted =
-                true,
-            hasActiveSchedule =
-                true,
-            exactAlarmCapabilityGranted =
-                false,
+            remindersEnabled = false,
+            notificationPermissionGranted = true,
+            hasActiveSchedule = true,
+            exactAlarmCapabilityGranted = true,
             availability =
                 ReminderAvailability.DISABLED,
         )
 
-    override suspend fun currentStatus():
-            ReminderStatus {
-        return status
-    }
-
     override suspend fun reconcile(
         reason: ReconciliationReason,
-    ): ReminderReconciliationResult {
-        return ReminderReconciliationResult
-            .Reconciled(
-                reason = reason,
-                status = status,
-                scheduledCount = 0,
-                cancelledCount = 0,
-            )
-    }
+    ): ReminderReconciliationResult =
+        ReminderReconciliationResult.Reconciled(
+            reason = reason,
+            status = currentStatus(),
+            scheduledCount = 0,
+            cancelledCount = 0,
+        )
 
     override suspend fun handleAlarmFired(
         occurrenceId: String,
     ): AlarmFireResult {
         error(
-            "Alarm fire is not used in this test.",
+            "Alarm firing is not used in this Compose test.",
         )
     }
 
@@ -417,12 +354,10 @@ private class NavigationNotificationPermissionGateway :
     NotificationPermissionGateway {
 
     override fun isPermissionGranted():
-            Boolean {
-        return true
-    }
+            Boolean =
+        true
 
     override fun requiresRuntimePermission():
-            Boolean {
-        return true
-    }
+            Boolean =
+        false
 }

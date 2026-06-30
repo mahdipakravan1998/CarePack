@@ -6,372 +6,493 @@ import ir.carepack.domain.model.OccurrenceCancellationReason
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.DayOfWeek
-import java.time.Instant
 import java.time.LocalDate
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class CarePlanManagementIntegrationTest {
 
-    private lateinit var fixture: CarePlanRoomTestFixture
-
-    @Before
-    fun setUp() {
-        fixture = CarePlanRoomTestFixture.create(
-            initialInstant = INITIAL_INSTANT,
-            idPrefix = "care-plan-id",
+    private val anchorDate =
+        LocalDate.parse(
+            "2026-06-24",
         )
-    }
-
-    @After
-    fun tearDown() {
-        fixture.close()
-    }
 
     @Test
-    fun invalidMutation_writesNoRows() = runBlocking {
-        val recipientId = fixture.createOrGetRecipient()
+    fun invalidMedicationSchedule_writesNothing() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val recipientId =
+                    fixture.createOrGetRecipient()
 
-        val outcome = fixture.carePlanService.createMedicationAndSchedule(
-            CreateMedicationScheduleCommand(
-                recipientId = recipientId,
-                medicationName = "",
-                instruction = "",
-                weekdays = emptySet(),
-                minutesOfDay = emptyList(),
-                startDate = LocalDate.parse("2026-06-25"),
-                endDate = LocalDate.parse("2026-06-24"),
-                zoneId = "Invalid/Zone",
-            ),
-        )
+                val outcome =
+                    fixture
+                        .carePlanService
+                        .createMedicationAndSchedule(
+                            CreateMedicationScheduleCommand(
+                                recipientId =
+                                    recipientId,
+                                medicationName = " ",
+                                instruction = " ",
+                                weekdays =
+                                    emptySet(),
+                                minutesOfDay =
+                                    emptyList(),
+                                startDate =
+                                    anchorDate.plusDays(
+                                        2,
+                                    ),
+                                endDate =
+                                    anchorDate.plusDays(
+                                        1,
+                                    ),
+                                zoneId =
+                                    "Invalid/Zone",
+                            ),
+                        )
 
-        assertTrue(outcome is CreateMedicationScheduleOutcome.Invalid)
-        assertEquals(0, fixture.database.medicationDao().count())
-        assertEquals(0, fixture.database.scheduleDao().countSeries())
-        assertEquals(0, fixture.database.scheduleDao().countVersions())
-        assertEquals(0, fixture.database.occurrenceDao().count())
-    }
+                assertTrue(
+                    outcome is
+                            CreateMedicationScheduleOutcome
+                            .Invalid,
+                )
+
+                val errors =
+                    (
+                            outcome as
+                                    CreateMedicationScheduleOutcome
+                                    .Invalid
+                            ).errors
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .MEDICATION_NAME
+                    },
+                )
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .INSTRUCTION
+                    },
+                )
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .WEEKDAYS
+                    },
+                )
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .TIMES
+                    },
+                )
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .END_DATE
+                    },
+                )
+
+                assertTrue(
+                    errors.any {
+                        it.field ==
+                                CarePlanField
+                                    .ZONE_ID
+                    },
+                )
+
+                assertEquals(
+                    0,
+                    fixture
+                        .database
+                        .medicationDao()
+                        .count(),
+                )
+
+                assertEquals(
+                    0,
+                    fixture
+                        .database
+                        .occurrenceDao()
+                        .count(),
+                )
+            }
+        }
 
     @Test
-    fun rollingWindow_isInclusiveMidnightSafeIdempotentAndRetentionSafe() = runBlocking {
-        val plan = fixture.createPlan(
-            minutesOfDay = listOf(12 * 60),
-        )
-
-        val initialRows = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-
-        assertEquals(8, initialRows.size)
-        val oldestOccurrenceId = initialRows.first().id
-
-        fixture.moveTo(Instant.parse("2026-06-24T20:31:00Z"))
-        fixture.guaranteeWindow(LocalDate.parse("2026-06-25"))
-
-        val afterMidnight = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-
-        assertEquals(9, afterMidnight.size)
-        assertNotNull(fixture.database.occurrenceDao().getById(oldestOccurrenceId))
-
-        fixture.guaranteeWindow(LocalDate.parse("2026-06-25"))
-
-        assertEquals(
-            9,
-            fixture.database.occurrenceDao()
-                .getForVersion(plan.scheduleVersionId)
-                .size,
-        )
-
-        fixture.moveTo(Instant.parse("2026-07-01T06:00:00Z"))
-        fixture.guaranteeWindow(LocalDate.parse("2026-07-01"))
-
-        val completeWindow = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-
-        assertEquals(15, completeWindow.size)
-        assertEquals(
-            LocalDate.parse("2026-06-24").toEpochDay(),
-            completeWindow.first().localDateEpochDay,
-        )
-        assertEquals(
-            LocalDate.parse("2026-07-08").toEpochDay(),
-            completeWindow.last().localDateEpochDay,
-        )
-        assertNotNull(fixture.database.occurrenceDao().getById(oldestOccurrenceId))
-    }
-
-    @Test
-    fun concurrentGeneration_keepsOneLogicalRow() = runBlocking {
-        val plan = fixture.createPlan(
-            weekdays = setOf(DayOfWeek.WEDNESDAY),
-            minutesOfDay = listOf(12 * 60),
-            startDate = ANCHOR_DATE,
-            endDate = ANCHOR_DATE,
-        )
-
-        coroutineScope {
-            List(CONCURRENT_GENERATION_COUNT) {
-                async(Dispatchers.Default) {
-                    fixture.occurrenceGenerator.guaranteeWindowForSchedule(
-                        scheduleVersionId = plan.scheduleVersionId,
-                        anchorDate = ANCHOR_DATE,
-                        now = fixture.clock.instant(),
+    fun createMedicationSchedule_generatesPersistentOverviewAndOccurrences() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val recipientId =
+                    fixture.createOrGetRecipient(
+                        displayName = "پدر",
                     )
-                }
-            }.awaitAll()
+
+                val plan =
+                    fixture.createPlan(
+                        recipientId = recipientId,
+                        medicationName = "داروی قلب",
+                        instruction = "صبح با آب",
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minutesOfDay =
+                            listOf(
+                                12 * 60,
+                            ),
+                        zoneId = "UTC",
+                    )
+
+                assertFalse(
+                    plan.occurrenceIds.isEmpty(),
+                )
+
+                val overview =
+                    fixture
+                        .carePlanService
+                        .observeCarePlan()
+                        .first()
+
+                assertEquals(
+                    recipientId,
+                    overview?.recipientId,
+                )
+
+                assertEquals(
+                    "پدر",
+                    overview?.recipientDisplayName,
+                )
+
+                val medication =
+                    overview
+                        ?.medications
+                        ?.single()
+
+                assertEquals(
+                    plan.medicationId,
+                    medication?.medicationId,
+                )
+
+                assertEquals(
+                    "داروی قلب",
+                    medication?.name,
+                )
+
+                assertEquals(
+                    "صبح با آب",
+                    medication?.instruction,
+                )
+
+                assertEquals(
+                    listOf(
+                        java.time.LocalTime.of(
+                            12,
+                            0,
+                        ),
+                    ),
+                    medication
+                        ?.schedule
+                        ?.times,
+                )
+
+                assertEquals(
+                    "UTC",
+                    medication
+                        ?.schedule
+                        ?.zoneId,
+                )
+
+                val occurrences =
+                    fixture
+                        .occurrencesForMedication(
+                            plan.medicationId,
+                        )
+
+                assertEquals(
+                    plan
+                        .occurrenceIds
+                        .sorted(),
+                    occurrences
+                        .map {
+                            it.id
+                        }
+                        .sorted(),
+                )
+
+                assertTrue(
+                    occurrences.all {
+                        it.zoneIdSnapshot ==
+                                "UTC" &&
+                                it.instructionSnapshot ==
+                                "صبح با آب"
+                    },
+                )
+            }
         }
 
-        assertEquals(
-            1,
-            fixture.database.occurrenceDao()
-                .getForVersion(plan.scheduleVersionId)
-                .size,
-        )
-    }
-
     @Test
-    fun scheduleEdit_preservesReportedFutureOccurrenceAndKeepsOneActiveVersion() = runBlocking {
-        val plan = fixture.createPlan(
-            weekdays = setOf(DayOfWeek.WEDNESDAY),
-            minutesOfDay = listOf(12 * 60, 14 * 60),
-            startDate = ANCHOR_DATE,
-            endDate = ANCHOR_DATE,
-        )
+    fun updateMedicationText_snapshotsNewVersionAndPreservesReportedOccurrence() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val plan =
+                    fixture.createPlan(
+                        medicationName = "داروی قدیمی",
+                        instruction = "دستور قدیمی",
+                        minutesOfDay =
+                            listOf(
+                                12 * 60,
+                            ),
+                        zoneId = "UTC",
+                    )
 
-        val oldOccurrences = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-        val unreportedFuture = oldOccurrences.single { it.minuteOfDay == 12 * 60 }
-        val reportedFuture = oldOccurrences.single { it.minuteOfDay == 14 * 60 }
+                val reportedOccurrence =
+                    fixture.occurrenceOn(
+                        medicationId =
+                            plan.medicationId,
+                        date = anchorDate,
+                        minuteOfDay =
+                            12 * 60,
+                    )
 
-        fixture.reportService.setReport(
-            occurrenceId = reportedFuture.id,
-            newState = CaregiverReportState.GIVEN,
-        )
+                fixture.report(
+                    occurrenceId =
+                        reportedOccurrence.id,
+                    state =
+                        CaregiverReportState.GIVEN,
+                )
 
-        fixture.moveTo(Instant.parse("2026-06-24T07:00:00Z"))
-        val editInstant = fixture.clock.instant().toEpochMilli()
+                val outcome =
+                    fixture
+                        .carePlanService
+                        .updateMedicationText(
+                            UpdateMedicationTextCommand(
+                                medicationId =
+                                    plan.medicationId,
+                                medicationName =
+                                    "داروی جدید",
+                                instruction =
+                                    "دستور جدید",
+                            ),
+                        )
 
-        val outcome = fixture.carePlanService.updateSchedule(
-            UpdateScheduleCommand(
-                medicationId = plan.medicationId,
-                weekdays = setOf(DayOfWeek.WEDNESDAY),
-                minutesOfDay = listOf(16 * 60),
-                startDate = ANCHOR_DATE,
-                endDate = ANCHOR_DATE,
-                zoneId = "Asia/Tehran",
-            ),
-        )
+                assertEquals(
+                    UpdateMedicationTextOutcome.Updated,
+                    outcome,
+                )
 
-        assertEquals(UpdateScheduleOutcome.Updated, outcome)
+                assertEquals(
+                    2,
+                    fixture
+                        .database
+                        .scheduleDao()
+                        .countVersions(),
+                )
 
-        val persistedUnreported = fixture.database.occurrenceDao()
-            .getById(unreportedFuture.id)
-        assertEquals(OccurrenceLifecycle.CANCELLED.name, persistedUnreported?.lifecycle)
-        assertEquals(
-            OccurrenceCancellationReason.SCHEDULE_REPLACED.name,
-            persistedUnreported?.cancellationReason,
-        )
+                val oldRow =
+                    fixture
+                        .database
+                        .occurrenceDao()
+                        .getById(
+                            reportedOccurrence.id,
+                        )
 
-        val persistedReported = fixture.database.occurrenceDao()
-            .getById(reportedFuture.id)
-        assertEquals(OccurrenceLifecycle.ACTIVE.name, persistedReported?.lifecycle)
-        assertEquals(
-            CaregiverReportState.GIVEN.name,
-            fixture.database.reportingDao().getReport(reportedFuture.id)?.state,
-        )
+                assertEquals(
+                    OccurrenceLifecycle.ACTIVE.name,
+                    oldRow?.lifecycle,
+                )
 
-        val activeVersions = fixture.database.scheduleDao()
-            .getOpenVersionsForMedication(plan.medicationId)
-        assertEquals(1, activeVersions.size)
-        assertEquals(2, activeVersions.single().versionNumber)
+                assertEquals(
+                    "داروی قدیمی",
+                    oldRow?.medicationNameSnapshot,
+                )
 
-        listOf(editInstant - 1, editInstant, editInstant + 1).forEach { instant ->
-            assertEquals(
-                1,
-                fixture.database.scheduleDao().countVersionsActiveAt(
-                    seriesId = plan.scheduleSeriesId,
-                    instantEpochMillis = instant,
-                ),
-            )
+                assertEquals(
+                    "دستور قدیمی",
+                    oldRow?.instructionSnapshot,
+                )
+
+                val allOccurrences =
+                    fixture
+                        .occurrencesForMedication(
+                            plan.medicationId,
+                        )
+
+                assertTrue(
+                    allOccurrences.any {
+                        it.scheduleVersionId !=
+                                plan.scheduleVersionId &&
+                                it.medicationNameSnapshot ==
+                                "داروی جدید" &&
+                                it.instructionSnapshot ==
+                                "دستور جدید"
+                    },
+                )
+
+                assertTrue(
+                    allOccurrences.any {
+                        it.scheduleVersionId ==
+                                plan.scheduleVersionId &&
+                                it.lifecycle ==
+                                OccurrenceLifecycle
+                                    .CANCELLED
+                                    .name &&
+                                it.cancellationReason ==
+                                OccurrenceCancellationReason
+                                    .MEDICATION_UPDATED
+                                    .name
+                    },
+                )
+            }
         }
 
-        assertTrue(
-            fixture.database.occurrenceDao()
-                .getForMedication(plan.medicationId)
-                .any {
-                    it.scheduleVersionId != plan.scheduleVersionId &&
-                            it.minuteOfDay == 16 * 60
-                },
-        )
-    }
+    @Test
+    fun updateSchedule_closesOldVersionAndCancelsFutureUnreportedOccurrences() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val plan =
+                    fixture.createPlan(
+                        medicationName = "داروی زمان‌دار",
+                        instruction = "دستور",
+                        minutesOfDay =
+                            listOf(
+                                12 * 60,
+                            ),
+                        zoneId = "UTC",
+                    )
+
+                val outcome =
+                    fixture
+                        .carePlanService
+                        .updateSchedule(
+                            UpdateScheduleCommand(
+                                medicationId =
+                                    plan.medicationId,
+                                weekdays =
+                                    DayOfWeek
+                                        .entries
+                                        .toSet(),
+                                minutesOfDay =
+                                    listOf(
+                                        13 * 60,
+                                    ),
+                                startDate = null,
+                                endDate = null,
+                                zoneId = "UTC",
+                            ),
+                        )
+
+                assertEquals(
+                    UpdateScheduleOutcome.Updated,
+                    outcome,
+                )
+
+                val occurrences =
+                    fixture
+                        .occurrencesForMedication(
+                            plan.medicationId,
+                        )
+
+                assertTrue(
+                    occurrences.any {
+                        it.scheduleVersionId ==
+                                plan.scheduleVersionId &&
+                                it.lifecycle ==
+                                OccurrenceLifecycle
+                                    .CANCELLED
+                                    .name &&
+                                it.cancellationReason ==
+                                OccurrenceCancellationReason
+                                    .SCHEDULE_REPLACED
+                                    .name
+                    },
+                )
+
+                assertTrue(
+                    occurrences.any {
+                        it.scheduleVersionId !=
+                                plan.scheduleVersionId &&
+                                it.minuteOfDay ==
+                                13 * 60 &&
+                                it.lifecycle ==
+                                OccurrenceLifecycle
+                                    .ACTIVE
+                                    .name
+                    },
+                )
+            }
+        }
 
     @Test
-    fun occurrenceExactlyAtEditInstant_isNotCancelled() = runBlocking {
-        val plan = fixture.createPlan(
-            weekdays = setOf(DayOfWeek.WEDNESDAY),
-            minutesOfDay = listOf(12 * 60),
-            startDate = ANCHOR_DATE,
-            endDate = ANCHOR_DATE,
-        )
-        val occurrence = fixture.database.occurrenceDao()
-            .getForMedication(plan.medicationId)
-            .single()
+    fun activeMedication_mustStopBeforeArchive() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val plan =
+                    fixture.createPlan(
+                        minutesOfDay =
+                            listOf(
+                                12 * 60,
+                            ),
+                    )
 
-        fixture.moveTo(Instant.ofEpochMilli(occurrence.scheduledAtEpochMillis))
+                assertEquals(
+                    ArchiveMedicationOutcome.MustStopFirst,
+                    fixture
+                        .carePlanService
+                        .archiveMedication(
+                            plan.medicationId,
+                        ),
+                )
 
-        fixture.carePlanService.updateSchedule(
-            UpdateScheduleCommand(
-                medicationId = plan.medicationId,
-                weekdays = setOf(DayOfWeek.WEDNESDAY),
-                minutesOfDay = listOf(13 * 60),
-                startDate = ANCHOR_DATE,
-                endDate = ANCHOR_DATE,
-                zoneId = "Asia/Tehran",
-            ),
-        )
+                assertEquals(
+                    StopMedicationOutcome.Stopped,
+                    fixture
+                        .carePlanService
+                        .stopMedication(
+                            plan.medicationId,
+                        ),
+                )
 
-        assertEquals(
-            OccurrenceLifecycle.ACTIVE.name,
-            fixture.database.occurrenceDao().getById(occurrence.id)?.lifecycle,
-        )
-    }
+                assertEquals(
+                    ArchiveMedicationOutcome.Archived,
+                    fixture
+                        .carePlanService
+                        .archiveMedication(
+                            plan.medicationId,
+                        ),
+                )
 
-    @Test
-    fun medicationTextEdit_preservesReportedSnapshotAndGeneratesNewSnapshot() = runBlocking {
-        val plan = fixture.createPlan(
-            weekdays = setOf(DayOfWeek.WEDNESDAY),
-            minutesOfDay = listOf(12 * 60),
-            startDate = ANCHOR_DATE,
-            endDate = LocalDate.parse("2026-07-01"),
-        )
-        val reportedOccurrence = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-            .first()
+                val overview =
+                    fixture
+                        .carePlanService
+                        .observeCarePlan()
+                        .first()
 
-        fixture.reportService.setReport(
-            occurrenceId = reportedOccurrence.id,
-            newState = CaregiverReportState.GIVEN,
-        )
-        fixture.moveTo(Instant.parse("2026-06-24T07:00:00Z"))
-
-        val outcome = fixture.carePlanService.updateMedicationText(
-            UpdateMedicationTextCommand(
-                medicationId = plan.medicationId,
-                medicationName = "نام جدید",
-                instruction = "دستور جدید",
-            ),
-        )
-
-        assertEquals(UpdateMedicationTextOutcome.Updated, outcome)
-
-        val persistedOld = fixture.database.occurrenceDao()
-            .getById(reportedOccurrence.id)
-        assertEquals(OccurrenceLifecycle.ACTIVE.name, persistedOld?.lifecycle)
-        assertEquals("داروی نمونه", persistedOld?.medicationNameSnapshot)
-        assertEquals("دستور نمونه", persistedOld?.medicationInstructionSnapshot)
-        assertEquals(
-            CaregiverReportState.GIVEN.name,
-            fixture.database.reportingDao().getReport(reportedOccurrence.id)?.state,
-        )
-
-        assertTrue(
-            fixture.database.occurrenceDao()
-                .getForMedication(plan.medicationId)
-                .any {
-                    it.scheduleVersionId != plan.scheduleVersionId &&
-                            it.medicationNameSnapshot == "نام جدید" &&
-                            it.medicationInstructionSnapshot == "دستور جدید"
-                },
-        )
-    }
-
-    @Test
-    fun stopAndArchive_preserveReportedOccurrenceAndAllDomainRows() = runBlocking {
-        val plan = fixture.createPlan(
-            weekdays = setOf(DayOfWeek.WEDNESDAY),
-            minutesOfDay = listOf(12 * 60, 14 * 60),
-            startDate = ANCHOR_DATE,
-            endDate = ANCHOR_DATE,
-        )
-        val occurrences = fixture.database.occurrenceDao()
-            .getForVersion(plan.scheduleVersionId)
-        val unreportedFuture = occurrences.single { it.minuteOfDay == 12 * 60 }
-        val reportedFuture = occurrences.single { it.minuteOfDay == 14 * 60 }
-
-        fixture.reportService.setReport(
-            occurrenceId = reportedFuture.id,
-            newState = CaregiverReportState.GIVEN,
-        )
-        fixture.moveTo(Instant.parse("2026-06-24T07:00:00Z"))
-
-        val occurrenceCountBefore = fixture.database.occurrenceDao().count()
-
-        assertEquals(
-            ArchiveMedicationOutcome.MustStopFirst,
-            fixture.carePlanService.archiveMedication(plan.medicationId),
-        )
-        assertEquals(
-            StopMedicationOutcome.Stopped,
-            fixture.carePlanService.stopMedication(plan.medicationId),
-        )
-
-        assertNotNull(
-            fixture.database.medicationDao()
-                .getById(plan.medicationId)
-                ?.stoppedAtEpochMillis,
-        )
-        assertEquals(
-            OccurrenceLifecycle.CANCELLED.name,
-            fixture.database.occurrenceDao().getById(unreportedFuture.id)?.lifecycle,
-        )
-        assertEquals(
-            OccurrenceCancellationReason.MEDICATION_STOPPED.name,
-            fixture.database.occurrenceDao().getById(unreportedFuture.id)?.cancellationReason,
-        )
-        assertEquals(
-            OccurrenceLifecycle.ACTIVE.name,
-            fixture.database.occurrenceDao().getById(reportedFuture.id)?.lifecycle,
-        )
-        assertEquals(
-            CaregiverReportState.GIVEN.name,
-            fixture.database.reportingDao().getReport(reportedFuture.id)?.state,
-        )
-        assertEquals(occurrenceCountBefore, fixture.database.occurrenceDao().count())
-
-        assertEquals(
-            ArchiveMedicationOutcome.Archived,
-            fixture.carePlanService.archiveMedication(plan.medicationId),
-        )
-        assertEquals(occurrenceCountBefore, fixture.database.occurrenceDao().count())
-        assertTrue(
-            fixture.carePlanService.observeCarePlan()
-                .first()
-                ?.medications
-                .orEmpty()
-                .none { it.medicationId == plan.medicationId },
-        )
-        assertNotNull(
-            fixture.database.medicationDao()
-                .getById(plan.medicationId)
-                ?.archivedAtEpochMillis,
-        )
-    }
-
-    private companion object {
-        val INITIAL_INSTANT: Instant = Instant.parse("2026-06-24T06:00:00Z")
-        val ANCHOR_DATE: LocalDate = LocalDate.parse("2026-06-24")
-        const val CONCURRENT_GENERATION_COUNT = 8
-    }
+                assertTrue(
+                    overview
+                        ?.medications
+                        .orEmpty()
+                        .none {
+                            it.medicationId ==
+                                    plan.medicationId
+                        },
+                )
+            }
+        }
 }

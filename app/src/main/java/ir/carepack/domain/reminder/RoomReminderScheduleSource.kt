@@ -7,7 +7,8 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 class RoomReminderScheduleSource(
-    private val database: CarePackDatabase,
+    private val database:
+    CarePackDatabase,
 ) : ReminderScheduleSource {
 
     override suspend fun getAllScheduleSeriesIds():
@@ -76,7 +77,7 @@ class RoomReminderScheduleSource(
                 ),
             localDate =
                 LocalDate.ofEpochDay(
-                    localDateEpochDay,
+                    localEpochDay,
                 ),
             localTime =
                 LocalTime.of(
@@ -86,7 +87,7 @@ class RoomReminderScheduleSource(
                             MINUTES_PER_HOUR,
                 ),
             zoneId =
-                zoneId,
+                zoneIdSnapshot,
             medicationName =
                 medicationNameSnapshot,
         )

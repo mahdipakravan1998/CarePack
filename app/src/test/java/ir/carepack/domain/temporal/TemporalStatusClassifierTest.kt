@@ -2,17 +2,17 @@ package ir.carepack.domain.temporal
 
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.model.TemporalPhase
+import ir.carepack.domain.model.TemporalStatus
 import java.time.Instant
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class TemporalClassifierTest {
+class TemporalStatusClassifierTest {
 
     private val classifier =
-        TemporalClassifier()
+        TemporalStatusClassifier()
 
     private val scheduledAt =
         Instant.parse(
@@ -22,7 +22,7 @@ class TemporalClassifierTest {
     @Test
     fun oneMillisecondBeforeScheduledTime_isUpcoming() {
         assertEquals(
-            TemporalPhase.UPCOMING,
+            TemporalStatus.UPCOMING,
             classifier.classify(
                 scheduledAt =
                     scheduledAt,
@@ -36,7 +36,7 @@ class TemporalClassifierTest {
     @Test
     fun exactlyAtScheduledTime_isDue() {
         assertEquals(
-            TemporalPhase.DUE,
+            TemporalStatus.DUE,
             classifier.classify(
                 scheduledAt =
                     scheduledAt,
@@ -48,7 +48,7 @@ class TemporalClassifierTest {
     @Test
     fun oneMillisecondBeforePlus60Minutes_isDue() {
         assertEquals(
-            TemporalPhase.DUE,
+            TemporalStatus.DUE,
             classifier.classify(
                 scheduledAt =
                     scheduledAt,
@@ -65,7 +65,7 @@ class TemporalClassifierTest {
     @Test
     fun exactlyAtPlus60Minutes_isPast() {
         assertEquals(
-            TemporalPhase.PAST,
+            TemporalStatus.PAST,
             classifier.classify(
                 scheduledAt =
                     scheduledAt,
@@ -87,7 +87,7 @@ class TemporalClassifierTest {
                         .ACTIVE,
                 reportState = null,
                 phase =
-                    TemporalPhase.PAST,
+                    TemporalStatus.PAST,
             ),
         )
     }
@@ -103,7 +103,7 @@ class TemporalClassifierTest {
                     CaregiverReportState
                         .UNKNOWN,
                 phase =
-                    TemporalPhase.PAST,
+                    TemporalStatus.PAST,
             ),
         )
     }
@@ -119,7 +119,7 @@ class TemporalClassifierTest {
                     CaregiverReportState
                         .GIVEN,
                 phase =
-                    TemporalPhase.PAST,
+                    TemporalStatus.PAST,
             ),
         )
     }
@@ -133,7 +133,7 @@ class TemporalClassifierTest {
                         .CANCELLED,
                 reportState = null,
                 phase =
-                    TemporalPhase.PAST,
+                    TemporalStatus.PAST,
             ),
         )
     }
@@ -147,7 +147,7 @@ class TemporalClassifierTest {
                         .ACTIVE,
                 reportState = null,
                 phase =
-                    TemporalPhase.DUE,
+                    TemporalStatus.DUE,
             ),
         )
     }

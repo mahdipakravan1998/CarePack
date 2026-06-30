@@ -7,7 +7,6 @@ import ir.carepack.core.id.UuidIdSource
 import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
-import ir.carepack.data.local.DatabaseMigrations
 import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
@@ -46,8 +45,6 @@ import ir.carepack.settings.deletion.DefaultDataDeletionCoordinator
 import ir.carepack.settings.deletion.DomainDataCleaner
 import ir.carepack.settings.deletion.RoomDomainDataCleaner
 import ir.carepack.settings.deletion.TemporaryDataCleaner
-import ir.carepack.settings.privacy.AndroidPrivacyPolicyGateway
-import ir.carepack.settings.privacy.PrivacyPolicyGateway
 import java.time.Clock
 
 class AppContainer(
@@ -71,10 +68,6 @@ class AppContainer(
             CarePackDatabase::class.java,
             DATABASE_NAME,
         )
-            .addMigrations(
-                DatabaseMigrations
-                    .MIGRATION_1_2,
-            )
             .build()
 
     val setupPreferenceStore:
@@ -212,15 +205,6 @@ class AppContainer(
                 applicationContext,
         )
 
-    val privacyPolicyGateway:
-            PrivacyPolicyGateway =
-        AndroidPrivacyPolicyGateway(
-            context =
-                applicationContext,
-            policyUrl =
-                PUBLIC_PRIVACY_POLICY_URL,
-        )
-
     private val domainDataCleaner:
             DomainDataCleaner =
         RoomDomainDataCleaner(
@@ -268,11 +252,7 @@ class AppContainer(
         )
 
     private companion object {
-
         const val DATABASE_NAME =
             "carepack.db"
-
-        const val PUBLIC_PRIVACY_POLICY_URL =
-            ""
     }
 }

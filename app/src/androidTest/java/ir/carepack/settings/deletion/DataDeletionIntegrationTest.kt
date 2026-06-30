@@ -73,7 +73,7 @@ class DataDeletionIntegrationTest {
                     initialInstant =
                         INITIAL_INSTANT,
                     idPrefix =
-                        "phase-five-delete",
+                        "deletion-contract",
                     clockZone =
                         ZoneOffset.UTC,
                     context = context,
@@ -429,7 +429,7 @@ class DataDeletionIntegrationTest {
         val cacheFile =
             File(
                 context.cacheDir,
-                "phase-five-cache.tmp",
+                "carepack-deletion-cache.tmp",
             )
 
         val temporaryFile =
@@ -474,7 +474,7 @@ class DataDeletionIntegrationTest {
     private fun removeTestTemporaryFiles() {
         File(
             context.cacheDir,
-            "phase-five-cache.tmp",
+            "carepack-deletion-cache.tmp",
         )
             .delete()
 
