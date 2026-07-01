@@ -1,5 +1,7 @@
 package ir.carepack.domain.model
 
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.SchedulePattern
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -43,6 +45,13 @@ data class ScheduleDefinition(
     val medicationId: String,
     val weekdayMask: Int,
     val minuteOfDay: Int,
+    val schedulePattern: SchedulePattern =
+        FixedTimeSchedule(
+            minutesOfDay =
+                listOf(
+                    minuteOfDay,
+                ),
+        ),
     val zoneId: String,
     val effectiveFrom: Instant,
     val effectiveUntil: Instant?,

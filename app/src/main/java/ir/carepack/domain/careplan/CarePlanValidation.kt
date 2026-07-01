@@ -1,5 +1,9 @@
 package ir.carepack.domain.careplan
 
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.IntervalSchedule
+import ir.carepack.domain.schedule.SchedulePattern
+import ir.carepack.domain.schedule.SchedulePatternRules
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
@@ -34,7 +38,9 @@ internal object CarePlanValidation {
     private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
     private const val VALID_WEEKDAY_MASK = 0b1111111
 
-    private val minuteOfDayRange = 0 until MINUTES_PER_DAY
+    private val minuteOfDayRange =
+        0 until MINUTES_PER_DAY
+
     private val hourMinutePattern =
         Regex("""^([01]\d|2[0-3]):([0-5]\d)$""")
 
@@ -187,6 +193,21 @@ internal object CarePlanValidation {
         }
     }
 
+    fun validateSchedulePattern(
+        schedulePattern: SchedulePattern,
+    ): ValidationResult<SchedulePattern> =
+        when (schedulePattern) {
+            is FixedTimeSchedule ->
+                validateFixedTimePattern(
+                    schedulePattern,
+                )
+
+            is IntervalSchedule ->
+                validateIntervalPattern(
+                    schedulePattern,
+                )
+        }
+
     fun validateSchedule(
         weekdays: Set<DayOfWeek>,
         minutesOfDay: List<Int>,
@@ -307,6 +328,89 @@ internal object CarePlanValidation {
                 weekdayMask and VALID_WEEKDAY_MASK ==
                 weekdayMask
 
+    private fun validateFixedTimePattern(
+        schedulePattern: FixedTimeSchedule,
+    ): ValidationResult<SchedulePattern> {
+        val minutesOfDay =
+            schedulePattern
+                .representativeMinutesOfDay
+
+        return when {
+            minutesOfDay.isEmpty() -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "حداقل یک زمان را اضافه کنید.",
+                )
+            }
+
+            minutesOfDay.any { it !in minuteOfDayRange } -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "یک یا چند زمان معتبر نیست.",
+                )
+            }
+
+            hasDuplicateMinutes(
+                schedulePattern.minutesOfDay,
+            ) -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "زمان‌های تکراری مجاز نیستند.",
+                )
+            }
+
+            else -> {
+                ValidationResult.Valid(
+                    schedulePattern,
+                )
+            }
+        }
+    }
+
+    private fun validateIntervalPattern(
+        schedulePattern: IntervalSchedule,
+    ): ValidationResult<SchedulePattern> =
+        when {
+            !SchedulePatternRules.isAllowedIntervalHours(
+                schedulePattern.intervalHours,
+            ) -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "بازه زمانی باید یکی از مقدارهای ۶، ۸ یا ۱۲ ساعت باشد.",
+                )
+            }
+
+            !SchedulePatternRules.isValidMinuteOfDay(
+                schedulePattern.anchorMinuteOfDay,
+            ) -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "زمان اولین نوبت معتبر نیست.",
+                )
+            }
+
+            schedulePattern
+                .representativeMinutesOfDay
+                .isEmpty() -> {
+                invalid(
+                    field = CarePlanField.TIMES,
+                    message =
+                        "الگوی زمان‌بندی معتبر نیست.",
+                )
+            }
+
+            else -> {
+                ValidationResult.Valid(
+                    schedulePattern,
+                )
+            }
+        }
+
     private fun parseHourMinute(
         rawValue: String,
     ): Int? {
@@ -358,16 +462,28 @@ internal object CarePlanValidation {
 
         return when {
             normalized.isEmpty() -> {
-                invalid(field, emptyMessage)
+                invalid(
+                    field =
+                        field,
+                    message =
+                        emptyMessage,
+                )
             }
 
             normalized.characterCount() >
                     maximumLength -> {
-                invalid(field, tooLongMessage)
+                invalid(
+                    field =
+                        field,
+                    message =
+                        tooLongMessage,
+                )
             }
 
             else -> {
-                ValidationResult.Valid(normalized)
+                ValidationResult.Valid(
+                    normalized,
+                )
             }
         }
     }

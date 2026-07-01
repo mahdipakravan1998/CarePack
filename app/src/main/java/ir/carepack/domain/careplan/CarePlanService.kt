@@ -1,6 +1,9 @@
 package ir.carepack.domain.careplan
 
 import ir.carepack.domain.model.MedicationStatus
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.SchedulePattern
+import ir.carepack.domain.schedule.SchedulePatternRules
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -75,6 +78,11 @@ data class CreateMedicationScheduleCommand(
     val instruction: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
+    val schedulePattern: SchedulePattern =
+        FixedTimeSchedule(
+            minutesOfDay =
+                minutesOfDay,
+        ),
     val startDate: LocalDate?,
     val endDate: LocalDate?,
     val zoneId: String,
@@ -126,6 +134,11 @@ data class UpdateScheduleCommand(
     val medicationId: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
+    val schedulePattern: SchedulePattern =
+        FixedTimeSchedule(
+            minutesOfDay =
+                minutesOfDay,
+        ),
     val startDate: LocalDate?,
     val endDate: LocalDate?,
     val zoneId: String,
@@ -196,6 +209,13 @@ data class SchedulePlan(
     val versionNumber: Int,
     val weekdays: Set<DayOfWeek>,
     val times: List<LocalTime>,
+    val schedulePattern: SchedulePattern =
+        FixedTimeSchedule(
+            minutesOfDay =
+                times.map(
+                    SchedulePatternRules::minuteOfDayFrom,
+                ),
+        ),
     val zoneId: String,
     val effectiveFrom: Instant,
     val startDate: LocalDate?,
