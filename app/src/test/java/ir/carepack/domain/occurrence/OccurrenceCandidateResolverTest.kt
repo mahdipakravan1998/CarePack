@@ -1,11 +1,12 @@
 package ir.carepack.domain.occurrence
 
 import ir.carepack.domain.model.ScheduleDefinition
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.IntervalSchedule
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -14,305 +15,355 @@ class OccurrenceCandidateResolverTest {
     private val resolver =
         OccurrenceCandidateResolver()
 
-    @Test
-    fun matchingCandidate_afterEffectiveFrom_isIncluded() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-24T08:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-06-24",
-                    ),
-            )
-
-        assertEquals(
-            Instant.parse(
-                "2026-06-24T08:30:00Z",
-            ),
-            candidate?.scheduledAt,
+    private val anchorDate =
+        LocalDate.parse(
+            "2026-06-24",
         )
-    }
 
     @Test
-    fun candidate_beforeEffectiveFrom_isExcluded() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-24T09:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-06-24",
-                    ),
-            )
-
-        assertNull(candidate)
-    }
-
-    @Test
-    fun candidateAtEffectiveUntil_isExcluded() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-24T00:00:00Z",
-                            ),
-                        effectiveUntil =
-                            Instant.parse(
-                                "2026-06-24T08:30:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-06-24",
-                    ),
-            )
-
-        assertNull(candidate)
-    }
-
-    @Test
-    fun nonMatchingWeekday_isExcluded() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-24T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-06-25",
-                    ),
-            )
-
-        assertNull(candidate)
-    }
-
-    @Test
-    fun startDate_isInclusive() {
-        val date =
-            LocalDate.parse(
-                "2026-06-24",
-            )
-
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-01T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                        startDate = date,
-                    ),
-                anchorDate = date,
-            )
-
-        assertTrue(candidate != null)
-    }
-
-    @Test
-    fun endDate_isInclusive() {
-        val date =
-            LocalDate.parse(
-                "2026-06-24",
-            )
-
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-01T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                        endDate = date,
-                    ),
-                anchorDate = date,
-            )
-
-        assertTrue(candidate != null)
-    }
-
-    @Test
-    fun dateBeforeStart_isExcluded() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-06-01T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            12 * 60,
-                        startDate =
-                            LocalDate.parse(
-                                "2026-06-25",
-                            ),
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-06-24",
-                    ),
-            )
-
-        assertNull(candidate)
-    }
-
-    @Test
-    fun dstGap_usesStandardAtZoneResolution() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-01-01T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            2 * 60 + 30,
-                        zoneId =
-                            "America/New_York",
-                        weekday =
-                            DayOfWeek.SUNDAY,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-03-08",
-                    ),
-            )
-
-        assertEquals(
-            Instant.parse(
-                "2026-03-08T07:30:00Z",
-            ),
-            candidate?.scheduledAt,
-        )
-    }
-
-    @Test
-    fun dstOverlap_usesEarlierOffset() {
-        val candidate =
-            resolver.resolve(
-                definition =
-                    definition(
-                        effectiveFrom =
-                            Instant.parse(
-                                "2026-01-01T00:00:00Z",
-                            ),
-                        minuteOfDay =
-                            1 * 60 + 30,
-                        zoneId =
-                            "America/New_York",
-                        weekday =
-                            DayOfWeek.SUNDAY,
-                    ),
-                anchorDate =
-                    LocalDate.parse(
-                        "2026-11-01",
-                    ),
-            )
-
-        assertEquals(
-            Instant.parse(
-                "2026-11-01T05:30:00Z",
-            ),
-            candidate?.scheduledAt,
-        )
-    }
-
-    @Test
-    fun repeatedResolution_isStable() {
+    fun fixedTimeSchedule_returnsCandidateWhenDateMatchesRules() {
         val definition =
-            definition(
-                effectiveFrom =
-                    Instant.parse(
-                        "2026-06-01T00:00:00Z",
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
                     ),
                 minuteOfDay =
-                    12 * 60,
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                            ),
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T00:00:00Z",
+                    ),
             )
 
-        val date =
-            LocalDate.parse(
-                "2026-06-24",
-            )
-
-        val first =
-            resolver.resolve(
-                definition,
-                date,
-            )
-
-        val second =
-            resolver.resolve(
-                definition,
-                date,
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
             )
 
         assertEquals(
-            first,
-            second,
+            1,
+            candidates.size,
+        )
+
+        assertEquals(
+            anchorDate,
+            candidates.single().localDate,
+        )
+
+        assertEquals(
+            8 * 60,
+            candidates.single().minuteOfDay,
+        )
+
+        assertEquals(
+            Instant.parse(
+                "2026-06-24T08:00:00Z",
+            ),
+            candidates.single().scheduledAt,
         )
     }
 
-    private fun definition(
-        effectiveFrom: Instant,
+    @Test
+    fun fixedTimeSchedule_excludesUnselectedWeekday() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.THURSDAY,
+                    ),
+                minuteOfDay =
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                            ),
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertTrue(
+            candidates.isEmpty(),
+        )
+    }
+
+    @Test
+    fun fixedTimeSchedule_excludesDateBeforeStartDate() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                            ),
+                    ),
+                startDate =
+                    anchorDate.plusDays(
+                        1,
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertTrue(
+            candidates.isEmpty(),
+        )
+    }
+
+    @Test
+    fun fixedTimeSchedule_excludesDateAfterEndDate() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                            ),
+                    ),
+                endDate =
+                    anchorDate.minusDays(
+                        1,
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertTrue(
+            candidates.isEmpty(),
+        )
+    }
+
+    @Test
+    fun fixedTimeSchedule_doesNotCreateArtificialHistoryBeforeEffectiveInstant() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                                16 * 60,
+                            ),
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T08:01:00Z",
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertEquals(
+            listOf(
+                16 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun fixedTimeSchedule_excludesCandidateAtEffectiveUntilBoundary() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    8 * 60,
+                schedulePattern =
+                    FixedTimeSchedule(
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                                16 * 60,
+                            ),
+                    ),
+                effectiveUntil =
+                    Instant.parse(
+                        "2026-06-24T16:00:00Z",
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertEquals(
+            listOf(
+                8 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_generatesEveryEightHoursFromAnchor() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    7 * 60,
+                schedulePattern =
+                    IntervalSchedule(
+                        intervalHours = 8,
+                        anchorMinuteOfDay =
+                            7 * 60,
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T00:00:00Z",
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertEquals(
+            listOf(
+                7 * 60,
+                15 * 60,
+                23 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_respectsStartEndAndEffectiveRules() {
+        val definition =
+            scheduleDefinition(
+                weekdayMask =
+                    weekdayMask(
+                        DayOfWeek.WEDNESDAY,
+                    ),
+                minuteOfDay =
+                    6 * 60,
+                schedulePattern =
+                    IntervalSchedule(
+                        intervalHours = 6,
+                        anchorMinuteOfDay =
+                            6 * 60,
+                    ),
+                startDate =
+                    anchorDate,
+                endDate =
+                    anchorDate,
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T06:01:00Z",
+                    ),
+                effectiveUntil =
+                    Instant.parse(
+                        "2026-06-24T18:00:00Z",
+                    ),
+            )
+
+        val candidates =
+            resolver.resolveAll(
+                definition = definition,
+                anchorDate = anchorDate,
+            )
+
+        assertEquals(
+            listOf(
+                12 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    private fun scheduleDefinition(
+        weekdayMask: Int,
         minuteOfDay: Int,
-        effectiveUntil:
-        Instant? = null,
-        startDate:
-        LocalDate? = null,
-        endDate:
-        LocalDate? = null,
-        zoneId: String =
-            "Asia/Tehran",
-        weekday: DayOfWeek =
-            DayOfWeek.WEDNESDAY,
-    ): ScheduleDefinition {
-        return ScheduleDefinition(
+        schedulePattern:
+        ir.carepack.domain.schedule.SchedulePattern,
+        effectiveFrom: Instant =
+            Instant.parse(
+                "2026-06-24T00:00:00Z",
+            ),
+        effectiveUntil: Instant? = null,
+        startDate: LocalDate? = null,
+        endDate: LocalDate? = null,
+    ): ScheduleDefinition =
+        ScheduleDefinition(
             scheduleVersionId =
-                "version-1",
+                "schedule-version",
             scheduleSeriesId =
-                "series-1",
+                "schedule-series",
             medicationId =
-                "medication-1",
+                "medication",
             weekdayMask =
-                1 shl (
-                        weekday.value - 1
-                        ),
+                weekdayMask,
             minuteOfDay =
                 minuteOfDay,
+            schedulePattern =
+                schedulePattern,
             zoneId =
-                zoneId,
+                "UTC",
             effectiveFrom =
                 effectiveFrom,
             effectiveUntil =
@@ -322,9 +373,16 @@ class OccurrenceCandidateResolverTest {
             endDate =
                 endDate,
             medicationNameSnapshot =
-                "Medication",
+                "دارو",
             medicationInstructionSnapshot =
-                "Instruction",
+                "دستور",
         )
-    }
+
+    private fun weekdayMask(
+        vararg days: DayOfWeek,
+    ): Int =
+        days.fold(0) { mask, day ->
+            mask or
+                    (1 shl (day.value - 1))
+        }
 }

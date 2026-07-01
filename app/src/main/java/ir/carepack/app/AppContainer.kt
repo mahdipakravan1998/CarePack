@@ -10,10 +10,12 @@ import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
+import ir.carepack.data.preferences.DataStoreUserExperiencePreferenceStore
 import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.OccurrenceGenerator
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
@@ -87,6 +89,13 @@ class AppContainer(
     val privacyPreferenceStore:
             PrivacyPreferenceStore =
         DataStorePrivacyPreferenceStore(
+            context =
+                applicationContext,
+        )
+
+    val userExperiencePreferenceStore:
+            UserExperiencePreferenceStore =
+        DataStoreUserExperiencePreferenceStore(
             context =
                 applicationContext,
         )
