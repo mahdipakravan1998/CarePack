@@ -6,12 +6,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -20,16 +25,22 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import ir.carepack.BuildConfig
+import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.SetupProgress
+import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.report.CaregiverReportService
@@ -49,12 +60,15 @@ import ir.carepack.feature.privacy.PrivacyRoute
 import ir.carepack.feature.reminder.ReminderSettingsRoute
 import ir.carepack.feature.reminder.ReminderSettingsViewModel
 import ir.carepack.feature.reporting.TodayReportRoute
-import ir.carepack.feature.settings.SettingsScreen
+import ir.carepack.feature.settings.SettingsRoute
+import ir.carepack.feature.settings.SettingsViewModel
 import ir.carepack.feature.setup.MedicationScheduleRoute
 import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.feature.today.TodayRoute
+import ir.carepack.feature.today.TodayScreen
+import ir.carepack.feature.today.TodaySection
 import ir.carepack.feature.today.TodayViewModel
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.reporting.share.TextShareGateway
@@ -70,6 +84,7 @@ private object Routes {
     const val Recipient = "recipient"
     const val Today = "today"
     const val CarePlan = "care-plan"
+    const val History = "history"
     const val Settings = "settings"
     const val ReminderSettings = "reminder-settings"
     const val TodayReport = "today-report"
@@ -78,6 +93,7 @@ private object Routes {
 
     const val RecipientIdArgument = "recipientId"
     const val MedicationIdArgument = "medicationId"
+    const val ScheduleSeriesIdArgument = "scheduleSeriesId"
     const val OccurrenceIdArgument = "occurrenceId"
 
     const val MedicationSchedulePattern =
@@ -86,11 +102,14 @@ private object Routes {
     const val AddMedicationPattern =
         "add-medication/{$RecipientIdArgument}"
 
+    const val AddSchedulePattern =
+        "add-schedule/{$MedicationIdArgument}"
+
     const val EditMedicationTextPattern =
         "edit-medication/{$MedicationIdArgument}"
 
     const val EditSchedulePattern =
-        "edit-schedule/{$MedicationIdArgument}"
+        "edit-schedule/{$ScheduleSeriesIdArgument}"
 
     const val OccurrenceDetailPattern =
         "occurrence/{$OccurrenceIdArgument}"
@@ -105,21 +124,60 @@ private object Routes {
     ): String =
         "add-medication/$recipientId"
 
+    fun addSchedule(
+        medicationId: String,
+    ): String =
+        "add-schedule/$medicationId"
+
     fun editMedicationText(
         medicationId: String,
     ): String =
         "edit-medication/$medicationId"
 
     fun editSchedule(
-        medicationId: String,
+        scheduleSeriesId: String,
     ): String =
-        "edit-schedule/$medicationId"
+        "edit-schedule/$scheduleSeriesId"
 
     fun occurrenceDetail(
         occurrenceId: String,
     ): String =
         "occurrence/$occurrenceId"
 }
+
+private data class PrimaryDestination(
+    val route: String,
+    val labelResId: Int,
+    val testTag: String,
+)
+
+private val primaryDestinations =
+    listOf(
+        PrimaryDestination(
+            route = Routes.Today,
+            labelResId =
+                R.string.primary_nav_today,
+            testTag = "primary_nav_today",
+        ),
+        PrimaryDestination(
+            route = Routes.CarePlan,
+            labelResId =
+                R.string.primary_nav_medications,
+            testTag = "primary_nav_medications",
+        ),
+        PrimaryDestination(
+            route = Routes.History,
+            labelResId =
+                R.string.primary_nav_history,
+            testTag = "primary_nav_history",
+        ),
+        PrimaryDestination(
+            route = Routes.Settings,
+            labelResId =
+                R.string.primary_nav_settings,
+            testTag = "primary_nav_settings",
+        ),
+    )
 
 sealed interface AppLaunchState {
 
@@ -136,8 +194,7 @@ sealed interface AppLaunchState {
 }
 
 class AppViewModel(
-    private val carePlanService:
-    CarePlanService,
+    private val carePlanService: CarePlanService,
     private val setupPreferenceStore:
     SetupPreferenceStore,
 ) : ViewModel() {
@@ -159,59 +216,63 @@ class AppViewModel(
             mutableState.value =
                 AppLaunchState.Loading
 
-            try {
-                val preferenceWasComplete =
-                    setupPreferenceStore
-                        .setupComplete
-                        .first()
+            mutableState.value =
+                try {
+                    val setupCompleted =
+                        setupPreferenceStore
+                            .isInitialSetupComplete()
+                            .first()
 
-                val progress =
-                    carePlanService
-                        .getSetupProgress()
+                    val progress =
+                        carePlanService
+                            .getSetupProgress()
 
-                val startRoute =
-                    when (progress) {
-                        SetupProgress.Empty -> {
-                            Routes.Onboarding
-                        }
-
-                        is SetupProgress.RecipientOnly -> {
-                            Routes.medicationSchedule(
-                                progress.recipientId,
-                            )
-                        }
-
-                        SetupProgress.Complete -> {
-                            if (!preferenceWasComplete) {
-                                runCatching {
-                                    setupPreferenceStore
-                                        .markSetupComplete()
-                                }
-                            }
-
-                            Routes.Today
-                        }
-                    }
-
-                mutableState.value =
                     AppLaunchState.Ready(
-                        startRoute = startRoute,
+                        startRoute =
+                            routeFor(
+                                setupCompleted =
+                                    setupCompleted,
+                                progress =
+                                    progress,
+                            ),
                     )
-            } catch (_: Exception) {
-                mutableState.value =
+                } catch (_: Exception) {
                     AppLaunchState.Error(
-                        message =
-                            "راه‌اندازی برنامه انجام نشد.",
+                        "راه‌اندازی برنامه انجام نشد.",
                     )
-            }
+                }
         }
     }
+
+    private fun routeFor(
+        setupCompleted: Boolean,
+        progress: SetupProgress,
+    ): String =
+        when {
+            setupCompleted &&
+                    progress == SetupProgress.Complete -> {
+                Routes.Today
+            }
+
+            progress is SetupProgress.RecipientOnly -> {
+                Routes.medicationSchedule(
+                    progress.recipientId,
+                )
+            }
+
+            progress == SetupProgress.Complete -> {
+                Routes.Today
+            }
+
+            else -> {
+                Routes.Onboarding
+            }
+        }
 
     companion object {
 
         fun factory(
-            carePlanService:
-            CarePlanService,
+            carePlanService: CarePlanService,
             setupPreferenceStore:
             SetupPreferenceStore,
         ): ViewModelProvider.Factory =
@@ -247,6 +308,8 @@ fun CarePackApp(
     TodayReportFormatter,
     privacyPreferenceStore:
     PrivacyPreferenceStore,
+    userExperiencePreferenceStore:
+    UserExperiencePreferenceStore,
     textShareGateway:
     TextShareGateway,
     dataDeletionCoordinator:
@@ -314,6 +377,8 @@ fun CarePackApp(
                     todayReportFormatter,
                 privacyPreferenceStore =
                     privacyPreferenceStore,
+                userExperiencePreferenceStore =
+                    userExperiencePreferenceStore,
                 textShareGateway =
                     textShareGateway,
                 dataDeletionCoordinator =
@@ -325,6 +390,55 @@ fun CarePackApp(
                     notificationOccurrenceId,
                 onNotificationOccurrenceHandled =
                     onNotificationOccurrenceHandled,
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingScreen() {
+    Column(
+        modifier =
+            Modifier.fillMaxSize(),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.Center,
+    ) {
+        CircularProgressIndicator()
+    }
+}
+
+@Composable
+private fun LaunchErrorScreen(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(
+                    24.dp,
+                ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.Center,
+    ) {
+        Text(
+            text = message,
+        )
+
+        Button(
+            onClick = onRetry,
+            modifier =
+                Modifier.padding(
+                    top = 16.dp,
+                ),
+        ) {
+            Text(
+                text = "تلاش دوباره",
             )
         }
     }
@@ -351,6 +465,8 @@ private fun CarePackNavigation(
     TodayReportFormatter,
     privacyPreferenceStore:
     PrivacyPreferenceStore,
+    userExperiencePreferenceStore:
+    UserExperiencePreferenceStore,
     textShareGateway:
     TextShareGateway,
     dataDeletionCoordinator:
@@ -364,6 +480,14 @@ private fun CarePackNavigation(
 ) {
     val navController =
         rememberNavController()
+
+    val navBackStackEntry by
+    navController.currentBackStackEntryAsState()
+
+    val currentRoute =
+        navBackStackEntry
+            ?.destination
+            ?.route
 
     LaunchedEffect(
         notificationOccurrenceId,
@@ -384,599 +508,780 @@ private fun CarePackNavigation(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startRoute,
-    ) {
-        composable(
-            Routes.Onboarding,
-        ) {
-            OnboardingScreen(
-                onContinue = {
-                    navController.navigate(
-                        Routes.Recipient,
-                    ) {
-                        popUpTo(
-                            Routes.Onboarding,
-                        ) {
-                            inclusive = true
-                        }
-
-                        launchSingleTop = true
-                    }
-                },
-            )
-        }
-
-        composable(
-            Routes.Recipient,
-        ) {
-            val recipientViewModel:
-                    RecipientSetupViewModel =
-                viewModel(
-                    factory =
-                        RecipientSetupViewModel
-                            .factory(
-                                carePlanService =
-                                    carePlanService,
-                            ),
+    Scaffold(
+        bottomBar = {
+            if (
+                currentRoute in primaryDestinations.map {
+                    it.route
+                }
+            ) {
+                CarePackPrimaryNavigationBar(
+                    currentRoute =
+                        currentRoute,
+                    navController =
+                        navController,
                 )
-
-            RecipientSetupRoute(
-                viewModel =
-                    recipientViewModel,
-                onContinue = {
-                        recipientId ->
-                    navController.navigate(
-                        Routes.medicationSchedule(
-                            recipientId,
-                        ),
-                    ) {
-                        popUpTo(
+            }
+        },
+    ) { contentPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = startRoute,
+            modifier =
+                Modifier.padding(
+                    contentPadding,
+                ),
+        ) {
+            composable(
+                Routes.Onboarding,
+            ) {
+                OnboardingScreen(
+                    onContinue = {
+                        navController.navigate(
                             Routes.Recipient,
                         ) {
-                            inclusive = true
+                            popUpTo(
+                                Routes.Onboarding,
+                            ) {
+                                inclusive = true
+                            }
+
+                            launchSingleTop = true
                         }
-
-                        launchSingleTop = true
-                    }
-                },
-            )
-        }
-
-        composable(
-            route =
-                Routes.MedicationSchedulePattern,
-            arguments =
-                listOf(
-                    navArgument(
-                        Routes.RecipientIdArgument,
-                    ) {
-                        type =
-                            NavType.StringType
                     },
-                ),
-        ) { backStackEntry ->
-            val recipientId =
-                checkNotNull(
-                    backStackEntry
-                        .arguments
-                        ?.getString(
-                            Routes.RecipientIdArgument,
-                        ),
                 )
+            }
 
-            val medicationViewModel:
-                    MedicationScheduleViewModel =
-                viewModel(
-                    factory =
-                        MedicationScheduleViewModel
-                            .factory(
-                                recipientId =
-                                    recipientId,
-                                carePlanService =
-                                    carePlanService,
-                                setupPreferenceStore =
-                                    setupPreferenceStore,
-                                completeInitialSetup =
-                                    true,
-                                clock = clock,
-                                zoneProvider =
-                                    zoneProvider,
+            composable(
+                Routes.Recipient,
+            ) {
+                val recipientViewModel:
+                        RecipientSetupViewModel =
+                    viewModel(
+                        factory =
+                            RecipientSetupViewModel
+                                .factory(
+                                    carePlanService =
+                                        carePlanService,
+                                ),
+                    )
+
+                RecipientSetupRoute(
+                    viewModel =
+                        recipientViewModel,
+                    onContinue = {
+                            recipientId ->
+                        navController.navigate(
+                            Routes.medicationSchedule(
+                                recipientId,
                             ),
-                )
-
-            MedicationScheduleRoute(
-                viewModel =
-                    medicationViewModel,
-                onCompleted = {
-                    navController.navigate(
-                        Routes.Today,
-                    ) {
-                        popUpTo(
-                            Routes.Onboarding,
                         ) {
-                            inclusive = true
+                            popUpTo(
+                                Routes.Recipient,
+                            ) {
+                                inclusive = true
+                            }
+
+                            launchSingleTop = true
                         }
-
-                        launchSingleTop = true
-                    }
-                },
-            )
-        }
-
-        composable(
-            Routes.Today,
-        ) {
-            val todayViewModel:
-                    TodayViewModel =
-                viewModel(
-                    factory =
-                        TodayViewModel.factory(
-                            todayQueryService =
-                                todayQueryService,
-                            reminderCoordinator =
-                                reminderCoordinator,
-                            reminderPreferenceStore =
-                                reminderPreferenceStore,
-                            clock = clock,
-                            zoneProvider =
-                                zoneProvider,
-                        ),
-                )
-
-            TodayRoute(
-                viewModel =
-                    todayViewModel,
-                onOccurrenceSelected = {
-                        occurrenceId ->
-                    navController.navigate(
-                        Routes.occurrenceDetail(
-                            occurrenceId,
-                        ),
-                    )
-                },
-                onManageCarePlan = {
-                    navController.navigate(
-                        Routes.CarePlan,
-                    )
-                },
-                onOpenTodayReport = {
-                    navController.navigate(
-                        Routes.TodayReport,
-                    )
-                },
-                onOpenSettings = {
-                    navController.navigate(
-                        Routes.Settings,
-                    )
-                },
-                onReminderSettings = {
-                    navController.navigate(
-                        Routes.ReminderSettings,
-                    )
-                },
-                onReviewSchedules = {
-                    navController.navigate(
-                        Routes.CarePlan,
-                    )
-                },
-            )
-        }
-
-        composable(
-            Routes.CarePlan,
-        ) {
-            val carePlanViewModel:
-                    CarePlanViewModel =
-                viewModel(
-                    factory =
-                        CarePlanViewModel.factory(
-                            carePlanService =
-                                carePlanService,
-                        ),
-                )
-
-            CarePlanRoute(
-                viewModel =
-                    carePlanViewModel,
-                onBack = {
-                    navController.popBackStack()
-                },
-                onAddMedication = {
-                        recipientId ->
-                    navController.navigate(
-                        Routes.addMedication(
-                            recipientId,
-                        ),
-                    )
-                },
-                onEditMedicationText = {
-                        medicationId ->
-                    navController.navigate(
-                        Routes.editMedicationText(
-                            medicationId,
-                        ),
-                    )
-                },
-                onEditSchedule = {
-                        medicationId ->
-                    navController.navigate(
-                        Routes.editSchedule(
-                            medicationId,
-                        ),
-                    )
-                },
-            )
-        }
-
-        composable(
-            Routes.Settings,
-        ) {
-            SettingsScreen(
-                onBack = {
-                    navController.popBackStack()
-                },
-                onOpenReminderSettings = {
-                    navController.navigate(
-                        Routes.ReminderSettings,
-                    )
-                },
-                onOpenTodayReport = {
-                    navController.navigate(
-                        Routes.TodayReport,
-                    )
-                },
-                onOpenPrivacy = {
-                    navController.navigate(
-                        Routes.Privacy,
-                    )
-                },
-                onDeleteAllData = {
-                    navController.navigate(
-                        Routes.DeleteAllData,
-                    )
-                },
-            )
-        }
-
-        composable(
-            Routes.ReminderSettings,
-        ) {
-            val reminderViewModel:
-                    ReminderSettingsViewModel =
-                viewModel(
-                    factory =
-                        ReminderSettingsViewModel.factory(
-                            preferenceStore =
-                                reminderPreferenceStore,
-                            reminderCoordinator =
-                                reminderCoordinator,
-                            notificationPermissionGateway =
-                                notificationPermissionGateway,
-                        ),
-                )
-
-            ReminderSettingsRoute(
-                viewModel =
-                    reminderViewModel,
-                onBack = {
-                    navController.popBackStack()
-                },
-                onReviewSchedules = {
-                    navController.navigate(
-                        Routes.CarePlan,
-                    )
-                },
-            )
-        }
-
-        composable(
-            Routes.TodayReport,
-        ) {
-            val reportDate =
-                clock
-                    .instant()
-                    .atZone(
-                        zoneProvider.currentZone(),
-                    )
-                    .toLocalDate()
-
-            TodayReportRoute(
-                date =
-                    reportDate,
-                formatter =
-                    todayReportFormatter,
-                privacyPreferenceStore =
-                    privacyPreferenceStore,
-                textShareGateway =
-                    textShareGateway,
-                onBack = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            Routes.Privacy,
-        ) {
-            PrivacyRoute(
-                onBack = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            Routes.DeleteAllData,
-        ) {
-            DeleteAllDataRoute(
-                dataDeletionCoordinator =
-                    dataDeletionCoordinator,
-                onDeletionCompleted = {
-                    navController.navigate(
-                        Routes.Onboarding,
-                    ) {
-                        popUpTo(
-                            navController.graph.startDestinationId,
-                        ) {
-                            inclusive = true
-                        }
-
-                        launchSingleTop = true
-                    }
-                },
-                onBack = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            route =
-                Routes.AddMedicationPattern,
-            arguments =
-                listOf(
-                    navArgument(
-                        Routes.RecipientIdArgument,
-                    ) {
-                        type =
-                            NavType.StringType
                     },
-                ),
-        ) { backStackEntry ->
-            val recipientId =
-                checkNotNull(
-                    backStackEntry
-                        .arguments
-                        ?.getString(
+                )
+            }
+
+            composable(
+                route =
+                    Routes.MedicationSchedulePattern,
+                arguments =
+                    listOf(
+                        navArgument(
                             Routes.RecipientIdArgument,
-                        ),
-                )
-
-            val medicationViewModel:
-                    MedicationScheduleViewModel =
-                viewModel(
-                    factory =
-                        MedicationScheduleViewModel
-                            .factory(
-                                recipientId =
-                                    recipientId,
-                                carePlanService =
-                                    carePlanService,
-                                setupPreferenceStore =
-                                    setupPreferenceStore,
-                                completeInitialSetup =
-                                    false,
-                                clock = clock,
-                                zoneProvider =
-                                    zoneProvider,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val recipientId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.RecipientIdArgument,
                             ),
-                )
+                    )
 
-            MedicationScheduleRoute(
-                viewModel =
-                    medicationViewModel,
-                onCompleted = {
-                    navController.popBackStack()
-                },
-            )
-        }
+                val medicationViewModel:
+                        MedicationScheduleViewModel =
+                    viewModel(
+                        factory =
+                            MedicationScheduleViewModel
+                                .factory(
+                                    recipientId =
+                                        recipientId,
+                                    carePlanService =
+                                        carePlanService,
+                                    setupPreferenceStore =
+                                        setupPreferenceStore,
+                                    userExperiencePreferenceStore =
+                                        userExperiencePreferenceStore,
+                                    completeInitialSetup =
+                                        true,
+                                    clock = clock,
+                                    zoneProvider =
+                                        zoneProvider,
+                                ),
+                    )
 
-        composable(
-            route =
-                Routes.EditMedicationTextPattern,
-            arguments =
-                listOf(
-                    navArgument(
-                        Routes.MedicationIdArgument,
-                    ) {
-                        type =
-                            NavType.StringType
+                MedicationScheduleRoute(
+                    viewModel =
+                        medicationViewModel,
+                    onCompleted = {
+                        navController.navigate(
+                            Routes.Today,
+                        ) {
+                            popUpTo(
+                                Routes.Onboarding,
+                            ) {
+                                inclusive = true
+                            }
+
+                            launchSingleTop = true
+                        }
                     },
-                ),
-        ) { backStackEntry ->
-            val medicationId =
-                checkNotNull(
-                    backStackEntry
-                        .arguments
-                        ?.getString(
-                            Routes.MedicationIdArgument,
-                        ),
                 )
+            }
 
-            val medicationTextViewModel:
-                    MedicationTextEditViewModel =
-                viewModel(
-                    factory =
-                        MedicationTextEditViewModel
-                            .factory(
-                                medicationId =
-                                    medicationId,
-                                carePlanService =
-                                    carePlanService,
-                            ),
-                )
-
-            MedicationTextEditRoute(
-                viewModel =
-                    medicationTextViewModel,
-                onBack = {
-                    navController.popBackStack()
-                },
-                onCompleted = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            route =
-                Routes.EditSchedulePattern,
-            arguments =
-                listOf(
-                    navArgument(
-                        Routes.MedicationIdArgument,
-                    ) {
-                        type =
-                            NavType.StringType
-                    },
-                ),
-        ) { backStackEntry ->
-            val medicationId =
-                checkNotNull(
-                    backStackEntry
-                        .arguments
-                        ?.getString(
-                            Routes.MedicationIdArgument,
-                        ),
-                )
-
-            val scheduleEditViewModel:
-                    ScheduleEditViewModel =
-                viewModel(
-                    factory =
-                        ScheduleEditViewModel
-                            .factory(
-                                medicationId =
-                                    medicationId,
-                                carePlanService =
-                                    carePlanService,
-                                zoneProvider =
-                                    zoneProvider,
-                            ),
-                )
-
-            ScheduleEditRoute(
-                viewModel =
-                    scheduleEditViewModel,
-                onBack = {
-                    navController.popBackStack()
-                },
-                onCompleted = {
-                    navController.popBackStack()
-                },
-            )
-        }
-
-        composable(
-            route =
-                Routes.OccurrenceDetailPattern,
-            arguments =
-                listOf(
-                    navArgument(
-                        Routes.OccurrenceIdArgument,
-                    ) {
-                        type =
-                            NavType.StringType
-                    },
-                ),
-        ) { backStackEntry ->
-            val occurrenceId =
-                checkNotNull(
-                    backStackEntry
-                        .arguments
-                        ?.getString(
-                            Routes.OccurrenceIdArgument,
-                        ),
-                )
-
-            val occurrenceViewModel:
-                    OccurrenceDetailViewModel =
-                viewModel(
-                    factory =
-                        OccurrenceDetailViewModel
-                            .factory(
-                                occurrenceId =
-                                    occurrenceId,
+            composable(
+                Routes.Today,
+            ) {
+                val todayViewModel:
+                        TodayViewModel =
+                    viewModel(
+                        factory =
+                            todayViewModelFactory(
                                 todayQueryService =
                                     todayQueryService,
                                 caregiverReportService =
                                     caregiverReportService,
+                                carePlanService =
+                                    carePlanService,
+                                reminderPreferenceStore =
+                                    reminderPreferenceStore,
                                 clock = clock,
+                                zoneProvider =
+                                    zoneProvider,
                             ),
+                    )
+
+                TodayRoute(
+                    viewModel =
+                        todayViewModel,
+                    onOpenCarePlan = {
+                        navController.navigatePrimary(
+                            Routes.CarePlan,
+                        )
+                    },
+                    onOpenSettings = {
+                        navController.navigatePrimary(
+                            Routes.Settings,
+                        )
+                    },
+                    onOpenOccurrence = {
+                            occurrenceId ->
+                        navController.navigate(
+                            Routes.occurrenceDetail(
+                                occurrenceId,
+                            ),
+                        )
+                    },
                 )
+            }
 
-            OccurrenceDetailRoute(
-                viewModel =
-                    occurrenceViewModel,
-                onBack = {
-                    navController.popBackStack()
-                },
-            )
+            composable(
+                Routes.CarePlan,
+            ) {
+                val carePlanViewModel:
+                        CarePlanViewModel =
+                    viewModel(
+                        factory =
+                            CarePlanViewModel.factory(
+                                carePlanService =
+                                    carePlanService,
+                            ),
+                    )
+
+                CarePlanRoute(
+                    viewModel =
+                        carePlanViewModel,
+                    onAddMedication = {
+                            recipientId ->
+                        navController.navigate(
+                            Routes.addMedication(
+                                recipientId,
+                            ),
+                        )
+                    },
+                    onAddSchedule = {
+                            medicationId ->
+                        navController.navigate(
+                            Routes.addSchedule(
+                                medicationId,
+                            ),
+                        )
+                    },
+                    onEditMedicationText = {
+                            medicationId ->
+                        navController.navigate(
+                            Routes.editMedicationText(
+                                medicationId,
+                            ),
+                        )
+                    },
+                    onEditSchedule = {
+                            scheduleSeriesId ->
+                        navController.navigate(
+                            Routes.editSchedule(
+                                scheduleSeriesId,
+                            ),
+                        )
+                    },
+                )
+            }
+
+            composable(
+                Routes.History,
+            ) {
+                val todayViewModel:
+                        TodayViewModel =
+                    viewModel(
+                        factory =
+                            todayViewModelFactory(
+                                todayQueryService =
+                                    todayQueryService,
+                                caregiverReportService =
+                                    caregiverReportService,
+                                carePlanService =
+                                    carePlanService,
+                                reminderPreferenceStore =
+                                    reminderPreferenceStore,
+                                clock = clock,
+                                zoneProvider =
+                                    zoneProvider,
+                            ),
+                    )
+
+                val state by
+                todayViewModel
+                    .state
+                    .collectAsStateWithLifecycle()
+
+                TodayScreen(
+                    state =
+                        state.copy(
+                            selectedSection =
+                                TodaySection.HISTORY,
+                        ),
+                    onTodaySelected = {
+                        navController.navigatePrimary(
+                            Routes.Today,
+                        )
+                    },
+                    onHistorySelected = {
+                        todayViewModel.showHistory()
+                    },
+                    onRetry =
+                        todayViewModel::retry,
+                    onOpenCarePlan = {
+                        navController.navigatePrimary(
+                            Routes.CarePlan,
+                        )
+                    },
+                    onOpenSettings = {
+                        navController.navigatePrimary(
+                            Routes.Settings,
+                        )
+                    },
+                    onOpenOccurrence = {
+                            occurrenceId ->
+                        navController.navigate(
+                            Routes.occurrenceDetail(
+                                occurrenceId,
+                            ),
+                        )
+                    },
+                )
+            }
+
+            composable(
+                Routes.Settings,
+            ) {
+                val settingsViewModel:
+                        SettingsViewModel =
+                    viewModel(
+                        factory =
+                            SettingsViewModel.factory(
+                                userExperiencePreferenceStore =
+                                    userExperiencePreferenceStore,
+                                zoneProvider =
+                                    zoneProvider,
+                                appVersion =
+                                    BuildConfig.VERSION_NAME,
+                            ),
+                    )
+
+                SettingsRoute(
+                    viewModel =
+                        settingsViewModel,
+                    onBack = {
+                        navController.navigatePrimary(
+                            Routes.Today,
+                        )
+                    },
+                    onOpenReminderSettings = {
+                        navController.navigate(
+                            Routes.ReminderSettings,
+                        )
+                    },
+                    onOpenTodayReport = {
+                        navController.navigate(
+                            Routes.TodayReport,
+                        )
+                    },
+                    onOpenPrivacy = {
+                        navController.navigate(
+                            Routes.Privacy,
+                        )
+                    },
+                    onDeleteAllData = {
+                        navController.navigate(
+                            Routes.DeleteAllData,
+                        )
+                    },
+                )
+            }
+
+            composable(
+                Routes.ReminderSettings,
+            ) {
+                val reminderViewModel:
+                        ReminderSettingsViewModel =
+                    viewModel(
+                        factory =
+                            ReminderSettingsViewModel.factory(
+                                preferenceStore =
+                                    reminderPreferenceStore,
+                                reminderCoordinator =
+                                    reminderCoordinator,
+                                notificationPermissionGateway =
+                                    notificationPermissionGateway,
+                            ),
+                    )
+
+                ReminderSettingsRoute(
+                    viewModel =
+                        reminderViewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onReviewSchedules = {
+                        navController.navigatePrimary(
+                            Routes.CarePlan,
+                        )
+                    },
+                )
+            }
+
+            composable(
+                Routes.TodayReport,
+            ) {
+                val reportDate =
+                    clock
+                        .instant()
+                        .atZone(
+                            zoneProvider.currentZone(),
+                        )
+                        .toLocalDate()
+
+                TodayReportRoute(
+                    date =
+                        reportDate,
+                    formatter =
+                        todayReportFormatter,
+                    privacyPreferenceStore =
+                        privacyPreferenceStore,
+                    textShareGateway =
+                        textShareGateway,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                Routes.Privacy,
+            ) {
+                PrivacyRoute(
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                Routes.DeleteAllData,
+            ) {
+                DeleteAllDataRoute(
+                    dataDeletionCoordinator =
+                        dataDeletionCoordinator,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onDeletionCompleted = {
+                        navController.navigate(
+                            Routes.Onboarding,
+                        ) {
+                            popUpTo(0) {
+                                inclusive = true
+                            }
+
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
+
+            composable(
+                route =
+                    Routes.AddMedicationPattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.RecipientIdArgument,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val recipientId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.RecipientIdArgument,
+                            ),
+                    )
+
+                val medicationViewModel:
+                        MedicationScheduleViewModel =
+                    viewModel(
+                        factory =
+                            MedicationScheduleViewModel
+                                .factory(
+                                    recipientId =
+                                        recipientId,
+                                    carePlanService =
+                                        carePlanService,
+                                    setupPreferenceStore =
+                                        setupPreferenceStore,
+                                    userExperiencePreferenceStore =
+                                        userExperiencePreferenceStore,
+                                    completeInitialSetup =
+                                        false,
+                                    clock = clock,
+                                    zoneProvider =
+                                        zoneProvider,
+                                ),
+                    )
+
+                MedicationScheduleRoute(
+                    viewModel =
+                        medicationViewModel,
+                    onCompleted = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                route =
+                    Routes.AddSchedulePattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.MedicationIdArgument,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val medicationId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.MedicationIdArgument,
+                            ),
+                    )
+
+                val scheduleViewModel:
+                        MedicationScheduleViewModel =
+                    viewModel(
+                        factory =
+                            MedicationScheduleViewModel
+                                .addScheduleFactory(
+                                    medicationId =
+                                        medicationId,
+                                    carePlanService =
+                                        carePlanService,
+                                    setupPreferenceStore =
+                                        setupPreferenceStore,
+                                    userExperiencePreferenceStore =
+                                        userExperiencePreferenceStore,
+                                    clock = clock,
+                                    zoneProvider =
+                                        zoneProvider,
+                                ),
+                    )
+
+                MedicationScheduleRoute(
+                    viewModel =
+                        scheduleViewModel,
+                    onCompleted = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                route =
+                    Routes.EditMedicationTextPattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.MedicationIdArgument,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val medicationId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.MedicationIdArgument,
+                            ),
+                    )
+
+                val editViewModel:
+                        MedicationTextEditViewModel =
+                    viewModel(
+                        factory =
+                            MedicationTextEditViewModel
+                                .factory(
+                                    medicationId =
+                                        medicationId,
+                                    carePlanService =
+                                        carePlanService,
+                                ),
+                    )
+
+                MedicationTextEditRoute(
+                    viewModel =
+                        editViewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onCompleted = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                route =
+                    Routes.EditSchedulePattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.ScheduleSeriesIdArgument,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val scheduleSeriesId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.ScheduleSeriesIdArgument,
+                            ),
+                    )
+
+                val scheduleEditViewModel:
+                        ScheduleEditViewModel =
+                    viewModel(
+                        factory =
+                            ScheduleEditViewModel
+                                .factory(
+                                    scheduleSeriesId =
+                                        scheduleSeriesId,
+                                    carePlanService =
+                                        carePlanService,
+                                    zoneProvider =
+                                        zoneProvider,
+                                    userExperiencePreferenceStore =
+                                        userExperiencePreferenceStore,
+                                ),
+                    )
+
+                ScheduleEditRoute(
+                    viewModel =
+                        scheduleEditViewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                    onCompleted = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                route =
+                    Routes.OccurrenceDetailPattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.OccurrenceIdArgument,
+                        ) {
+                            type =
+                                NavType.StringType
+                        },
+                    ),
+            ) { backStackEntry ->
+                val occurrenceId =
+                    checkNotNull(
+                        backStackEntry
+                            .arguments
+                            ?.getString(
+                                Routes.OccurrenceIdArgument,
+                            ),
+                    )
+
+                val detailViewModel:
+                        OccurrenceDetailViewModel =
+                    viewModel(
+                        factory =
+                            OccurrenceDetailViewModel
+                                .factory(
+                                    occurrenceId =
+                                        occurrenceId,
+                                    todayQueryService =
+                                        todayQueryService,
+                                    caregiverReportService =
+                                        caregiverReportService,
+                                    clock = clock,
+                                ),
+                    )
+
+                OccurrenceDetailRoute(
+                    viewModel =
+                        detailViewModel,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun LoadingScreen() {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(
-                    24.dp,
-                ),
-        verticalArrangement =
-            Arrangement.Center,
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
-    ) {
-        CircularProgressIndicator()
-    }
-}
-
-@Composable
-private fun LaunchErrorScreen(
-    message: String,
-    onRetry: () -> Unit,
+private fun CarePackPrimaryNavigationBar(
+    currentRoute: String?,
+    navController: NavHostController,
 ) {
-    Column(
+    NavigationBar(
         modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(
-                    24.dp,
-                ),
-        verticalArrangement =
-            Arrangement.Center,
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
+            Modifier.testTag(
+                "primary_navigation",
+            ),
     ) {
-        Text(
-            text = message,
-        )
-
-        Button(
-            onClick = onRetry,
-            modifier =
-                Modifier.padding(
-                    top = 16.dp,
-                ),
-        ) {
-            Text(
-                text = "تلاش دوباره",
+        primaryDestinations.forEach { destination ->
+            NavigationBarItem(
+                selected =
+                    currentRoute ==
+                            destination.route,
+                onClick = {
+                    navController.navigatePrimary(
+                        destination.route,
+                    )
+                },
+                icon = {
+                    Text(
+                        text = "•",
+                    )
+                },
+                label = {
+                    Text(
+                        text =
+                            stringResource(
+                                destination.labelResId,
+                            ),
+                    )
+                },
+                modifier =
+                    Modifier.testTag(
+                        destination.testTag,
+                    ),
             )
         }
     }
 }
+
+private fun NavHostController.navigatePrimary(
+    route: String,
+) {
+    navigate(
+        route,
+    ) {
+        popUpTo(
+            graph.findStartDestination().id,
+        ) {
+            saveState = true
+        }
+
+        launchSingleTop = true
+        restoreState = true
+    }
+}
+
+private fun todayViewModelFactory(
+    todayQueryService: TodayQueryService,
+    caregiverReportService:
+    CaregiverReportService,
+    carePlanService: CarePlanService,
+    reminderPreferenceStore:
+    ReminderPreferenceStore,
+    clock: Clock,
+    zoneProvider: ZoneProvider,
+): ViewModelProvider.Factory =
+    TodayViewModel.factory(
+        todayQueryService =
+            todayQueryService,
+        caregiverReportService =
+            caregiverReportService,
+        carePlanService =
+            carePlanService,
+        reminderPreferenceStore =
+            reminderPreferenceStore,
+        clock = clock,
+        zoneProvider =
+            zoneProvider,
+    )

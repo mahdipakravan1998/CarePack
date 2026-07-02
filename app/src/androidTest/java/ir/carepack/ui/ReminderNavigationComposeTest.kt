@@ -21,6 +21,7 @@ import ir.carepack.domain.report.RoomTodayReportFormatter
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.testing.CarePlanRoomTestFixture
 import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
+import ir.carepack.testing.InstrumentedUserExperiencePreferenceStore
 import ir.carepack.testing.RecordingDataDeletionCoordinator
 import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
@@ -102,6 +103,8 @@ class ReminderNavigationComposeTest {
                         ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
+                    userExperiencePreferenceStore =
+                        InstrumentedUserExperiencePreferenceStore(),
                     textShareGateway =
                         RecordingTextShareGateway(),
                     dataDeletionCoordinator =
@@ -127,13 +130,13 @@ class ReminderNavigationComposeTest {
 
         composeRule
             .onNodeWithTag(
-                "detail_medication_name",
+                "occurrence_detail_card",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "record_given",
+                "report_given",
             )
             .assertIsDisplayed()
 
@@ -154,7 +157,7 @@ class ReminderNavigationComposeTest {
     }
 
     @Test
-    fun blankNotificationOccurrence_keepsTodayAsDestination() {
+    fun blankNotificationOccurrence_keepsPrimaryTodayDestination() {
         runBlocking {
             createNoonPlanAndReturnTodayOccurrenceId()
         }
@@ -185,6 +188,8 @@ class ReminderNavigationComposeTest {
                         ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
+                    userExperiencePreferenceStore =
+                        InstrumentedUserExperiencePreferenceStore(),
                     textShareGateway =
                         RecordingTextShareGateway(),
                     dataDeletionCoordinator =
@@ -207,6 +212,12 @@ class ReminderNavigationComposeTest {
         composeRule
             .onNodeWithTag(
                 "today_screen",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "primary_navigation",
             )
             .assertIsDisplayed()
 
@@ -253,7 +264,10 @@ class ReminderNavigationComposeTest {
                 .onAllNodesWithTag(
                     tag,
                 )
-                .fetchSemanticsNodes()
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
                 .isNotEmpty()
         }
     }

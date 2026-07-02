@@ -7,6 +7,9 @@ import ir.carepack.data.local.OccurrenceEntity
 import ir.carepack.data.local.ScheduleDefinitionRow
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.model.ScheduleDefinition
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.IntervalSchedule
+import ir.carepack.domain.schedule.SchedulePattern
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -41,7 +44,7 @@ class RoomOccurrenceGenerator(
             val broadWindowStart =
                 anchorDate
                     .minusDays(
-                        WINDOW_RADIUS_DAYS + 1,
+                        OccurrenceGenerationWindow.RADIUS_DAYS + 1,
                     )
                     .atStartOfDay(
                         ZoneOffset.UTC,
@@ -51,7 +54,7 @@ class RoomOccurrenceGenerator(
             val broadWindowEndExclusive =
                 anchorDate
                     .plusDays(
-                        WINDOW_RADIUS_DAYS + 2,
+                        OccurrenceGenerationWindow.RADIUS_DAYS + 2,
                     )
                     .atStartOfDay(
                         ZoneOffset.UTC,
@@ -118,44 +121,33 @@ class RoomOccurrenceGenerator(
 
         var skipped = 0
 
-        val firstDate =
-            anchorDate.minusDays(
-                WINDOW_RADIUS_DAYS,
+        OccurrenceGenerationWindow
+            .around(
+                anchorDate,
             )
-
-        val lastDate =
-            anchorDate.plusDays(
-                WINDOW_RADIUS_DAYS,
-            )
-
-        var date =
-            firstDate
-
-        while (!date.isAfter(lastDate)) {
-            definitions.forEach { definition ->
-                val candidate =
-                    candidateResolver.resolve(
-                        definition = definition,
-                        anchorDate = date,
-                    )
-
-                if (candidate == null) {
-                    skipped += 1
-                } else {
-                    guaranteed +=
-                        guaranteeCandidate(
-                            definition =
-                                definition,
-                            candidate =
-                                candidate,
-                            now = now,
+            .dates()
+            .forEach { date ->
+                definitions.forEach { definition ->
+                    val candidate =
+                        candidateResolver.resolve(
+                            definition = definition,
+                            anchorDate = date,
                         )
+
+                    if (candidate == null) {
+                        skipped += 1
+                    } else {
+                        guaranteed +=
+                            guaranteeCandidate(
+                                definition =
+                                    definition,
+                                candidate =
+                                    candidate,
+                                now = now,
+                            )
+                    }
                 }
             }
-
-            date =
-                date.plusDays(1)
-        }
 
         return GenerationSummary(
             occurrences = guaranteed,
@@ -298,10 +290,6 @@ class RoomOccurrenceGenerator(
         )
     }
 
-    private companion object {
-        const val WINDOW_RADIUS_DAYS =
-            7L
-    }
 }
 
 private fun ScheduleDefinitionRow.toDomain():
@@ -317,6 +305,15 @@ private fun ScheduleDefinitionRow.toDomain():
             weekdayMask,
         minuteOfDay =
             minuteOfDay,
+        schedulePattern =
+            toSchedulePattern(
+                patternType = patternType,
+                intervalHours = intervalHours,
+                anchorMinuteOfDay =
+                    anchorMinuteOfDay,
+                fallbackMinuteOfDay =
+                    minuteOfDay,
+            ),
         zoneId =
             zoneId,
         effectiveFrom =
@@ -341,3 +338,30 @@ private fun ScheduleDefinitionRow.toDomain():
             instructionSnapshot,
     )
 }
+
+private fun toSchedulePattern(
+    patternType: String,
+    intervalHours: Int?,
+    anchorMinuteOfDay: Int?,
+    fallbackMinuteOfDay: Int,
+): SchedulePattern =
+    when (patternType) {
+        PATTERN_TYPE_INTERVAL ->
+            IntervalSchedule(
+                intervalHours =
+                    checkNotNull(intervalHours),
+                anchorMinuteOfDay =
+                    checkNotNull(anchorMinuteOfDay),
+            )
+
+        else ->
+            FixedTimeSchedule(
+                minutesOfDay =
+                    listOf(
+                        fallbackMinuteOfDay,
+                    ),
+            )
+    }
+
+private const val PATTERN_TYPE_INTERVAL =
+    "EVERY_X_HOURS"

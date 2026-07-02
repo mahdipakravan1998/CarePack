@@ -141,6 +141,9 @@ interface MedicationDao {
             version.versionNumber AS scheduleVersionNumber,
             version.weekdayMask AS weekdayMask,
             version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
             version.effectiveFromEpochMillis
                 AS effectiveFromEpochMillis,
             version.startEpochDay AS startEpochDay,
@@ -158,6 +161,9 @@ interface MedicationDao {
         ORDER BY
             medication.createdAtEpochMillis,
             medication.id,
+            series.createdAtEpochMillis,
+            series.id,
+            version.versionNumber,
             scheduleTime.minuteOfDay
         """,
     )
@@ -179,6 +185,9 @@ interface MedicationDao {
             version.versionNumber AS scheduleVersionNumber,
             version.weekdayMask AS weekdayMask,
             version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
             version.effectiveFromEpochMillis
                 AS effectiveFromEpochMillis,
             version.startEpochDay AS startEpochDay,
@@ -193,11 +202,54 @@ interface MedicationDao {
         LEFT JOIN schedule_times AS scheduleTime
             ON scheduleTime.scheduleVersionId = version.id
         WHERE medication.id = :medicationId
-        ORDER BY scheduleTime.minuteOfDay
+        ORDER BY
+            series.createdAtEpochMillis,
+            series.id,
+            version.versionNumber,
+            scheduleTime.minuteOfDay
         """,
     )
     suspend fun getScheduleRowsForMedication(
         medicationId: String,
+    ): List<MedicationScheduleOverviewRow>
+
+    @Query(
+        """
+        SELECT
+            medication.id AS medicationId,
+            medication.name AS medicationName,
+            medication.instructionText AS medicationInstruction,
+            medication.createdAtEpochMillis
+                AS medicationCreatedAtEpochMillis,
+            medication.stoppedAtEpochMillis
+                AS medicationStoppedAtEpochMillis,
+            series.id AS scheduleSeriesId,
+            version.id AS scheduleVersionId,
+            version.versionNumber AS scheduleVersionNumber,
+            version.weekdayMask AS weekdayMask,
+            version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
+            version.effectiveFromEpochMillis
+                AS effectiveFromEpochMillis,
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay,
+            scheduleTime.minuteOfDay AS minuteOfDay
+        FROM schedule_series AS series
+        INNER JOIN medications AS medication
+            ON medication.id = series.medicationId
+        INNER JOIN schedule_versions AS version
+            ON version.scheduleSeriesId = series.id
+           AND version.effectiveUntilEpochMillis IS NULL
+        LEFT JOIN schedule_times AS scheduleTime
+            ON scheduleTime.scheduleVersionId = version.id
+        WHERE series.id = :scheduleSeriesId
+        ORDER BY scheduleTime.minuteOfDay
+        """,
+    )
+    suspend fun getScheduleRowsForScheduleSeries(
+        scheduleSeriesId: String,
     ): List<MedicationScheduleOverviewRow>
 
     @Query(
@@ -233,6 +285,9 @@ interface ScheduleDao {
             version.weekdayMask AS weekdayMask,
             scheduleTime.minuteOfDay AS minuteOfDay,
             version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
             version.effectiveFromEpochMillis
                 AS effectiveFromEpochMillis,
             version.effectiveUntilEpochMillis
@@ -289,6 +344,9 @@ interface ScheduleDao {
             version.versionNumber AS versionNumber,
             version.weekdayMask AS weekdayMask,
             version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
             version.startEpochDay AS startEpochDay,
             version.endEpochDay AS endEpochDay
         FROM schedule_versions AS version
@@ -300,12 +358,42 @@ interface ScheduleDao {
           AND version.effectiveUntilEpochMillis IS NULL
           AND medication.stoppedAtEpochMillis IS NULL
           AND medication.archivedAtEpochMillis IS NULL
-        ORDER BY version.versionNumber
+        ORDER BY series.createdAtEpochMillis, series.id, version.versionNumber
         """,
     )
     suspend fun getOpenVersionsForMedication(
         medicationId: String,
     ): List<OpenScheduleVersionRow>
+
+    @Query(
+        """
+        SELECT
+            version.id AS scheduleVersionId,
+            version.scheduleSeriesId AS scheduleSeriesId,
+            series.medicationId AS medicationId,
+            version.versionNumber AS versionNumber,
+            version.weekdayMask AS weekdayMask,
+            version.zoneId AS zoneId,
+            version.patternType AS patternType,
+            version.intervalHours AS intervalHours,
+            version.anchorMinuteOfDay AS anchorMinuteOfDay,
+            version.startEpochDay AS startEpochDay,
+            version.endEpochDay AS endEpochDay
+        FROM schedule_versions AS version
+        INNER JOIN schedule_series AS series
+            ON series.id = version.scheduleSeriesId
+        INNER JOIN medications AS medication
+            ON medication.id = series.medicationId
+        WHERE series.id = :scheduleSeriesId
+          AND version.effectiveUntilEpochMillis IS NULL
+          AND medication.stoppedAtEpochMillis IS NULL
+          AND medication.archivedAtEpochMillis IS NULL
+        LIMIT 1
+        """,
+    )
+    suspend fun getOpenVersionForScheduleSeries(
+        scheduleSeriesId: String,
+    ): OpenScheduleVersionRow?
 
     @Query(
         """
@@ -621,7 +709,10 @@ interface OccurrenceDao {
     ): Int
 
     @Query(
-        "SELECT COUNT(*) FROM occurrences",
+        """
+        SELECT COUNT(*)
+        FROM occurrences
+        """,
     )
     suspend fun count(): Int
 }

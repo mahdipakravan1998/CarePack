@@ -8,7 +8,7 @@
     <string name="onboarding_continue">شروع تنظیم</string>
 
     <string name="recipient_title">فرد تحت مراقبت</string>
-    <string name="recipient_description">در نسخه ۱ فقط یک فرد تحت مراقبت می‌تواند ثبت شود.</string>
+    <string name="recipient_description">در نسخه فعلی فقط یک فرد تحت مراقبت می‌تواند ثبت شود.</string>
     <string name="recipient_name_label">نام نمایشی</string>
     <string name="save_and_continue">ذخیره و ادامه</string>
     <string name="edit_recipient">ویرایش نام فرد تحت مراقبت</string>
@@ -21,10 +21,23 @@
     <string name="selected_times_label">زمان‌های روزانه</string>
     <string name="add_time">افزودن</string>
     <string name="remove_time">حذف</string>
-    <string name="start_date_label">تاریخ شروع اختیاری، YYYY-MM-DD</string>
-    <string name="end_date_label">تاریخ پایان اختیاری، YYYY-MM-DD</string>
-    <string name="fixed_zone_label">منطقه زمانی ثابت این نسخه برنامه</string>
+    <string name="start_date_label">تاریخ شروع اختیاری</string>
+    <string name="end_date_label">تاریخ پایان اختیاری</string>
+    <string name="fixed_zone_label">منطقه زمانی ثابت این برنامه</string>
     <string name="create_care_plan">ساخت برنامه مراقبت</string>
+
+    <string name="schedule_pattern_label">نوع زمان‌بندی</string>
+    <string name="fixed_time_schedule_label">در ساعت‌های مشخص</string>
+    <string name="interval_schedule_label">هر X ساعت</string>
+    <string name="interval_presets_label">فاصله یادآوری</string>
+    <string name="every_6_hours">هر ۶ ساعت</string>
+    <string name="every_8_hours">هر ۸ ساعت</string>
+    <string name="every_12_hours">هر ۱۲ ساعت</string>
+    <string name="first_dose_time_label">اولین نوبت</string>
+    <string name="schedule_preview_label">پیش‌نمایش ۱۴ روز آینده</string>
+    <string name="schedule_preview_zone">منطقه زمانی: %1$s</string>
+    <string name="schedule_preview_empty">برای نمایش پیش‌نمایش، روزها و زمان‌بندی معتبر را کامل کنید.</string>
+    <string name="schedule_preview_item">%1$s، %2$s، ساعت %3$s</string>
 
     <string name="today_title">امروز</string>
     <string name="today_empty_title">موردی برای امروز وجود ندارد</string>
@@ -45,6 +58,7 @@
     <string name="schedule_times">زمان‌ها:</string>
     <string name="schedule_zone">منطقه زمانی:</string>
     <string name="schedule_dates">بازه تاریخ:</string>
+    <string name="schedule_pattern">زمان‌بندی:</string>
     <string name="open_ended">بدون محدودیت</string>
 
     <string name="confirm_stop_title">توقف دارو</string>
@@ -72,6 +86,17 @@
     <string name="retry">تلاش دوباره</string>
     <string name="storage_error">ذخیره‌سازی انجام نشد. دوباره تلاش کنید.</string>
     <string name="debug_occurrence_id">شناسه آزمایشی: %1$s</string>
+
+    <string name="carepack_settings_week_start">شروع هفته</string>
+    <string name="carepack_settings_week_start_description">برای ایران معمولاً شنبه مناسب‌تر است. می‌توانید آن را دستی تغییر دهید.</string>
+    <string name="carepack_week_start_system">پیش‌فرض دستگاه و منطقه</string>
+    <string name="carepack_week_start_saturday">شنبه</string>
+    <string name="carepack_week_start_monday">دوشنبه</string>
+    <string name="carepack_week_start_current">شروع فعلی هفته: %1$s</string>
+    <string name="carepack_settings_display">نمایش ساده</string>
+    <string name="carepack_settings_display_description">حالت ساده برای استفاده روزانه با مسیر کوتاه‌تر و دکمه‌های واضح‌تر آماده نگه داشته می‌شود.</string>
+    <string name="carepack_display_standard">حالت عادی</string>
+    <string name="carepack_display_simple">حالت ساده</string>
 
     <string name="saturday">شنبه</string>
     <string name="sunday">یکشنبه</string>

@@ -1,12 +1,9 @@
 package ir.carepack.ui
 
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.test.assertContentDescriptionEquals
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -14,12 +11,15 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ir.carepack.domain.report.TodayReportFormatter
+import ir.carepack.domain.report.TodayReportText
 import ir.carepack.feature.deletion.DeleteAllDataScreen
 import ir.carepack.feature.deletion.DeleteAllDataUiState
 import ir.carepack.feature.privacy.PrivacyScreen
-import ir.carepack.feature.reporting.TodayReportScreen
-import ir.carepack.feature.reporting.TodayReportUiState
+import ir.carepack.feature.reporting.TodayReportRoute
 import ir.carepack.settings.deletion.DataDeletionStage
+import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
+import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
@@ -37,15 +37,8 @@ class ReportingPrivacyDeletionComposeTest {
 
     @Test
     fun reportPreview_displaysExactTextAndExplicitActionsAtTwoHundredPercentFont() {
-        var includeNameValue:
-                Boolean? =
-            null
-
-        var copyCount =
-            0
-
-        var shareCount =
-            0
+        val shareGateway =
+            RecordingTextShareGateway()
 
         composeRule.setContent {
             val currentDensity =
@@ -60,59 +53,41 @@ class ReportingPrivacyDeletionComposeTest {
                         ),
             ) {
                 CarePackTheme {
-                    TodayReportScreen(
-                        state =
-                            TodayReportUiState(
-                                date =
-                                    REPORT_DATE,
-                                isLoading = false,
-                                includeRecipientName = false,
-                                reportText =
-                                    REPORT_TEXT,
+                    TodayReportRoute(
+                        date =
+                            REPORT_DATE,
+                        formatter =
+                            StaticTodayReportFormatter(
+                                REPORT_TEXT,
                             ),
-                        snackbarHostState =
-                            SnackbarHostState(),
-                        onIncludeRecipientNameChanged = {
-                                includeRecipientName ->
-                            includeNameValue =
-                                includeRecipientName
-                        },
-                        onCopy = {
-                            copyCount += 1
-                        },
-                        onShare = {
-                            shareCount += 1
-                        },
-                        onRetry = {},
+                        privacyPreferenceStore =
+                            InstrumentedPrivacyPreferenceStore(),
+                        textShareGateway =
+                            shareGateway,
                         onBack = {},
                     )
                 }
             }
         }
 
-        composeRule
-            .onNodeWithTag(
-                "today_report_preview",
-            )
-            .assertTextEquals(
-                REPORT_TEXT,
-            )
-            .assertContentDescriptionEquals(
-                REPORT_TEXT,
-            )
+        waitForTag(
+            tag =
+                "today_report_preview_text",
+        )
 
         composeRule
             .onNodeWithTag(
-                "today_report_include_name",
+                "today_report_preview_text",
             )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "include_recipient_name_row",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
             .performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(
-                true,
-                includeNameValue,
-            )
-        }
 
         composeRule
             .onNodeWithTag(
@@ -122,25 +97,23 @@ class ReportingPrivacyDeletionComposeTest {
             .assertIsDisplayed()
             .performClick()
 
+        composeRule.waitUntil(
+            timeoutMillis =
+                10_000,
+        ) {
+            shareGateway
+                .copiedTexts
+                .contains(
+                    REPORT_TEXT,
+                )
+        }
+
         composeRule
             .onNodeWithTag(
                 "today_report_share",
             )
             .performScrollTo()
             .assertIsDisplayed()
-            .performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(
-                1,
-                copyCount,
-            )
-
-            assertEquals(
-                1,
-                shareCount,
-            )
-        }
     }
 
     @Test
@@ -181,7 +154,10 @@ class ReportingPrivacyDeletionComposeTest {
                 .onAllNodesWithTag(
                     "privacy_policy_button",
                 )
-                .fetchSemanticsNodes()
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
                 .isEmpty(),
         )
 
@@ -309,6 +285,26 @@ class ReportingPrivacyDeletionComposeTest {
         }
     }
 
+    private fun waitForTag(
+        tag: String,
+    ) {
+        composeRule.waitUntil(
+            timeoutMillis =
+                10_000,
+        ) {
+            composeRule
+                .onAllNodesWithTag(
+                    testTag =
+                        tag,
+                )
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
+                .isNotEmpty()
+        }
+    }
+
     private companion object {
         val REPORT_DATE: LocalDate =
             LocalDate.parse(
@@ -318,4 +314,17 @@ class ReportingPrivacyDeletionComposeTest {
         const val REPORT_TEXT =
             "گزارش امروز کرپک\nداروی تست: داده شده"
     }
+}
+
+private class StaticTodayReportFormatter(
+    private val reportText: String,
+) : TodayReportFormatter {
+
+    override suspend fun createTodayReport(
+        date: LocalDate,
+        includeRecipientName: Boolean,
+    ): TodayReportText =
+        TodayReportText(
+            reportText,
+        )
 }

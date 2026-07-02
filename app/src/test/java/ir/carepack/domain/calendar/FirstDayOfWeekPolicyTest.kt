@@ -36,10 +36,13 @@ class FirstDayOfWeekPolicyTest {
                         .SYSTEM_DEFAULT,
                 zoneId =
                     ZoneId.of(
-                        "Europe/Berlin",
+                        "Europe/Helsinki",
                     ),
                 locale =
-                    persianIranLocale(),
+                    Locale(
+                        "fa",
+                        "FI",
+                    ),
             ),
         )
     }
@@ -54,16 +57,16 @@ class FirstDayOfWeekPolicyTest {
                         .SYSTEM_DEFAULT,
                 zoneId =
                     ZoneId.of(
-                        "Europe/Berlin",
+                        "Europe/Helsinki",
                     ),
                 locale =
-                    Locale.GERMANY,
+                    Locale.US,
             ),
         )
     }
 
     @Test
-    fun explicitSaturdayOverridesSystemDefault() {
+    fun saturdayOverrideWinsOutsideIran() {
         assertEquals(
             DayOfWeek.SATURDAY,
             FirstDayOfWeekPolicy.resolve(
@@ -72,16 +75,16 @@ class FirstDayOfWeekPolicyTest {
                         .SATURDAY,
                 zoneId =
                     ZoneId.of(
-                        "Europe/Berlin",
+                        "Europe/Helsinki",
                     ),
                 locale =
-                    Locale.GERMANY,
+                    Locale.US,
             ),
         )
     }
 
     @Test
-    fun explicitMondayOverridesIranianContext() {
+    fun mondayOverrideWinsInsideIran() {
         assertEquals(
             DayOfWeek.MONDAY,
             FirstDayOfWeekPolicy.resolve(
@@ -93,14 +96,11 @@ class FirstDayOfWeekPolicyTest {
                         "Asia/Tehran",
                     ),
                 locale =
-                    persianIranLocale(),
+                    Locale(
+                        "fa",
+                        "IR",
+                    ),
             ),
         )
     }
-
-    private fun persianIranLocale(): Locale =
-        Locale.Builder()
-            .setLanguage("fa")
-            .setRegion("IR")
-            .build()
 }

@@ -52,14 +52,43 @@ data class JalaliPresentationDate(
 
     fun formatNumeric(): String =
         buildString {
-            append(year.value.toString().padStart(4, '0'))
+            append(
+                year
+                    .value
+                    .toString()
+                    .padStart(
+                        length = 4,
+                        padChar = '0',
+                    ),
+            )
+
             append('/')
-            append(month.value.toString().padStart(2, '0'))
+
+            append(
+                month
+                    .value
+                    .toString()
+                    .padStart(
+                        length = 2,
+                        padChar = '0',
+                    ),
+            )
+
             append('/')
-            append(dayOfMonth.value.toString().padStart(2, '0'))
+
+            append(
+                dayOfMonth
+                    .value
+                    .toString()
+                    .padStart(
+                        length = 2,
+                        padChar = '0',
+                    ),
+            )
         }
 
     companion object {
+
         fun from(
             localDate: LocalDate,
         ): JalaliPresentationDate {
@@ -70,37 +99,66 @@ data class JalaliPresentationDate(
 
             return JalaliPresentationDate(
                 year =
-                    JalaliYear(date.year),
+                    JalaliYear(
+                        date.year,
+                    ),
                 month =
-                    JalaliMonth(date.month),
+                    JalaliMonth(
+                        date.month,
+                    ),
                 dayOfMonth =
-                    JalaliDayOfMonth(date.day),
+                    JalaliDayOfMonth(
+                        date.day,
+                    ),
             )
         }
 
         fun parseNumeric(
             rawValue: String,
         ): JalaliPresentationDate? {
+            val normalizedValue =
+                rawValue
+                    .trim()
+                    .normalizePersianDigits()
+
             val match =
                 NUMERIC_PATTERN.matchEntire(
-                    rawValue.trim(),
+                    normalizedValue,
                 ) ?: return null
 
             val year =
-                match.groupValues[1].toInt()
+                match
+                    .groupValues[1]
+                    .toInt()
+
+            if (year !in USER_INPUT_YEAR_RANGE) {
+                return null
+            }
 
             val month =
-                match.groupValues[2].toInt()
+                match
+                    .groupValues[2]
+                    .toInt()
 
             val day =
-                match.groupValues[3].toInt()
+                match
+                    .groupValues[3]
+                    .toInt()
 
             return runCatching {
                 JalaliPresentationDate(
-                    year = JalaliYear(year),
-                    month = JalaliMonth(month),
+                    year =
+                        JalaliYear(
+                            year,
+                        ),
+                    month =
+                        JalaliMonth(
+                            month,
+                        ),
                     dayOfMonth =
-                        JalaliDayOfMonth(day),
+                        JalaliDayOfMonth(
+                            day,
+                        ),
                 )
             }.getOrNull()
         }
@@ -110,19 +168,43 @@ data class JalaliPresentationDate(
             month: Int,
         ): Int =
             when (month) {
-                in 1..6 -> 31
-                in 7..11 -> 30
-                12 -> if (isLeapYear(year)) 30 else 29
-                else -> error("Invalid Jalali month: $month")
+                in 1..6 -> {
+                    31
+                }
+
+                in 7..11 -> {
+                    30
+                }
+
+                12 -> {
+                    if (isLeapYear(year)) {
+                        30
+                    } else {
+                        29
+                    }
+                }
+
+                else -> {
+                    error(
+                        "Invalid Jalali month: $month",
+                    )
+                }
             }
 
         fun isLeapYear(
             year: Int,
         ): Boolean =
-            PersianCalendarMath.isLeapYear(year)
+            PersianCalendarMath.isLeapYear(
+                year,
+            )
 
         private val NUMERIC_PATTERN =
-            Regex("""^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})$""")
+            Regex(
+                """^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})$""",
+            )
+
+        private val USER_INPUT_YEAR_RANGE =
+            1300..1599
     }
 }
 
@@ -204,7 +286,10 @@ private object PersianCalendarMath {
     private fun jalaliCalendar(
         year: Int,
     ): JalaliCalendarState {
-        require(year >= breaks.first() && year < breaks.last())
+        require(
+            year >= breaks.first() &&
+                    year < breaks.last(),
+        )
 
         val gregorianYear =
             year + 621
@@ -221,7 +306,8 @@ private object PersianCalendarMath {
             val currentBreak =
                 breaks[index]
 
-            jump = currentBreak - previousBreak
+            jump =
+                currentBreak - previousBreak
 
             if (year < currentBreak) {
                 break
@@ -231,7 +317,8 @@ private object PersianCalendarMath {
                 (jump / 33) * 8 +
                         ((jump % 33) / 4)
 
-            previousBreak = currentBreak
+            previousBreak =
+                currentBreak
         }
 
         var yearsSinceBreak =
@@ -241,7 +328,10 @@ private object PersianCalendarMath {
             (yearsSinceBreak / 33) * 8 +
                     (((yearsSinceBreak % 33) + 3) / 4)
 
-        if (jump % 33 == 4 && jump - yearsSinceBreak == 4) {
+        if (
+            jump % 33 == 4 &&
+            jump - yearsSinceBreak == 4
+        ) {
             leapJ += 1
         }
 
@@ -255,7 +345,8 @@ private object PersianCalendarMath {
 
         if (jump - yearsSinceBreak < 6) {
             yearsSinceBreak =
-                yearsSinceBreak - jump +
+                yearsSinceBreak -
+                        jump +
                         ((jump + 4) / 33) * 33
         }
 
@@ -279,7 +370,9 @@ private object PersianCalendarMath {
         day: Int,
     ): Int {
         val calendar =
-            jalaliCalendar(year)
+            jalaliCalendar(
+                year,
+            )
 
         return gregorianToJulianDayNumber(
             year = calendar.gregorianYear,
@@ -304,7 +397,9 @@ private object PersianCalendarMath {
             gregorian.year - 621
 
         val calendar =
-            jalaliCalendar(year)
+            jalaliCalendar(
+                year,
+            )
 
         val dayOfYear =
             julianDayNumber -
@@ -336,8 +431,13 @@ private object PersianCalendarMath {
         year -= 1
 
         val adjustedDay =
-            dayOfYear + 179 +
-                    if (calendar.leap == 1) 1 else 0
+            dayOfYear +
+                    179 +
+                    if (calendar.leap == 1) {
+                        1
+                    } else {
+                        0
+                    }
 
         return JalaliDateParts(
             year = year,
@@ -413,3 +513,34 @@ private data class JalaliCalendarState(
     val gregorianYear: Int,
     val march: Int,
 )
+
+private fun String.normalizePersianDigits():
+        String =
+    map { character ->
+        when (character) {
+            '۰' -> '0'
+            '۱' -> '1'
+            '۲' -> '2'
+            '۳' -> '3'
+            '۴' -> '4'
+            '۵' -> '5'
+            '۶' -> '6'
+            '۷' -> '7'
+            '۸' -> '8'
+            '۹' -> '9'
+            '٠' -> '0'
+            '١' -> '1'
+            '٢' -> '2'
+            '٣' -> '3'
+            '٤' -> '4'
+            '٥' -> '5'
+            '٦' -> '6'
+            '٧' -> '7'
+            '٨' -> '8'
+            '٩' -> '9'
+            else -> character
+        }
+    }
+        .joinToString(
+            separator = "",
+        )

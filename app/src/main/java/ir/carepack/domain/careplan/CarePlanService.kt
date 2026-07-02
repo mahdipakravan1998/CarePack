@@ -105,6 +105,40 @@ sealed interface CreateMedicationScheduleOutcome {
     ) : CreateMedicationScheduleOutcome
 }
 
+data class AddScheduleCommand(
+    val medicationId: String,
+    val weekdays: Set<DayOfWeek>,
+    val minutesOfDay: List<Int>,
+    val schedulePattern: SchedulePattern =
+        FixedTimeSchedule(
+            minutesOfDay =
+                minutesOfDay,
+        ),
+    val startDate: LocalDate?,
+    val endDate: LocalDate?,
+    val zoneId: String,
+)
+
+sealed interface AddScheduleOutcome {
+
+    data class Created(
+        val medicationId: String,
+        val scheduleSeriesId: String,
+        val scheduleVersionId: String,
+        val occurrenceIds: List<String>,
+    ) : AddScheduleOutcome
+
+    data object NotFound :
+        AddScheduleOutcome
+
+    data object NotEditable :
+        AddScheduleOutcome
+
+    data class Invalid(
+        val errors: List<CarePlanValidationError>,
+    ) : AddScheduleOutcome
+}
+
 data class UpdateMedicationTextCommand(
     val medicationId: String,
     val medicationName: String,
@@ -131,7 +165,7 @@ sealed interface UpdateMedicationTextOutcome {
 }
 
 data class UpdateScheduleCommand(
-    val medicationId: String,
+    val scheduleSeriesId: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
     val schedulePattern: SchedulePattern =
@@ -229,7 +263,7 @@ data class MedicationPlanItem(
     val status: MedicationStatus,
     val createdAt: Instant,
     val stoppedAt: Instant?,
-    val schedule: SchedulePlan?,
+    val schedules: List<SchedulePlan>,
 )
 
 data class CarePlanOverview(
@@ -243,7 +277,15 @@ data class MedicationEditorSnapshot(
     val name: String,
     val instruction: String,
     val status: MedicationStatus,
-    val schedule: SchedulePlan?,
+    val schedules: List<SchedulePlan>,
+)
+
+data class ScheduleEditorSnapshot(
+    val medicationId: String,
+    val medicationName: String,
+    val instruction: String,
+    val status: MedicationStatus,
+    val schedule: SchedulePlan,
 )
 
 interface CarePlanService {
@@ -259,6 +301,10 @@ interface CarePlanService {
     suspend fun createMedicationAndSchedule(
         command: CreateMedicationScheduleCommand,
     ): CreateMedicationScheduleOutcome
+
+    suspend fun addSchedule(
+        command: AddScheduleCommand,
+    ): AddScheduleOutcome
 
     suspend fun updateMedicationText(
         command: UpdateMedicationTextCommand,
@@ -285,4 +331,8 @@ interface CarePlanService {
     suspend fun getMedicationEditor(
         medicationId: String,
     ): MedicationEditorSnapshot?
+
+    suspend fun getScheduleEditor(
+        scheduleSeriesId: String,
+    ): ScheduleEditorSnapshot?
 }
