@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="primary_nav_today">امروز</string>
+    <string name="primary_nav_medications">داروها</string>
+    <string name="primary_nav_history">سابقه</string>
+    <string name="primary_nav_settings">تنظیمات</string>
+
+    <string name="add_schedule">افزودن برنامه مصرف</string>
+    <string name="add_schedule_title">برنامه مصرف جدید</string>
+    <string name="no_schedules">برای این دارو هنوز برنامه فعالی ثبت نشده است.</string>
+    <string name="schedule_card_title">برنامه مصرف %1$d</string>
+    <string name="schedule_type">نوع برنامه</string>
+    <string name="schedule_fixed_times">ساعت‌های مشخص</string>
+    <string name="schedule_interval_hours">هر %1$d ساعت</string>
+
+    <string name="carepack_settings_app_version">نسخه برنامه</string>
+</resources>

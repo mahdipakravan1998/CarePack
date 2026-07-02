@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "bd5443693f6245660124ce262355a870",
+    "identityHash": "75425472137bd66147cac24088c10389",
     "entities": [
       {
         "tableName": "care_recipients",
@@ -204,7 +204,7 @@
       },
       {
         "tableName": "schedule_versions",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleSeriesId` TEXT NOT NULL, `versionNumber` INTEGER NOT NULL, `weekdayMask` INTEGER NOT NULL, `startEpochDay` INTEGER, `endEpochDay` INTEGER, `zoneId` TEXT NOT NULL, `effectiveFromEpochMillis` INTEGER NOT NULL, `effectiveUntilEpochMillis` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `supersededReason` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleSeriesId`) REFERENCES `schedule_series`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleSeriesId` TEXT NOT NULL, `versionNumber` INTEGER NOT NULL, `weekdayMask` INTEGER NOT NULL, `startEpochDay` INTEGER, `endEpochDay` INTEGER, `zoneId` TEXT NOT NULL, `patternType` TEXT NOT NULL, `intervalHours` INTEGER, `anchorMinuteOfDay` INTEGER, `effectiveFromEpochMillis` INTEGER NOT NULL, `effectiveUntilEpochMillis` INTEGER, `createdAtEpochMillis` INTEGER NOT NULL, `supersededReason` TEXT, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleSeriesId`) REFERENCES `schedule_series`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -245,6 +245,22 @@
             "columnName": "zoneId",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "patternType",
+            "columnName": "patternType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "intervalHours",
+            "columnName": "intervalHours",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "anchorMinuteOfDay",
+            "columnName": "anchorMinuteOfDay",
+            "affinity": "INTEGER"
           },
           {
             "fieldPath": "effectiveFromEpochMillis",
@@ -582,7 +598,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'bd5443693f6245660124ce262355a870')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '75425472137bd66147cac24088c10389')"
     ]
   }
 }

@@ -16,6 +16,9 @@ import ir.carepack.data.local.ScheduleVersionEntity
 import ir.carepack.domain.model.MedicationStatus
 import ir.carepack.domain.model.OccurrenceCancellationReason
 import ir.carepack.domain.occurrence.OccurrenceGenerator
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.IntervalSchedule
+import ir.carepack.domain.schedule.SchedulePattern
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
@@ -161,6 +164,8 @@ class RoomCarePlanService(
                 weekdays = command.weekdays,
                 minutesOfDay =
                     command.minutesOfDay,
+                schedulePattern =
+                    command.schedulePattern,
                 startDate = command.startDate,
                 endDate = command.endDate,
                 rawZoneId = command.zoneId,
@@ -206,12 +211,6 @@ class RoomCarePlanService(
             val medicationId =
                 idSource.nextId()
 
-            val seriesId =
-                idSource.nextId()
-
-            val versionId =
-                idSource.nextId()
-
             medicationDao.insert(
                 MedicationEntity(
                     id = medicationId,
@@ -228,68 +227,79 @@ class RoomCarePlanService(
                 ),
             )
 
-            scheduleDao.insertSeries(
-                ScheduleSeriesEntity(
-                    id = seriesId,
+            val createdSchedule =
+                insertScheduleForMedication(
                     medicationId = medicationId,
-                    createdAtEpochMillis =
-                        nowEpochMillis,
-                ),
-            )
-
-            scheduleDao.insertVersion(
-                ScheduleVersionEntity(
-                    id = versionId,
-                    scheduleSeriesId = seriesId,
-                    versionNumber = FIRST_VERSION,
-                    weekdayMask =
-                        schedule.weekdayMask,
-                    startEpochDay =
-                        schedule
-                            .startDate
-                            ?.toEpochDay(),
-                    endEpochDay =
-                        schedule
-                            .endDate
-                            ?.toEpochDay(),
-                    zoneId = schedule.zoneId.id,
-                    effectiveFromEpochMillis =
-                        nowEpochMillis,
-                    effectiveUntilEpochMillis = null,
-                    createdAtEpochMillis =
-                        nowEpochMillis,
-                    supersededReason = null,
-                ),
-            )
-
-            insertScheduleTimes(
-                versionId = versionId,
-                minutesOfDay =
-                    schedule.minutesOfDay,
-            )
-
-            val generation =
-                occurrenceGenerator
-                    .guaranteeWindowForSchedule(
-                        scheduleVersionId =
-                            versionId,
-                        anchorDate =
-                            now.atZone(
-                                schedule.zoneId,
-                            ).toLocalDate(),
-                        now = now,
-                    )
+                    schedule = schedule,
+                    now = now,
+                )
 
             CreateMedicationScheduleOutcome.Created(
                 medicationId = medicationId,
-                scheduleSeriesId = seriesId,
-                scheduleVersionId = versionId,
+                scheduleSeriesId =
+                    createdSchedule.scheduleSeriesId,
+                scheduleVersionId =
+                    createdSchedule.scheduleVersionId,
                 occurrenceIds =
-                    generation
-                        .occurrences
-                        .map {
-                            it.occurrenceId
-                        },
+                    createdSchedule.occurrenceIds,
+            )
+        }
+    }
+
+    override suspend fun addSchedule(
+        command: AddScheduleCommand,
+    ): AddScheduleOutcome {
+        val validation =
+            CarePlanValidation.validateSchedule(
+                weekdays = command.weekdays,
+                minutesOfDay =
+                    command.minutesOfDay,
+                schedulePattern =
+                    command.schedulePattern,
+                startDate = command.startDate,
+                endDate = command.endDate,
+                rawZoneId = command.zoneId,
+            )
+
+        if (validation is ValidationResult.Invalid) {
+            return AddScheduleOutcome.Invalid(
+                validation.errors,
+            )
+        }
+
+        val schedule =
+            checkNotNull(
+                validation.valueOrNull(),
+            )
+
+        return database.withTransaction {
+            val medication =
+                medicationDao.getById(
+                    command.medicationId,
+                ) ?: return@withTransaction AddScheduleOutcome.NotFound
+
+            if (!medication.isEditable) {
+                return@withTransaction AddScheduleOutcome.NotEditable
+            }
+
+            val createdSchedule =
+                insertScheduleForMedication(
+                    medicationId =
+                        medication.id,
+                    schedule = schedule,
+                    now =
+                        clock.instant(),
+                )
+
+            AddScheduleOutcome.Created(
+                medicationId =
+                    medication.id,
+                scheduleSeriesId =
+                    createdSchedule.scheduleSeriesId,
+                scheduleVersionId =
+                    createdSchedule.scheduleVersionId,
+                occurrenceIds =
+                    createdSchedule.occurrenceIds,
             )
         }
     }
@@ -394,6 +404,8 @@ class RoomCarePlanService(
                 weekdays = command.weekdays,
                 minutesOfDay =
                     command.minutesOfDay,
+                schedulePattern =
+                    command.schedulePattern,
                 startDate = command.startDate,
                 endDate = command.endDate,
                 rawZoneId = command.zoneId,
@@ -409,28 +421,25 @@ class RoomCarePlanService(
             checkNotNull(validation.valueOrNull())
 
         return database.withTransaction {
+            val oldVersion =
+                scheduleDao
+                    .getOpenVersionForScheduleSeries(
+                        command.scheduleSeriesId,
+                    ) ?: return@withTransaction UpdateScheduleOutcome.NotFound
+
             val medication =
                 medicationDao.getById(
-                    command.medicationId,
+                    oldVersion.medicationId,
                 ) ?: return@withTransaction UpdateScheduleOutcome.NotFound
 
             if (!medication.isEditable) {
                 return@withTransaction UpdateScheduleOutcome.NotEditable
             }
 
-            val oldVersion =
-                scheduleDao
-                    .getOpenVersionsForMedication(
-                        medication.id,
-                    )
-                    .singleOrNull()
-                    ?: return@withTransaction UpdateScheduleOutcome.NotEditable
-
             val oldDefinition =
                 oldVersion.toDefinition(
                     scheduleDao.getTimesForVersion(
-                        oldVersion
-                            .scheduleVersionId,
+                        oldVersion.scheduleVersionId,
                     ),
                 )
 
@@ -471,21 +480,28 @@ class RoomCarePlanService(
                 return@withTransaction StopMedicationOutcome.AlreadyStopped
             }
 
-            val nowEpochMillis =
-                clock
-                    .instant()
-                    .toEpochMilli()
+            if (medication.archivedAtEpochMillis != null) {
+                return@withTransaction StopMedicationOutcome.NotFound
+            }
 
-            scheduleDao
-                .getOpenVersionsForMedication(
-                    medicationId,
-                )
+            val now =
+                clock.instant()
+
+            val nowEpochMillis =
+                now.toEpochMilli()
+
+            val openVersions =
+                scheduleDao
+                    .getOpenVersionsForMedication(
+                        medicationId,
+                    )
+
+            openVersions
                 .forEach { version ->
                     check(
                         scheduleDao.closeVersion(
                             scheduleVersionId =
-                                version
-                                    .scheduleVersionId,
+                                version.scheduleVersionId,
                             effectiveUntilEpochMillis =
                                 nowEpochMillis,
                             supersededReason =
@@ -611,8 +627,41 @@ class RoomCarePlanService(
             instruction =
                 medication.instructionText,
             status =
+                medication.toStatus(),
+            schedules =
+                rows.toSchedulePlans(),
+        )
+    }
+
+    override suspend fun getScheduleEditor(
+        scheduleSeriesId: String,
+    ): ScheduleEditorSnapshot? {
+        val rows =
+            medicationDao.getScheduleRowsForScheduleSeries(
+                scheduleSeriesId,
+            )
+
+        val first =
+            rows.firstOrNull {
+                it.scheduleVersionId != null &&
+                        it.scheduleSeriesId != null
+            } ?: return null
+
+        val schedule =
+            rows.toSchedulePlans()
+                .singleOrNull()
+                ?: return null
+
+        return ScheduleEditorSnapshot(
+            medicationId =
+                first.medicationId,
+            medicationName =
+                first.medicationName,
+            instruction =
+                first.medicationInstruction,
+            status =
                 if (
-                    medication.stoppedAtEpochMillis ==
+                    first.medicationStoppedAtEpochMillis ==
                     null
                 ) {
                     MedicationStatus.ACTIVE
@@ -620,7 +669,91 @@ class RoomCarePlanService(
                     MedicationStatus.STOPPED
                 },
             schedule =
-                rows.toSchedulePlanOrNull(),
+                schedule,
+        )
+    }
+
+    private suspend fun insertScheduleForMedication(
+        medicationId: String,
+        schedule: ValidatedScheduleDefinition,
+        now: Instant,
+    ): CreatedScheduleRecord {
+        val nowEpochMillis =
+            now.toEpochMilli()
+
+        val seriesId =
+            idSource.nextId()
+
+        val versionId =
+            idSource.nextId()
+
+        scheduleDao.insertSeries(
+            ScheduleSeriesEntity(
+                id = seriesId,
+                medicationId = medicationId,
+                createdAtEpochMillis =
+                    nowEpochMillis,
+            ),
+        )
+
+        scheduleDao.insertVersion(
+            ScheduleVersionEntity(
+                id = versionId,
+                scheduleSeriesId = seriesId,
+                versionNumber = FIRST_VERSION,
+                weekdayMask =
+                    schedule.weekdayMask,
+                startEpochDay =
+                    schedule
+                        .startDate
+                        ?.toEpochDay(),
+                endEpochDay =
+                    schedule
+                        .endDate
+                        ?.toEpochDay(),
+                zoneId = schedule.zoneId.id,
+                patternType =
+                    schedule.schedulePattern.toPatternType(),
+                intervalHours =
+                    schedule.schedulePattern.intervalHoursOrNull(),
+                anchorMinuteOfDay =
+                    schedule.schedulePattern.anchorMinuteOfDayOrNull(),
+                effectiveFromEpochMillis =
+                    nowEpochMillis,
+                effectiveUntilEpochMillis = null,
+                createdAtEpochMillis =
+                    nowEpochMillis,
+                supersededReason = null,
+            ),
+        )
+
+        insertScheduleTimes(
+            versionId = versionId,
+            minutesOfDay =
+                schedule.minutesOfDay,
+        )
+
+        val generation =
+            occurrenceGenerator
+                .guaranteeWindowForSchedule(
+                    scheduleVersionId =
+                        versionId,
+                    anchorDate =
+                        now.atZone(
+                            schedule.zoneId,
+                        ).toLocalDate(),
+                    now = now,
+                )
+
+        return CreatedScheduleRecord(
+            scheduleSeriesId = seriesId,
+            scheduleVersionId = versionId,
+            occurrenceIds =
+                generation
+                    .occurrences
+                    .map {
+                        it.occurrenceId
+                    },
         )
     }
 
@@ -674,6 +807,12 @@ class RoomCarePlanService(
                     definition.endEpochDay,
                 zoneId =
                     definition.zoneId,
+                patternType =
+                    definition.schedulePattern.toPatternType(),
+                intervalHours =
+                    definition.schedulePattern.intervalHoursOrNull(),
+                anchorMinuteOfDay =
+                    definition.schedulePattern.anchorMinuteOfDayOrNull(),
                 effectiveFromEpochMillis =
                     nowEpochMillis,
                 effectiveUntilEpochMillis = null,
@@ -727,9 +866,16 @@ class RoomCarePlanService(
     }
 }
 
+private data class CreatedScheduleRecord(
+    val scheduleSeriesId: String,
+    val scheduleVersionId: String,
+    val occurrenceIds: List<String>,
+)
+
 private data class VersionDefinition(
     val weekdayMask: Int,
     val minutesOfDay: List<Int>,
+    val schedulePattern: SchedulePattern,
     val zoneId: String,
     val startEpochDay: Long?,
     val endEpochDay: Long?,
@@ -740,6 +886,13 @@ private val MedicationEntity.isEditable: Boolean
         stoppedAtEpochMillis == null &&
                 archivedAtEpochMillis == null
 
+private fun MedicationEntity.toStatus(): MedicationStatus =
+    if (stoppedAtEpochMillis == null) {
+        MedicationStatus.ACTIVE
+    } else {
+        MedicationStatus.STOPPED
+    }
+
 private fun OpenScheduleVersionRow.toDefinition(
     minutesOfDay: List<Int>,
 ): VersionDefinition =
@@ -747,6 +900,14 @@ private fun OpenScheduleVersionRow.toDefinition(
         weekdayMask = weekdayMask,
         minutesOfDay =
             minutesOfDay.sorted(),
+        schedulePattern =
+            toSchedulePattern(
+                patternType = patternType,
+                intervalHours = intervalHours,
+                anchorMinuteOfDay =
+                    anchorMinuteOfDay,
+                minutesOfDay = minutesOfDay,
+            ),
         zoneId = zoneId,
         startEpochDay = startEpochDay,
         endEpochDay = endEpochDay,
@@ -758,6 +919,8 @@ private fun ValidatedScheduleDefinition.toDefinition():
         weekdayMask = weekdayMask,
         minutesOfDay =
             minutesOfDay.sorted(),
+        schedulePattern =
+            schedulePattern,
         zoneId = zoneId.id,
         startEpochDay =
             startDate?.toEpochDay(),
@@ -801,12 +964,35 @@ private fun List<MedicationScheduleOverviewRow>.toMedicationPlans():
                     first
                         .medicationStoppedAtEpochMillis
                         ?.let(Instant::ofEpochMilli),
-                schedule =
-                    rows.toSchedulePlanOrNull(),
+                schedules =
+                    rows.toSchedulePlans(),
             )
         }
         .sortedBy(
             MedicationPlanItem::createdAt,
+        )
+
+private fun List<MedicationScheduleOverviewRow>.toSchedulePlans():
+        List<SchedulePlan> =
+    filter {
+        it.scheduleSeriesId != null &&
+                it.scheduleVersionId != null
+    }
+        .groupBy {
+            checkNotNull(
+                it.scheduleSeriesId,
+            )
+        }
+        .values
+        .mapNotNull { rows ->
+            rows.toSchedulePlanOrNull()
+        }
+        .sortedWith(
+            compareBy<SchedulePlan> {
+                it.effectiveFrom
+            }.thenBy {
+                it.scheduleSeriesId
+            },
         )
 
 private fun List<MedicationScheduleOverviewRow>
@@ -815,6 +1001,13 @@ private fun List<MedicationScheduleOverviewRow>
         firstOrNull {
             it.scheduleVersionId != null
         } ?: return null
+
+    val minutesOfDay =
+        mapNotNull(
+            MedicationScheduleOverviewRow::minuteOfDay,
+        )
+            .distinct()
+            .sorted()
 
     return SchedulePlan(
         scheduleSeriesId =
@@ -829,14 +1022,23 @@ private fun List<MedicationScheduleOverviewRow>
             checkNotNull(first.weekdayMask)
                 .toDaysOfWeek(),
         times =
-            mapNotNull(
-                MedicationScheduleOverviewRow::minuteOfDay,
-            )
-                .distinct()
-                .sorted()
+            minutesOfDay
                 .map { minuteOfDay ->
                     minuteOfDay.toLocalTime()
                 },
+        schedulePattern =
+            toSchedulePattern(
+                patternType =
+                    checkNotNull(
+                        first.patternType,
+                    ),
+                intervalHours =
+                    first.intervalHours,
+                anchorMinuteOfDay =
+                    first.anchorMinuteOfDay,
+                minutesOfDay =
+                    minutesOfDay,
+            ),
         zoneId =
             checkNotNull(first.zoneId),
         effectiveFrom =
@@ -856,6 +1058,46 @@ private fun List<MedicationScheduleOverviewRow>
     )
 }
 
+private fun SchedulePattern.toPatternType(): String =
+    when (this) {
+        is FixedTimeSchedule -> PATTERN_TYPE_FIXED
+        is IntervalSchedule -> PATTERN_TYPE_INTERVAL
+    }
+
+private fun SchedulePattern.intervalHoursOrNull(): Int? =
+    when (this) {
+        is FixedTimeSchedule -> null
+        is IntervalSchedule -> intervalHours
+    }
+
+private fun SchedulePattern.anchorMinuteOfDayOrNull(): Int? =
+    when (this) {
+        is FixedTimeSchedule -> null
+        is IntervalSchedule -> anchorMinuteOfDay
+    }
+
+private fun toSchedulePattern(
+    patternType: String,
+    intervalHours: Int?,
+    anchorMinuteOfDay: Int?,
+    minutesOfDay: List<Int>,
+): SchedulePattern =
+    when (patternType) {
+        PATTERN_TYPE_INTERVAL ->
+            IntervalSchedule(
+                intervalHours =
+                    checkNotNull(intervalHours),
+                anchorMinuteOfDay =
+                    checkNotNull(anchorMinuteOfDay),
+            )
+
+        else ->
+            FixedTimeSchedule(
+                minutesOfDay =
+                    minutesOfDay,
+            )
+    }
+
 private fun Int.toDaysOfWeek(): Set<DayOfWeek> =
     DayOfWeek.entries.filterTo(
         linkedSetOf(),
@@ -871,3 +1113,5 @@ private fun Int.toLocalTime(): LocalTime =
     )
 
 private const val MINUTES_PER_HOUR = 60
+private const val PATTERN_TYPE_FIXED = "FIXED_TIMES"
+private const val PATTERN_TYPE_INTERVAL = "EVERY_X_HOURS"

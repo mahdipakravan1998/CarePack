@@ -2,15 +2,10 @@ package ir.carepack.reminder
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.domain.model.CaregiverReportState
-import ir.carepack.domain.model.OccurrenceLifecycle
-import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.LocalDate
-import java.time.LocalTime
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,141 +13,8 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ReminderRoomIntegrationTest {
 
-    private val anchorDate =
-        LocalDate.parse(
-            "2026-06-24",
-        )
-
     @Test
-    fun hasActiveSchedule_tracksCarePlanLifecycle() =
-        runBlocking {
-            CarePlanRoomTestFixture.create().use { fixture ->
-                assertEquals(
-                    false,
-                    fixture
-                        .reminderScheduleSource
-                        .hasActiveSchedule(),
-                )
-
-                val plan =
-                    fixture.createPlan(
-                        minutesOfDay =
-                            listOf(
-                                9 * 60,
-                            ),
-                    )
-
-                assertEquals(
-                    true,
-                    fixture
-                        .reminderScheduleSource
-                        .hasActiveSchedule(),
-                )
-
-                assertEquals(
-                    StopMedicationOutcome.Stopped,
-                    fixture
-                        .carePlanService
-                        .stopMedication(
-                            plan.medicationId,
-                        ),
-                )
-
-                assertEquals(
-                    false,
-                    fixture
-                        .reminderScheduleSource
-                        .hasActiveSchedule(),
-                )
-            }
-        }
-
-    @Test
-    fun nextEligibleTargets_returnsEarliestFutureUnreportedOccurrencePerSeries() =
-        runBlocking {
-            CarePlanRoomTestFixture.create().use { fixture ->
-                val firstPlan =
-                    fixture.createPlan(
-                        medicationName =
-                            "داروی ساعت نه",
-                        instruction =
-                            "دستور اول",
-                        minutesOfDay =
-                            listOf(
-                                9 * 60,
-                                10 * 60,
-                            ),
-                    )
-
-                val secondPlan =
-                    fixture.createPlan(
-                        medicationName =
-                            "داروی ساعت یازده",
-                        instruction =
-                            "دستور دوم",
-                        minutesOfDay =
-                            listOf(
-                                11 * 60,
-                            ),
-                    )
-
-                val targets =
-                    fixture
-                        .reminderScheduleSource
-                        .getNextEligibleTargets(
-                            now =
-                                fixture
-                                    .clock
-                                    .instant(),
-                        )
-                        .sortedBy {
-                            it.localTime
-                        }
-
-                assertEquals(
-                    2,
-                    targets.size,
-                )
-
-                assertEquals(
-                    firstPlan.scheduleSeriesId,
-                    targets[0]
-                        .alarmKey
-                        .scheduleSeriesId,
-                )
-
-                assertEquals(
-                    LocalTime.of(
-                        9,
-                        0,
-                    ),
-                    targets[0].localTime,
-                )
-
-                assertEquals(
-                    "داروی ساعت نه",
-                    targets[0].medicationName,
-                )
-
-                assertEquals(
-                    secondPlan.scheduleSeriesId,
-                    targets[1]
-                        .alarmKey
-                        .scheduleSeriesId,
-                )
-
-                assertEquals(
-                    LocalTime.of(
-                        11,
-                        0,
-                    ),
-                    targets[1].localTime,
-                )
-            }
-        }
-
-    @Test
-    fun reportedOccurrence_isExcludedFromReminderEligibility() =
+    fun reminderScheduleSource_returnsNextUnreportedOccurrenceForEachActiveSchedule() =
         runBlocking {
             CarePlanRoomTestFixture.create().use { fixture ->
                 val plan =
@@ -164,40 +26,113 @@ class ReminderRoomIntegrationTest {
                         minutesOfDay =
                             listOf(
                                 9 * 60,
-                                10 * 60,
                             ),
+                        startDate =
+                            ANCHOR_DATE,
+                        endDate =
+                            ANCHOR_DATE,
                     )
 
-                val firstOccurrence =
+                val secondSchedule =
+                    fixture.addSchedule(
+                        medicationId =
+                            plan.medicationId,
+                        minutesOfDay =
+                            listOf(
+                                18 * 60,
+                            ),
+                        startDate =
+                            ANCHOR_DATE,
+                        endDate =
+                            ANCHOR_DATE,
+                    )
+
+                val targets =
+                    fixture
+                        .reminderScheduleSource
+                        .getNextEligibleTargets(
+                            now =
+                                fixture
+                                    .clock
+                                    .instant(),
+                        )
+
+                assertEquals(
+                    setOf(
+                        plan.scheduleSeriesId,
+                        secondSchedule.scheduleSeriesId,
+                    ),
+                    targets
+                        .map {
+                            it.alarmKey.scheduleSeriesId
+                        }
+                        .toSet(),
+                )
+
+                assertEquals(
+                    listOf(
+                        9 * 60,
+                        18 * 60,
+                    ),
+                    targets
+                        .map {
+                            it.localTime.hour * 60 +
+                                    it.localTime.minute
+                        }
+                        .sorted(),
+                )
+            }
+        }
+
+    @Test
+    fun reminderScheduleSource_skipsReportedOccurrenceButKeepsOtherSchedule() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val plan =
+                    fixture.createPlan(
+                        medicationName =
+                            "داروی گزارش‌شده",
+                        instruction =
+                            "دستور",
+                        minutesOfDay =
+                            listOf(
+                                9 * 60,
+                            ),
+                        startDate =
+                            ANCHOR_DATE,
+                        endDate =
+                            ANCHOR_DATE,
+                    )
+
+                val secondSchedule =
+                    fixture.addSchedule(
+                        medicationId =
+                            plan.medicationId,
+                        minutesOfDay =
+                            listOf(
+                                18 * 60,
+                            ),
+                        startDate =
+                            ANCHOR_DATE,
+                        endDate =
+                            ANCHOR_DATE,
+                    )
+
+                val reportedOccurrence =
                     fixture.occurrenceOn(
                         medicationId =
                             plan.medicationId,
-                        date = anchorDate,
+                        date =
+                            ANCHOR_DATE,
                         minuteOfDay =
                             9 * 60,
                     )
 
-                assertNotNull(
-                    fixture
-                        .reminderScheduleSource
-                        .getEligibleOccurrence(
-                            firstOccurrence.id,
-                        ),
-                )
-
                 fixture.report(
                     occurrenceId =
-                        firstOccurrence.id,
+                        reportedOccurrence.id,
                     state =
                         CaregiverReportState.GIVEN,
-                )
-
-                assertNull(
-                    fixture
-                        .reminderScheduleSource
-                        .getEligibleOccurrence(
-                            firstOccurrence.id,
-                        ),
                 )
 
                 val targets =
@@ -211,106 +146,89 @@ class ReminderRoomIntegrationTest {
                         )
 
                 assertEquals(
-                    1,
-                    targets.size,
+                    listOf(
+                        secondSchedule.scheduleSeriesId,
+                    ),
+                    targets.map {
+                        it.alarmKey.scheduleSeriesId
+                    },
                 )
 
                 assertEquals(
-                    LocalTime.of(
-                        10,
-                        0,
-                    ),
-                    targets.single().localTime,
+                    18,
+                    targets
+                        .single()
+                        .localTime
+                        .hour,
                 )
             }
         }
 
     @Test
-    fun cancelledOccurrence_isNotReminderEligible() =
+    fun reminderScheduleSource_returnsValidatedNotificationOccurrenceWithoutWritingReport() =
         runBlocking {
             CarePlanRoomTestFixture.create().use { fixture ->
                 val plan =
                     fixture.createPlan(
+                        medicationName =
+                            "داروی اعلان",
+                        instruction =
+                            "دستور",
                         minutesOfDay =
                             listOf(
-                                12 * 60,
+                                11 * 60,
                             ),
+                        startDate =
+                            ANCHOR_DATE,
+                        endDate =
+                            ANCHOR_DATE,
                     )
 
                 val occurrence =
                     fixture.occurrenceOn(
                         medicationId =
                             plan.medicationId,
-                        date = anchorDate,
+                        date =
+                            ANCHOR_DATE,
                         minuteOfDay =
-                            12 * 60,
+                            11 * 60,
                     )
 
-                assertNotNull(
+                val target =
                     fixture
                         .reminderScheduleSource
                         .getEligibleOccurrence(
-                            occurrence.id,
-                        ),
-                )
-
-                fixture
-                    .carePlanService
-                    .stopMedication(
-                        plan.medicationId,
-                    )
-
-                val stoppedOccurrence =
-                    fixture
-                        .database
-                        .occurrenceDao()
-                        .getById(
-                            occurrence.id,
+                            occurrenceId =
+                                occurrence.id,
                         )
 
                 assertEquals(
-                    OccurrenceLifecycle
-                        .CANCELLED
-                        .name,
-                    stoppedOccurrence?.lifecycle,
+                    occurrence.id,
+                    target?.occurrenceId,
                 )
 
-                assertNull(
-                    fixture
-                        .reminderScheduleSource
-                        .getEligibleOccurrence(
-                            occurrence.id,
-                        ),
+                assertEquals(
+                    plan.scheduleSeriesId,
+                    target
+                        ?.alarmKey
+                        ?.scheduleSeriesId,
                 )
-            }
-        }
-
-    @Test
-    fun allScheduleSeriesIds_includeStoppedHistoricalSeries() =
-        runBlocking {
-            CarePlanRoomTestFixture.create().use { fixture ->
-                val plan =
-                    fixture.createPlan(
-                        minutesOfDay =
-                            listOf(
-                                12 * 60,
-                            ),
-                    )
-
-                fixture
-                    .carePlanService
-                    .stopMedication(
-                        plan.medicationId,
-                    )
 
                 assertTrue(
                     fixture
-                        .reminderScheduleSource
-                        .getAllScheduleSeriesIds()
-                        .contains(
-                            plan.scheduleSeriesId,
-                        ),
+                        .database
+                        .reportingDao()
+                        .getReport(
+                            occurrence.id,
+                        ) == null,
                 )
             }
         }
+
+    private companion object {
+        val ANCHOR_DATE: LocalDate =
+            LocalDate.parse(
+                "2026-06-24",
+            )
+    }
 }

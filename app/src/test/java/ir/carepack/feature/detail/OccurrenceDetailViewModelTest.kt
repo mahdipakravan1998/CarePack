@@ -21,7 +21,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
@@ -43,7 +46,9 @@ class OccurrenceDetailViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(dispatcher)
+        Dispatchers.setMain(
+            dispatcher,
+        )
     }
 
     @After
@@ -57,24 +62,13 @@ class OccurrenceDetailViewModelTest {
             val reportService =
                 FakeCaregiverReportService()
 
-            val changedAt =
-                FIXED_INSTANT
-                    .toEpochMilli()
-
             reportService.enqueue(
-                SetReportOutcome.Changed(
-                    change =
-                        ReportChange(
-                            occurrenceId =
-                                OCCURRENCE_ID,
-                            previousState =
-                                null,
-                            newState =
-                                CaregiverReportState
-                                    .GIVEN,
-                            changedAtEpochMillis =
-                                changedAt,
-                        ),
+                changedOutcome(
+                    previousState = null,
+                    newState =
+                        CaregiverReportState.GIVEN,
+                    changedAt =
+                        FIXED_INSTANT.toEpochMilli(),
                 ),
             )
 
@@ -83,6 +77,10 @@ class OccurrenceDetailViewModelTest {
                     reportService =
                         reportService,
                 )
+
+            collectState(
+                viewModel,
+            )
 
             runCurrent()
 
@@ -93,26 +91,41 @@ class OccurrenceDetailViewModelTest {
             runCurrent()
 
             assertNotNull(
-                viewModel.state.value.undo,
+                viewModel
+                    .state
+                    .value
+                    .undoChange,
             )
 
-            advanceTimeBy(7_999L)
+            advanceTimeBy(
+                7_999L,
+            )
+
             runCurrent()
 
             assertNotNull(
-                viewModel.state.value.undo,
+                viewModel
+                    .state
+                    .value
+                    .undoChange,
             )
 
-            advanceTimeBy(1L)
+            advanceTimeBy(
+                1L,
+            )
+
             runCurrent()
 
             assertNull(
-                viewModel.state.value.undo,
+                viewModel
+                    .state
+                    .value
+                    .undoChange,
             )
         }
 
     @Test
-    fun secondReportChange_replacesPreviousUndoToken() =
+    fun secondReportChange_replacesPreviousUndoChangeAndRestoresLatestChange() =
         runTest(dispatcher.scheduler) {
             val reportService =
                 FakeCaregiverReportService()
@@ -121,8 +134,7 @@ class OccurrenceDetailViewModelTest {
                 changedOutcome(
                     previousState = null,
                     newState =
-                        CaregiverReportState
-                            .GIVEN,
+                        CaregiverReportState.GIVEN,
                     changedAt =
                         1_000L,
                 ),
@@ -131,11 +143,9 @@ class OccurrenceDetailViewModelTest {
             reportService.enqueue(
                 changedOutcome(
                     previousState =
-                        CaregiverReportState
-                            .GIVEN,
+                        CaregiverReportState.GIVEN,
                     newState =
-                        CaregiverReportState
-                            .UNKNOWN,
+                        CaregiverReportState.UNKNOWN,
                     changedAt =
                         1_001L,
                 ),
@@ -147,6 +157,10 @@ class OccurrenceDetailViewModelTest {
                         reportService,
                 )
 
+            collectState(
+                viewModel,
+            )
+
             runCurrent()
 
             viewModel.setReport(
@@ -155,13 +169,13 @@ class OccurrenceDetailViewModelTest {
 
             runCurrent()
 
-            val firstToken =
+            val firstChange =
                 checkNotNull(
                     viewModel
                         .state
                         .value
-                        .undo,
-                ).token
+                        .undoChange,
+                )
 
             viewModel.setReport(
                 CaregiverReportState.UNKNOWN,
@@ -169,38 +183,48 @@ class OccurrenceDetailViewModelTest {
 
             runCurrent()
 
-            val secondToken =
+            val secondChange =
                 checkNotNull(
                     viewModel
                         .state
                         .value
-                        .undo,
-                ).token
+                        .undoChange,
+                )
 
             assertNotEquals(
-                firstToken,
-                secondToken,
+                firstChange.changedAtEpochMillis,
+                secondChange.changedAtEpochMillis,
             )
-
-            viewModel.undo(firstToken)
-            runCurrent()
 
             assertEquals(
-                0,
-                reportService.restoreCalls,
+                CaregiverReportState.UNKNOWN,
+                secondChange.newState,
             )
 
-            viewModel.undo(secondToken)
+            viewModel.undoReportChange()
+
             runCurrent()
 
             assertEquals(
                 1,
                 reportService.restoreCalls,
             )
+
+            assertEquals(
+                secondChange,
+                reportService.restoredChanges.single(),
+            )
+
+            assertNull(
+                viewModel
+                    .state
+                    .value
+                    .undoChange,
+            )
         }
 
     @Test
-    fun sameStateSelection_doesNotReplaceCurrentUndoToken() =
+    fun sameStateSelection_doesNotReplaceCurrentUndoChange() =
         runTest(dispatcher.scheduler) {
             val reportService =
                 FakeCaregiverReportService()
@@ -209,8 +233,7 @@ class OccurrenceDetailViewModelTest {
                 changedOutcome(
                     previousState = null,
                     newState =
-                        CaregiverReportState
-                            .GIVEN,
+                        CaregiverReportState.GIVEN,
                     changedAt =
                         1_000L,
                 ),
@@ -221,8 +244,7 @@ class OccurrenceDetailViewModelTest {
                     occurrenceId =
                         OCCURRENCE_ID,
                     state =
-                        CaregiverReportState
-                            .GIVEN,
+                        CaregiverReportState.GIVEN,
                 ),
             )
 
@@ -232,6 +254,10 @@ class OccurrenceDetailViewModelTest {
                         reportService,
                 )
 
+            collectState(
+                viewModel,
+            )
+
             runCurrent()
 
             viewModel.setReport(
@@ -240,12 +266,12 @@ class OccurrenceDetailViewModelTest {
 
             runCurrent()
 
-            val firstUndo =
+            val firstUndoChange =
                 checkNotNull(
                     viewModel
                         .state
                         .value
-                        .undo,
+                        .undoChange,
                 )
 
             viewModel.setReport(
@@ -255,20 +281,38 @@ class OccurrenceDetailViewModelTest {
             runCurrent()
 
             assertEquals(
-                firstUndo.token,
+                firstUndoChange,
                 viewModel
                     .state
                     .value
-                    .undo
-                    ?.token,
+                    .undoChange,
+            )
+
+            assertEquals(
+                0,
+                reportService.restoreCalls,
             )
         }
+
+    private fun TestScope.collectState(
+        viewModel: OccurrenceDetailViewModel,
+    ) {
+        backgroundScope.launch(
+            UnconfinedTestDispatcher(
+                testScheduler,
+            ),
+        ) {
+            viewModel.state.collect {
+                Unit
+            }
+        }
+    }
 
     private fun createViewModel(
         reportService:
         CaregiverReportService,
-    ): OccurrenceDetailViewModel {
-        return OccurrenceDetailViewModel(
+    ): OccurrenceDetailViewModel =
+        OccurrenceDetailViewModel(
             occurrenceId =
                 OCCURRENCE_ID,
             todayQueryService =
@@ -277,9 +321,10 @@ class OccurrenceDetailViewModelTest {
                 reportService,
             clock = FIXED_CLOCK,
             now =
-                flowOf(FIXED_INSTANT),
+                flowOf(
+                    FIXED_INSTANT,
+                ),
         )
-    }
 
     private fun changedOutcome(
         previousState:
@@ -287,20 +332,20 @@ class OccurrenceDetailViewModelTest {
         newState:
         CaregiverReportState,
         changedAt: Long,
-    ): SetReportOutcome {
-        return SetReportOutcome.Changed(
+    ): SetReportOutcome =
+        SetReportOutcome.Changed(
             change =
                 ReportChange(
                     occurrenceId =
                         OCCURRENCE_ID,
                     previousState =
                         previousState,
-                    newState = newState,
+                    newState =
+                        newState,
                     changedAtEpochMillis =
                         changedAt,
                 ),
         )
-    }
 
     private companion object {
         const val OCCURRENCE_ID =
@@ -327,6 +372,9 @@ private class FakeCaregiverReportService :
     private val outcomes =
         ArrayDeque<SetReportOutcome>()
 
+    val restoredChanges =
+        mutableListOf<ReportChange>()
+
     var restoreCalls =
         0
         private set
@@ -334,21 +382,24 @@ private class FakeCaregiverReportService :
     fun enqueue(
         outcome: SetReportOutcome,
     ) {
-        outcomes.addLast(outcome)
+        outcomes.addLast(
+            outcome,
+        )
     }
 
     override suspend fun setReport(
         occurrenceId: String,
         newState:
         CaregiverReportState,
-    ): SetReportOutcome {
-        return outcomes.removeFirst()
-    }
+    ): SetReportOutcome =
+        outcomes.removeFirst()
 
     override suspend fun restorePrevious(
         change: ReportChange,
     ): UndoReportOutcome {
         restoreCalls += 1
+        restoredChanges +=
+            change
 
         return UndoReportOutcome.Restored(
             occurrenceId =
@@ -357,7 +408,6 @@ private class FakeCaregiverReportService :
                 change.previousState,
         )
     }
-
 }
 
 private class FakeTodayQueryService :
@@ -394,36 +444,36 @@ private class FakeTodayQueryService :
         )
 
     private val occurrenceFlow =
-        MutableStateFlow<
-                OccurrenceDetail?
-                >(
+        MutableStateFlow<OccurrenceDetail?>(
             occurrence,
         )
 
     override fun observeToday(
         localDate: LocalDate,
         now: Flow<Instant>,
-    ): Flow<TodayModel> {
-        return flowOf(
+    ): Flow<TodayModel> =
+        flowOf(
             TodayModel(
-                localDate = localDate,
-                items = emptyList(),
-                emptyState = null,
+                localDate =
+                    localDate,
+                items =
+                    emptyList(),
+                emptyState =
+                    null,
             ),
         )
-    }
 
     override fun observeOccurrence(
         occurrenceId: String,
         now: Flow<Instant>,
-    ): Flow<OccurrenceDetail?> {
-        return occurrenceFlow
-    }
+    ): Flow<OccurrenceDetail?> =
+        occurrenceFlow
 
     override fun observeRecentHistory(
         anchorDate: LocalDate,
         now: Flow<Instant>,
-    ): Flow<List<HistoryDay>> {
-        return flowOf(emptyList())
-    }
+    ): Flow<List<HistoryDay>> =
+        flowOf(
+            emptyList(),
+        )
 }

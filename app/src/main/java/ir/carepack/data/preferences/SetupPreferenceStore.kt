@@ -12,7 +12,14 @@ import kotlinx.coroutines.flow.map
 interface SetupPreferenceStore {
     val setupComplete: Flow<Boolean>
 
+    fun isInitialSetupComplete(): Flow<Boolean> =
+        setupComplete
+
     suspend fun markSetupComplete()
+
+    suspend fun markInitialSetupComplete() {
+        markSetupComplete()
+    }
 }
 
 class DataStoreSetupPreferenceStore(
@@ -38,8 +45,7 @@ class DataStoreSetupPreferenceStore(
             }
 
     override suspend fun markSetupComplete() {
-        applicationContext.carePackDataStore.edit {
-                preferences ->
+        applicationContext.carePackDataStore.edit { preferences ->
             preferences[SETUP_COMPLETE] = true
         }
     }

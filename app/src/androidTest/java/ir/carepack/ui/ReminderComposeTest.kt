@@ -14,8 +14,6 @@ import androidx.test.core.app.ApplicationProvider
 import ir.carepack.R
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.reminder.ReminderAvailability
-import ir.carepack.domain.reminder.ReminderStatus
-import ir.carepack.domain.reminder.TimezoneWarning
 import ir.carepack.feature.reminder.NotificationPermissionUiState
 import ir.carepack.feature.reminder.ReminderSettingsScreen
 import ir.carepack.feature.reminder.ReminderSettingsUiState
@@ -285,12 +283,9 @@ class ReminderComposeTest {
     }
 
     @Test
-    fun timezoneWarning_exposesReviewAndDismissActions() {
-        val reviewInvoked =
-            AtomicBoolean(false)
-
-        val dismissInvoked =
-            AtomicBoolean(false)
+    fun todayScreen_keepsCoreActionsAvailableWhenEmpty() {
+        val carePlanOpenCount =
+            AtomicInteger(0)
 
         composeRule.setContent {
             CarePackTheme {
@@ -308,178 +303,31 @@ class ReminderComposeTest {
                                     .NO_OCCURRENCES,
                             isHistoryLoading =
                                 false,
-                            timezoneWarning =
-                                TimezoneWarning(
-                                    previousZoneId =
-                                        "Asia/Tehran",
-                                    currentZoneId =
-                                        "Europe/Berlin",
-                                ),
                         ),
                     onTodaySelected = {},
                     onHistorySelected = {},
                     onRetry = {},
-                    onOccurrenceSelected = {},
-                    onManageCarePlan = {},
-                    onOpenTodayReport = {},
+                    onOpenCarePlan = {
+                        carePlanOpenCount
+                            .incrementAndGet()
+                    },
                     onOpenSettings = {},
-                    onReminderSettings = {},
-                    onReviewSchedules = {
-                        reviewInvoked.set(
-                            true,
-                        )
-                    },
-                    onDismissTimezoneWarning = {
-                        dismissInvoked.set(
-                            true,
-                        )
-                    },
+                    onOpenOccurrence = {},
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
-                "timezone_warning",
+                "today_empty",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "timezone_warning_body",
+                "today_screen",
             )
             .assertIsDisplayed()
-
-        composeRule
-            .onNodeWithTag(
-                "timezone_warning_zones",
-            )
-            .assertIsDisplayed()
-
-        composeRule
-            .onNodeWithTag(
-                "timezone_warning_review",
-            )
-            .performClick()
-
-        composeRule
-            .onNodeWithTag(
-                "timezone_warning_dismiss",
-            )
-            .performClick()
-
-        assertTrue(
-            reviewInvoked.get(),
-        )
-
-        assertTrue(
-            dismissInvoked.get(),
-        )
-    }
-
-    @Test
-    fun notificationDenialBanner_doesNotBlockCoreTodayActions() {
-        val manageCarePlanCount =
-            AtomicInteger(0)
-
-        val historyCount =
-            AtomicInteger(0)
-
-        val reminderSettingsCount =
-            AtomicInteger(0)
-
-        composeRule.setContent {
-            CarePackTheme {
-                TodayScreen(
-                    state =
-                        TodayUiState(
-                            localDate =
-                                TEST_DATE,
-                            isLoading =
-                                false,
-                            items =
-                                emptyList(),
-                            emptyState =
-                                TodayEmptyState
-                                    .NO_OCCURRENCES,
-                            isHistoryLoading =
-                                false,
-                            reminderStatus =
-                                ReminderStatus(
-                                    remindersEnabled =
-                                        true,
-                                    notificationPermissionGranted =
-                                        false,
-                                    hasActiveSchedule =
-                                        true,
-                                    exactAlarmCapabilityGranted =
-                                        false,
-                                    availability =
-                                        ReminderAvailability
-                                            .NOTIFICATION_PERMISSION_REQUIRED,
-                                ),
-                        ),
-                    onTodaySelected = {},
-                    onHistorySelected = {
-                        historyCount
-                            .incrementAndGet()
-                    },
-                    onRetry = {},
-                    onOccurrenceSelected = {},
-                    onManageCarePlan = {
-                        manageCarePlanCount
-                            .incrementAndGet()
-                    },
-                    onOpenTodayReport = {},
-                    onOpenSettings = {},
-                    onReminderSettings = {
-                        reminderSettingsCount
-                            .incrementAndGet()
-                    },
-                    onReviewSchedules = {},
-                    onDismissTimezoneWarning = {},
-                )
-            }
-        }
-
-        composeRule
-            .onNodeWithTag(
-                "today_notification_missing",
-            )
-            .assertIsDisplayed()
-
-        composeRule
-            .onNodeWithTag(
-                "today_manage_care_plan",
-            )
-            .performClick()
-
-        composeRule
-            .onNodeWithTag(
-                "history_section_button",
-            )
-            .performClick()
-
-        composeRule
-            .onNodeWithTag(
-                "today_notification_missing_settings",
-            )
-            .performClick()
-
-        assertEquals(
-            1,
-            manageCarePlanCount.get(),
-        )
-
-        assertEquals(
-            1,
-            historyCount.get(),
-        )
-
-        assertEquals(
-            1,
-            reminderSettingsCount.get(),
-        )
     }
 
     private fun assertTagDoesNotExist(

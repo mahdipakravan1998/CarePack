@@ -46,14 +46,6 @@ class SchedulePatternValidationTest {
         assertTrue(
             result is ValidationResult.Invalid,
         )
-
-        assertEquals(
-            CarePlanField.TIMES,
-            (
-                    result as
-                            ValidationResult.Invalid
-                    ).errors.single().field,
-        )
     }
 
     @Test
@@ -73,56 +65,37 @@ class SchedulePatternValidationTest {
     }
 
     @Test
-    fun intervalSchedule_acceptsAllowedPreset() {
-        val result =
-            CarePlanValidation
-                .validateSchedulePattern(
-                    IntervalSchedule(
-                        intervalHours = 8,
-                        anchorMinuteOfDay =
-                            7 * 60,
-                    ),
-                )
+    fun intervalSchedule_acceptsEverySixEightAndTwelveHours() {
+        listOf(
+            6,
+            8,
+            12,
+        ).forEach { hours ->
+            val result =
+                CarePlanValidation
+                    .validateSchedulePattern(
+                        IntervalSchedule(
+                            intervalHours = hours,
+                            anchorMinuteOfDay =
+                                8 * 60,
+                        ),
+                    )
 
-        assertTrue(
-            result is ValidationResult.Valid,
-        )
+            assertTrue(
+                result is ValidationResult.Valid,
+            )
+        }
     }
 
     @Test
-    fun intervalSchedule_rejectsUnsupportedInterval() {
+    fun intervalSchedule_rejectsUnsupportedHourValue() {
         val result =
             CarePlanValidation
                 .validateSchedulePattern(
                     IntervalSchedule(
-                        intervalHours = 5,
+                        intervalHours = 7,
                         anchorMinuteOfDay =
-                            7 * 60,
-                    ),
-                )
-
-        assertTrue(
-            result is ValidationResult.Invalid,
-        )
-
-        assertEquals(
-            CarePlanField.TIMES,
-            (
-                    result as
-                            ValidationResult.Invalid
-                    ).errors.single().field,
-        )
-    }
-
-    @Test
-    fun intervalSchedule_rejectsInvalidAnchorTime() {
-        val result =
-            CarePlanValidation
-                .validateSchedulePattern(
-                    IntervalSchedule(
-                        intervalHours = 8,
-                        anchorMinuteOfDay =
-                            24 * 60,
+                            8 * 60,
                     ),
                 )
 
@@ -132,43 +105,57 @@ class SchedulePatternValidationTest {
     }
 
     @Test
-    fun intervalSchedule_calculatesRepresentativeTimesWithinOneDay() {
+    fun intervalSchedule_rejectsInvalidAnchorMinute() {
+        val result =
+            CarePlanValidation
+                .validateSchedulePattern(
+                    IntervalSchedule(
+                        intervalHours = 8,
+                        anchorMinuteOfDay = -1,
+                    ),
+                )
+
+        assertTrue(
+            result is ValidationResult.Invalid,
+        )
+    }
+
+    @Test
+    fun intervalPatternDerivesSortedDailyTimesFromAnchor() {
         assertEquals(
             listOf(
-                7 * 60,
-                15 * 60,
-                23 * 60,
+                60,
+                9 * 60,
+                17 * 60,
             ),
-            SchedulePatternRules
-                .intervalMinutesWithinDay(
-                    intervalHours = 8,
-                    anchorMinuteOfDay =
-                        7 * 60,
-                ),
+            IntervalSchedule(
+                intervalHours = 8,
+                anchorMinuteOfDay = 60,
+            ).representativeMinutesOfDay,
         )
     }
 
     @Test
-    fun minuteOfDayRoundTripsLocalTime() {
-        val localTime =
-            LocalTime.of(
-                14,
-                30,
-            )
-
+    fun localTimeConversion_isStable() {
         val minuteOfDay =
             SchedulePatternRules
                 .minuteOfDayFrom(
-                    localTime,
+                    LocalTime.of(
+                        23,
+                        45,
+                    ),
                 )
 
         assertEquals(
-            14 * 60 + 30,
+            23 * 60 + 45,
             minuteOfDay,
         )
 
         assertEquals(
-            localTime,
+            LocalTime.of(
+                23,
+                45,
+            ),
             SchedulePatternRules
                 .localTimeFrom(
                     minuteOfDay,

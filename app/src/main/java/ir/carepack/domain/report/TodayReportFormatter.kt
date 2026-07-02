@@ -1,5 +1,6 @@
 package ir.carepack.domain.report
 
+import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.model.CaregiverReportState
 import java.time.LocalDate
 import java.time.LocalTime
@@ -52,8 +53,12 @@ internal class TodayReportTextBuilder {
         val headerLines =
             buildList {
                 add(REPORT_TITLE)
+
                 add(
-                    "$DATE_LABEL: $date",
+                    "$DATE_LABEL: " +
+                            JalaliPresentationDate
+                                .from(date)
+                                .formatNumeric(),
                 )
 
                 recipientName
@@ -106,9 +111,7 @@ internal class TodayReportTextBuilder {
                 EMPTY_REPORT_MESSAGE
             } else {
                 orderedEntries
-                    .mapIndexed {
-                            index,
-                            entry ->
+                    .mapIndexed { index, entry ->
                         entry.toReportBlock(
                             number = index + 1,
                         )
@@ -137,72 +140,56 @@ internal class TodayReportTextBuilder {
 
     private fun TodayReportEntry.toReportBlock(
         number: Int,
-    ): String {
-        val normalizedInstruction =
-            medicationInstruction
-                .trim()
-                .lineSequence()
-                .joinToString(
-                    separator = "\n",
-                ) { line ->
-                    "   ${line.trimEnd()}"
-                }
-
-        return buildString {
+    ): String =
+        buildString {
             append(number)
             append(". ")
             append(
                 localTime.format(
-                    TIME_FORMATTER,
+                    HOUR_MINUTE_FORMATTER,
                 ),
             )
             append(" — ")
+            append(medicationName)
+            append(" — ")
             append(
-                medicationName.trim(),
+                reportStateText(
+                    reportState,
+                ),
             )
-            append('\n')
-            append(INSTRUCTION_LABEL)
-            append('\n')
-            append(normalizedInstruction)
-            append('\n')
-            append(REPORT_STATE_LABEL)
-            append(": ")
-            append(
-                reportState.toReportStateText(),
-            )
-        }
-    }
 
-    private fun CaregiverReportState?.toReportStateText():
-            String =
-        when (this) {
-            null -> {
-                NO_REPORT_TEXT
+            if (medicationInstruction.isNotBlank()) {
+                append('\n')
+                append(INSTRUCTION_LABEL)
+                append(": ")
+                append(medicationInstruction)
             }
+        }
 
+    private fun reportStateText(
+        state: CaregiverReportState?,
+    ): String =
+        when (state) {
             CaregiverReportState.GIVEN -> {
-                GIVEN_TEXT
+                "مصرف شد"
             }
 
             CaregiverReportState.NOT_GIVEN -> {
-                NOT_GIVEN_TEXT
+                "مصرف نشد"
             }
 
             CaregiverReportState.UNKNOWN -> {
-                UNKNOWN_TEXT
+                "نامشخص"
+            }
+
+            null -> {
+                "ثبت نشده"
             }
         }
 
     private companion object {
-
-        val TIME_FORMATTER:
-                DateTimeFormatter =
-            DateTimeFormatter.ofPattern(
-                "HH:mm",
-            )
-
         const val REPORT_TITLE =
-            "گزارش امروز کرپک"
+            "گزارش امروز CarePack"
 
         const val DATE_LABEL =
             "تاریخ"
@@ -214,45 +201,36 @@ internal class TodayReportTextBuilder {
             "خلاصه"
 
         const val TOTAL_LABEL =
-            "تعداد نوبت‌ها"
+            "مجموع نوبت‌ها"
 
         const val GIVEN_COUNT_LABEL =
-            "داده شد"
+            "مصرف شد"
 
         const val NOT_GIVEN_COUNT_LABEL =
-            "داده نشد"
+            "مصرف نشد"
 
         const val UNKNOWN_COUNT_LABEL =
-            "مشخص نیست"
+            "نامشخص"
 
         const val NO_REPORT_COUNT_LABEL =
-            "بدون گزارش"
+            "ثبت نشده"
 
         const val OCCURRENCES_TITLE =
-            "نوبت‌ها"
+            "جزئیات"
 
         const val INSTRUCTION_LABEL =
-            "   دستور:"
-
-        const val REPORT_STATE_LABEL =
-            "   گزارش"
-
-        const val NO_REPORT_TEXT =
-            "هنوز گزارشی ثبت نشده است"
-
-        const val GIVEN_TEXT =
-            "مراقب ثبت کرده است که دارو داده شده است"
-
-        const val NOT_GIVEN_TEXT =
-            "مراقب ثبت کرده است که دارو داده نشده است"
-
-        const val UNKNOWN_TEXT =
-            "مراقب صریحاً ثبت کرده است که نتیجه مشخص نیست"
+            "توضیح"
 
         const val EMPTY_REPORT_MESSAGE =
-            "برای امروز نوبتی ثبت نشده است."
+            "موردی برای امروز وجود ندارد."
 
         const val DISCLAIMER =
             "این گزارش بر اساس ثبت‌های مراقب تهیه شده است و تأیید پزشکی مصرف دارو نیست."
+
+        val HOUR_MINUTE_FORMATTER:
+                DateTimeFormatter =
+            DateTimeFormatter.ofPattern(
+                "HH:mm",
+            )
     }
 }

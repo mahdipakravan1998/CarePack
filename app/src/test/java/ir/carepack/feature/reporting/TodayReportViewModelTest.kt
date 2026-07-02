@@ -117,11 +117,10 @@ class TodayReportViewModelTest {
 
             advanceUntilIdle()
 
-            viewModel
-                .setIncludeRecipientName(
-                    includeRecipientName =
-                        true,
-                )
+            viewModel.setIncludeRecipientName(
+                includeRecipientName =
+                    true,
+            )
 
             advanceUntilIdle()
 
@@ -194,7 +193,10 @@ class TodayReportViewModelTest {
             )
 
             viewModel.consumeActionMessage()
+
             viewModel.shareReport()
+
+            advanceUntilIdle()
 
             assertEquals(
                 listOf(preview),
@@ -202,8 +204,7 @@ class TodayReportViewModelTest {
             )
 
             assertEquals(
-                TodayReportActionMessage
-                    .SHARE_CHOOSER_OPENED,
+                TodayReportActionMessage.SHARE_CHOOSER_OPENED,
                 viewModel
                     .state
                     .value
@@ -374,8 +375,7 @@ private class RecordingViewModelTextShareGateway :
         sharedTexts +=
             text
 
-        return ShareTextResult
-            .ChooserOpened
+        return ShareTextResult.ChooserOpened
     }
 
     override fun copy(

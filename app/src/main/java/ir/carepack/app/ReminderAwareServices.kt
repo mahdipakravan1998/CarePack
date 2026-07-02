@@ -1,5 +1,7 @@
 package ir.carepack.app
 
+import ir.carepack.domain.careplan.AddScheduleCommand
+import ir.carepack.domain.careplan.AddScheduleOutcome
 import ir.carepack.domain.careplan.ArchiveMedicationOutcome
 import ir.carepack.domain.careplan.CarePlanOverview
 import ir.carepack.domain.careplan.CarePlanService
@@ -8,6 +10,7 @@ import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
 import ir.carepack.domain.careplan.MedicationEditorSnapshot
+import ir.carepack.domain.careplan.ScheduleEditorSnapshot
 import ir.carepack.domain.careplan.SetupProgress
 import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.domain.careplan.UpdateMedicationTextCommand
@@ -60,6 +63,29 @@ class ReminderAwareCarePlanService(
         if (
             outcome is
                     CreateMedicationScheduleOutcome
+                    .Created
+        ) {
+            reconcileAfterCommit(
+                reason =
+                    ReconciliationReason
+                        .CARE_PLAN_CHANGED,
+            )
+        }
+
+        return outcome
+    }
+
+    override suspend fun addSchedule(
+        command: AddScheduleCommand,
+    ): AddScheduleOutcome {
+        val outcome =
+            delegate.addSchedule(
+                command = command,
+            )
+
+        if (
+            outcome is
+                    AddScheduleOutcome
                     .Created
         ) {
             reconcileAfterCommit(
@@ -180,6 +206,15 @@ class ReminderAwareCarePlanService(
         return delegate.getMedicationEditor(
             medicationId =
                 medicationId,
+        )
+    }
+
+    override suspend fun getScheduleEditor(
+        scheduleSeriesId: String,
+    ): ScheduleEditorSnapshot? {
+        return delegate.getScheduleEditor(
+            scheduleSeriesId =
+                scheduleSeriesId,
         )
     }
 

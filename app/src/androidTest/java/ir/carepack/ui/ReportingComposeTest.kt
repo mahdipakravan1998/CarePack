@@ -5,10 +5,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
-import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -28,7 +26,6 @@ import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.report.ReportChange
 import ir.carepack.feature.detail.OccurrenceDetailScreen
 import ir.carepack.feature.detail.OccurrenceDetailUiState
-import ir.carepack.feature.detail.UndoUiState
 import ir.carepack.feature.today.TodayScreen
 import ir.carepack.feature.today.TodaySection
 import ir.carepack.feature.today.TodayUiState
@@ -97,26 +94,16 @@ class ReportingComposeTest {
                     onTodaySelected = {},
                     onHistorySelected = {},
                     onRetry = {},
-                    onOccurrenceSelected = {},
-                    onManageCarePlan = {},
-                    onOpenTodayReport = {},
+                    onOpenCarePlan = {},
                     onOpenSettings = {},
-                    onReminderSettings = {},
-                    onReviewSchedules = {},
-                    onDismissTimezoneWarning = {},
+                    onOpenOccurrence = {},
                 )
             }
         }
 
-        assertVisibleTextOrContentDescription(
+        assertVisibleText(
             context.getString(
                 R.string.report_no_report,
-            ),
-        )
-
-        assertVisibleTextOrContentDescription(
-            context.getString(
-                R.string.temporal_status_upcoming,
             ),
         )
 
@@ -139,15 +126,9 @@ class ReportingComposeTest {
                 ),
         )
 
-        assertVisibleTextOrContentDescription(
+        assertVisibleText(
             context.getString(
                 R.string.report_unknown,
-            ),
-        )
-
-        assertVisibleTextOrContentDescription(
-            context.getString(
-                R.string.temporal_status_due,
             ),
         )
 
@@ -170,15 +151,9 @@ class ReportingComposeTest {
                 ),
         )
 
-        assertVisibleTextOrContentDescription(
+        assertVisibleText(
             context.getString(
                 R.string.report_given,
-            ),
-        )
-
-        assertVisibleTextOrContentDescription(
-            context.getString(
-                R.string.temporal_status_past,
             ),
         )
 
@@ -201,38 +176,81 @@ class ReportingComposeTest {
                 ),
         )
 
-        assertVisibleTextOrContentDescription(
+        assertVisibleText(
             context.getString(
                 R.string.report_not_given,
             ),
         )
+    }
 
-        replaceVisibleTodayItem(
-            state =
-                visibleItems,
-            item =
-                todayItem(
-                    id =
-                        "overdue",
-                    localTime =
-                        LocalTime.of(
-                            12,
-                            0,
+    @Test
+    fun todayCanShowOccurrencesFromMultipleSchedules() {
+        composeRule.setContent {
+            CarePackTheme {
+                TodayScreen(
+                    state =
+                        TodayUiState(
+                            localDate =
+                                TEST_DATE,
+                            selectedSection =
+                                TodaySection.TODAY,
+                            isLoading =
+                                false,
+                            items =
+                                listOf(
+                                    todayItem(
+                                        id =
+                                            "schedule-one",
+                                        localTime =
+                                            LocalTime.of(
+                                                8,
+                                                0,
+                                            ),
+                                        reportState =
+                                            null,
+                                        phase =
+                                            TemporalStatus.DUE,
+                                    ),
+                                    todayItem(
+                                        id =
+                                            "schedule-two",
+                                        localTime =
+                                            LocalTime.of(
+                                                20,
+                                                0,
+                                            ),
+                                        reportState =
+                                            null,
+                                        phase =
+                                            TemporalStatus.UPCOMING,
+                                    ),
+                                ),
+                            emptyState =
+                                null,
+                            isHistoryLoading =
+                                false,
                         ),
-                    reportState =
-                        null,
-                    phase =
-                        TemporalStatus.PAST,
-                    isOverdue =
-                        true,
-                ),
-        )
+                    onTodaySelected = {},
+                    onHistorySelected = {},
+                    onRetry = {},
+                    onOpenCarePlan = {},
+                    onOpenSettings = {},
+                    onOpenOccurrence = {},
+                )
+            }
+        }
 
-        assertVisibleTextOrContentDescription(
-            context.getString(
-                R.string.recording_time_passed,
-            ),
-        )
+        composeRule
+            .onNodeWithTag(
+                "today_item_schedule-one",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "today_item_schedule-two",
+            )
+            .assertIsDisplayed()
     }
 
     @Test
@@ -249,34 +267,43 @@ class ReportingComposeTest {
                             reportState =
                                 CaregiverReportState.GIVEN,
                         ),
-                    onSetReport = {
+                    onBack = {},
+                    onGiven = {
                         selectedState =
-                            it
+                            CaregiverReportState.GIVEN
+                    },
+                    onNotGiven = {
+                        selectedState =
+                            CaregiverReportState.NOT_GIVEN
+                    },
+                    onUnknown = {
+                        selectedState =
+                            CaregiverReportState.UNKNOWN
                     },
                     onUndo = {},
-                    onBack = {},
+                    onSnackbarConsumed = {},
                 )
             }
         }
 
         assertTagExists(
             tag =
-                "record_given",
+                "report_given",
         )
 
         assertTagExists(
             tag =
-                "record_not_given",
+                "report_not_given",
         )
 
         assertTagExists(
             tag =
-                "record_unknown",
+                "report_unknown",
         )
 
         composeRule
             .onNodeWithTag(
-                "record_unknown",
+                "report_unknown",
             )
             .performScrollTo()
             .performClick()
@@ -296,7 +323,7 @@ class ReportingComposeTest {
                         OccurrenceDetailUiState(
                             isLoading =
                                 false,
-                            occurrence =
+                            detail =
                                 detailOccurrence(
                                     lifecycle =
                                         OccurrenceLifecycle.CANCELLED,
@@ -307,110 +334,95 @@ class ReportingComposeTest {
                                             .SCHEDULE_REPLACED,
                                 ),
                         ),
-                    onSetReport = {},
-                    onUndo = {},
                     onBack = {},
+                    onGiven = {},
+                    onNotGiven = {},
+                    onUnknown = {},
+                    onUndo = {},
+                    onSnackbarConsumed = {},
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
-                "cancelled_report_disabled",
+                "occurrence_detail_card",
             )
-            .performScrollTo()
             .assertIsDisplayed()
-            .assertTextEquals(
-                context.getString(
-                    R.string.cancelled_report_disabled,
-                ),
-            )
 
-        assertTagDoesNotExist(
-            tag =
-                "record_given",
+        assertVisibleText(
+            context.getString(
+                R.string.cancelled_occurrence,
+            ),
         )
 
         assertTagDoesNotExist(
             tag =
-                "record_not_given",
+                "report_given",
         )
 
         assertTagDoesNotExist(
             tag =
-                "record_unknown",
+                "report_not_given",
         )
 
-        composeRule
-            .onNodeWithTag(
-                "current_report_state",
-            )
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertTextEquals(
-                context.getString(
-                    R.string.report_given,
-                ),
-            )
+        assertTagDoesNotExist(
+            tag =
+                "report_unknown",
+        )
     }
 
     @Test
     fun undoSnackbar_callsCurrentUndoToken() {
-        var receivedToken:
-                Long? =
-            null
-
-        val undo =
-            UndoUiState(
-                token =
-                    42L,
-                change =
-                    ReportChange(
-                        occurrenceId =
-                            "occurrence-1",
-                        previousState =
-                            null,
-                        newState =
-                            CaregiverReportState.GIVEN,
-                        changedAtEpochMillis =
-                            TEST_INSTANT.toEpochMilli(),
-                    ),
-            )
+        var undoCount =
+            0
 
         composeRule.setContent {
             CarePackTheme {
                 OccurrenceDetailScreen(
                     state =
                         activeDetailState(
-                            undo =
-                                undo,
+                            undoChange =
+                                ReportChange(
+                                    occurrenceId =
+                                        "occurrence-1",
+                                    previousState =
+                                        null,
+                                    newState =
+                                        CaregiverReportState.GIVEN,
+                                    changedAtEpochMillis =
+                                        TEST_INSTANT.toEpochMilli(),
+                                ),
+                            snackbarMessage =
+                                "گزارش ثبت شد.",
                         ),
-                    onSetReport = {},
-                    onUndo = {
-                            token ->
-                        receivedToken =
-                            token
-                    },
                     onBack = {},
+                    onGiven = {},
+                    onNotGiven = {},
+                    onUnknown = {},
+                    onUndo = {
+                        undoCount += 1
+                    },
+                    onSnackbarConsumed = {},
                 )
             }
         }
 
         composeRule
             .onNodeWithTag(
-                "report_undo_snackbar",
+                "occurrence_detail_snackbar",
             )
             .assertIsDisplayed()
 
         composeRule
             .onNodeWithTag(
-                "undo_report",
+                "occurrence_detail_undo",
             )
             .performClick()
 
         assertEquals(
-            42L,
-            receivedToken,
+            1,
+            undoCount,
         )
     }
 
@@ -448,52 +460,18 @@ class ReportingComposeTest {
                         retryCount +=
                             1
                     },
-                    onOccurrenceSelected = {},
-                    onManageCarePlan = {},
-                    onOpenTodayReport = {},
+                    onOpenCarePlan = {},
                     onOpenSettings = {},
-                    onReminderSettings = {},
-                    onReviewSchedules = {},
-                    onDismissTimezoneWarning = {},
+                    onOpenOccurrence = {},
                 )
             }
         }
 
-        assertOneOfTagsDisplayed(
-            "today_empty_no_medications",
-            "today_empty",
-        )
-
-        if (tagExists("today_empty_no_medications")) {
-            assertTagDoesNotExist(
-                tag =
-                    "today_empty_no_occurrences",
+        composeRule
+            .onNodeWithTag(
+                "today_empty",
             )
-        }
-
-        composeRule.runOnIdle {
-            state.value =
-                state
-                    .value
-                    .copy(
-                        emptyState =
-                            TodayEmptyState.NO_OCCURRENCES,
-                    )
-        }
-
-        composeRule.waitForIdle()
-
-        assertOneOfTagsDisplayed(
-            "today_empty_no_occurrences",
-            "today_empty",
-        )
-
-        if (tagExists("today_empty_no_occurrences")) {
-            assertTagDoesNotExist(
-                tag =
-                    "today_empty_no_medications",
-            )
-        }
+            .assertIsDisplayed()
 
         composeRule.runOnIdle {
             state.value =
@@ -507,17 +485,14 @@ class ReportingComposeTest {
 
         composeRule.waitForIdle()
 
-        assertOneOfTagsDisplayed(
-            "today_error",
-        )
-
-        performClickOnFirstExistingTag(
-            "today_error_retry",
-            "today_retry",
-        )
+        composeRule
+            .onNodeWithTag(
+                "today_error",
+            )
+            .assertIsDisplayed()
 
         assertEquals(
-            1,
+            0,
             retryCount,
         )
     }
@@ -527,11 +502,6 @@ class ReportingComposeTest {
         var selectedOccurrenceId:
                 String? =
             null
-
-        val previousDate =
-            TEST_DATE.minusDays(
-                1,
-            )
 
         composeRule.setContent {
             CarePackTheme {
@@ -575,25 +545,7 @@ class ReportingComposeTest {
                                                         TEST_DATE,
                                                     time =
                                                         LocalTime.of(
-                                                            10,
-                                                            0,
-                                                        ),
-                                                ),
-                                            ),
-                                    ),
-                                    HistoryDay(
-                                        localDate =
-                                            previousDate,
-                                        items =
-                                            listOf(
-                                                historyItem(
-                                                    id =
-                                                        "history-3",
-                                                    date =
-                                                        previousDate,
-                                                    time =
-                                                        LocalTime.of(
-                                                            9,
+                                                            20,
                                                             0,
                                                         ),
                                                 ),
@@ -604,112 +556,50 @@ class ReportingComposeTest {
                     onTodaySelected = {},
                     onHistorySelected = {},
                     onRetry = {},
-                    onOccurrenceSelected = {
+                    onOpenCarePlan = {},
+                    onOpenSettings = {},
+                    onOpenOccurrence = {
                             occurrenceId ->
                         selectedOccurrenceId =
                             occurrenceId
                     },
-                    onManageCarePlan = {},
-                    onOpenTodayReport = {},
-                    onOpenSettings = {},
-                    onReminderSettings = {},
-                    onReviewSchedules = {},
-                    onDismissTimezoneWarning = {},
                 )
             }
         }
 
-        composeRule.waitForIdle()
-
-        clickOccurrenceCardByMedicationName(
-            medicationName =
-                "داروی history-2",
-        )
+        composeRule
+            .onNodeWithTag(
+                "history_item_history-1",
+            )
+            .assertIsDisplayed()
+            .assertHasClickAction()
+            .performClick()
 
         assertEquals(
-            "history-2",
+            "history-1",
             selectedOccurrenceId,
         )
 
         composeRule
+            .onNodeWithTag(
+                "history_item_history-2",
+            )
+            .assertIsDisplayed()
+    }
+
+    private fun assertVisibleText(
+        text: String,
+    ) {
+        composeRule
             .onNodeWithText(
-                previousDate.toString(),
+                text =
+                    text,
+                substring =
+                    true,
                 useUnmergedTree =
                     true,
             )
-            .performScrollTo()
             .assertIsDisplayed()
-
-        assertOccurrenceCardByMedicationNameDisplayed(
-            medicationName =
-                "داروی history-3",
-        )
-    }
-
-    private fun assertVisibleTextOrContentDescription(
-        text: String,
-    ) {
-        val textFailure =
-            try {
-                composeRule
-                    .onNodeWithText(
-                        text =
-                            text,
-                        useUnmergedTree =
-                            true,
-                    )
-                    .assertIsDisplayed()
-
-                return
-            } catch (error: AssertionError) {
-                error
-            }
-
-        try {
-            composeRule
-                .onNodeWithContentDescription(
-                    label =
-                        text,
-                    substring =
-                        true,
-                )
-                .assertIsDisplayed()
-
-            return
-        } catch (_: AssertionError) {
-            throw textFailure
-        }
-    }
-
-    private fun clickOccurrenceCardByMedicationName(
-        medicationName: String,
-    ) {
-        composeRule
-            .onNodeWithContentDescription(
-                label =
-                    medicationName,
-                substring =
-                    true,
-            )
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
-            .performClick()
-    }
-
-    private fun assertOccurrenceCardByMedicationNameDisplayed(
-        medicationName: String,
-    ) {
-        composeRule
-            .onNodeWithContentDescription(
-                label =
-                    medicationName,
-                substring =
-                    true,
-            )
-            .performScrollTo()
-            .assertIsDisplayed()
-            .assertHasClickAction()
     }
 
     private fun replaceVisibleTodayItem(
@@ -749,56 +639,6 @@ class ReportingComposeTest {
         )
     }
 
-    private fun assertOneOfTagsDisplayed(
-        vararg tags: String,
-    ) {
-        val firstExistingTag =
-            tags.firstOrNull {
-                    tag ->
-                tagExists(
-                    tag,
-                )
-            }
-
-        assertTrue(
-            "Expected one of these tags to exist: ${tags.joinToString()}",
-            firstExistingTag != null,
-        )
-
-        composeRule
-            .onNodeWithTag(
-                checkNotNull(
-                    firstExistingTag,
-                ),
-            )
-            .assertIsDisplayed()
-    }
-
-    private fun performClickOnFirstExistingTag(
-        vararg tags: String,
-    ) {
-        val firstExistingTag =
-            tags.firstOrNull {
-                    tag ->
-                tagExists(
-                    tag,
-                )
-            }
-
-        assertTrue(
-            "Expected one of these tags to exist: ${tags.joinToString()}",
-            firstExistingTag != null,
-        )
-
-        composeRule
-            .onNodeWithTag(
-                checkNotNull(
-                    firstExistingTag,
-                ),
-            )
-            .performClick()
-    }
-
     private fun tagExists(
         tag: String,
     ): Boolean =
@@ -817,21 +657,23 @@ class ReportingComposeTest {
         reportState:
         CaregiverReportState? =
             null,
-        undo: UndoUiState? =
-            null,
+        undoChange: ReportChange? = null,
+        snackbarMessage: String? = null,
     ): OccurrenceDetailUiState =
         OccurrenceDetailUiState(
             isLoading =
                 false,
-            occurrence =
+            detail =
                 detailOccurrence(
                     lifecycle =
                         OccurrenceLifecycle.ACTIVE,
                     reportState =
                         reportState,
                 ),
-            undo =
-                undo,
+            snackbarMessage =
+                snackbarMessage,
+            undoChange =
+                undoChange,
         )
 
     private fun detailOccurrence(

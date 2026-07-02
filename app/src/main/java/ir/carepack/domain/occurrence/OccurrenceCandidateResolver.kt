@@ -18,15 +18,14 @@ data class OccurrenceCandidate(
 )
 
 class OccurrenceCandidateResolver {
+
     fun resolve(
         definition: ScheduleDefinition,
         anchorDate: LocalDate,
     ): OccurrenceCandidate? =
         resolveAll(
-            definition =
-                definition,
-            anchorDate =
-                anchorDate,
+            definition = definition,
+            anchorDate = anchorDate,
         ).singleOrNull {
             it.minuteOfDay ==
                     definition.minuteOfDay
@@ -60,21 +59,15 @@ class OccurrenceCandidateResolver {
             )
 
         return minutesFor(
-            schedulePattern =
-                definition.schedulePattern,
-            fallbackMinuteOfDay =
-                definition.minuteOfDay,
+            schedulePattern = definition.schedulePattern,
+            fallbackMinuteOfDay = definition.minuteOfDay,
         )
             .mapNotNull { minuteOfDay ->
                 candidateForMinute(
-                    definition =
-                        definition,
-                    anchorDate =
-                        anchorDate,
-                    minuteOfDay =
-                        minuteOfDay,
-                    zoneId =
-                        zoneId,
+                    definition = definition,
+                    anchorDate = anchorDate,
+                    minuteOfDay = minuteOfDay,
+                    zoneId = zoneId,
                 )
             }
     }
@@ -85,9 +78,13 @@ class OccurrenceCandidateResolver {
         minuteOfDay: Int,
         zoneId: ZoneId,
     ): OccurrenceCandidate? {
+        if (minuteOfDay !in 0 until MINUTES_PER_DAY) {
+            return null
+        }
+
         val localTime =
             LocalTime.ofSecondOfDay(
-                minuteOfDay.toLong() * 60L,
+                minuteOfDay.toLong() * SECONDS_PER_MINUTE,
             )
 
         val scheduledAt =
@@ -141,6 +138,11 @@ class OccurrenceCandidateResolver {
                 schedulePattern
                     .representativeMinutesOfDay
         }
+            .filter {
+                it in 0 until MINUTES_PER_DAY
+            }
+            .distinct()
+            .sorted()
 
     private fun isScheduledWeekday(
         weekdayMask: Int,
@@ -150,5 +152,10 @@ class OccurrenceCandidateResolver {
             1 shl (date.dayOfWeek.value - 1)
 
         return weekdayMask and dayBit != 0
+    }
+
+    private companion object {
+        const val SECONDS_PER_MINUTE = 60L
+        const val MINUTES_PER_DAY = 24 * 60
     }
 }

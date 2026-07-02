@@ -3,10 +3,8 @@ package ir.carepack.feature.reporting
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -22,6 +20,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -31,18 +30,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.data.preferences.PrivacyPreferenceStore
+import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.report.TodayReportFormatter
 import ir.carepack.reporting.share.CopyTextResult
 import ir.carepack.reporting.share.ShareTextResult
@@ -62,15 +60,13 @@ import kotlinx.coroutines.launch
 enum class TodayReportActionMessage {
     COPIED,
     SHARE_CHOOSER_OPENED,
-    NO_SHARE_TARGET,
-    ACTION_BLOCKED,
 }
 
 data class TodayReportUiState(
     val date: LocalDate,
+    val includeRecipientName: Boolean = false,
     val isLoading: Boolean = true,
-    val includeRecipientName:
-    Boolean = false,
+    val isSharing: Boolean = false,
     val reportText: String = "",
     val actionMessage:
     TodayReportActionMessage? = null,
@@ -105,36 +101,11 @@ class TodayReportViewModel(
         includeRecipientName: Boolean,
     ) {
         viewModelScope.launch {
-            try {
-                privacyPreferenceStore
-                    .setIncludeRecipientName(
-                        includeRecipientName =
-                            includeRecipientName,
-                    )
-            } catch (
-                cancellationException:
-                CancellationException,
-            ) {
-                throw cancellationException
-            } catch (_: Exception) {
-                mutableState.update {
-                        current ->
-                    current.copy(
-                        errorMessage =
-                            STORAGE_ERROR_MESSAGE,
-                    )
-                }
-            }
+            privacyPreferenceStore
+                .setIncludeRecipientName(
+                    includeRecipientName,
+                )
         }
-    }
-
-    fun retry() {
-        generateReport(
-            includeRecipientName =
-                mutableState
-                    .value
-                    .includeRecipientName,
-        )
     }
 
     fun copyReport() {
@@ -143,29 +114,42 @@ class TodayReportViewModel(
                 .value
                 .reportText
 
-        val actionMessage =
-            when (
-                textShareGateway.copy(
-                    text = reportText,
-                )
-            ) {
+        if (reportText.isBlank()) {
+            return
+        }
+
+        val result =
+            textShareGateway.copy(
+                reportText,
+            )
+
+        mutableState.update { current ->
+            when (result) {
                 CopyTextResult.Copied -> {
-                    TodayReportActionMessage
-                        .COPIED
+                    current.copy(
+                        actionMessage =
+                            TodayReportActionMessage.COPIED,
+                        errorMessage = null,
+                    )
                 }
 
                 CopyTextResult.Blocked,
-                CopyTextResult.InvalidText -> {
-                    TodayReportActionMessage
-                        .ACTION_BLOCKED
+                CopyTextResult.InvalidText,
+                    -> {
+                    current.copy(
+                        actionMessage = null,
+                        errorMessage =
+                            "کپی متن گزارش انجام نشد.",
+                    )
                 }
             }
+        }
+    }
 
-        mutableState.update {
-                current ->
+    fun consumeActionMessage() {
+        mutableState.update { current ->
             current.copy(
-                actionMessage =
-                    actionMessage,
+                actionMessage = null,
             )
         }
     }
@@ -176,47 +160,88 @@ class TodayReportViewModel(
                 .value
                 .reportText
 
-        val actionMessage =
-            when (
-                textShareGateway.share(
-                    text = reportText,
+        if (
+            reportText.isBlank() ||
+            mutableState
+                .value
+                .isSharing
+        ) {
+            return
+        }
+
+        viewModelScope.launch {
+            mutableState.update { current ->
+                current.copy(
+                    isSharing = true,
+                    errorMessage = null,
+                    actionMessage = null,
                 )
-            ) {
-                ShareTextResult
-                    .ChooserOpened -> {
-                    TodayReportActionMessage
-                        .SHARE_CHOOSER_OPENED
-                }
-
-                ShareTextResult
-                    .NoShareTarget -> {
-                    TodayReportActionMessage
-                        .NO_SHARE_TARGET
-                }
-
-                ShareTextResult.Blocked,
-                ShareTextResult.InvalidText -> {
-                    TodayReportActionMessage
-                        .ACTION_BLOCKED
-                }
             }
 
-        mutableState.update {
-                current ->
-            current.copy(
-                actionMessage =
-                    actionMessage,
-            )
+            try {
+                val result =
+                    textShareGateway.share(
+                        reportText,
+                    )
+
+                mutableState.update { current ->
+                    when (result) {
+                        ShareTextResult.ChooserOpened -> {
+                            current.copy(
+                                actionMessage =
+                                    TodayReportActionMessage
+                                        .SHARE_CHOOSER_OPENED,
+                                errorMessage = null,
+                            )
+                        }
+
+                        ShareTextResult.NoShareTarget -> {
+                            current.copy(
+                                actionMessage = null,
+                                errorMessage =
+                                    "برنامه‌ای برای اشتراک‌گذاری پیدا نشد.",
+                            )
+                        }
+
+                        ShareTextResult.Blocked,
+                        ShareTextResult.InvalidText,
+                            -> {
+                            current.copy(
+                                actionMessage = null,
+                                errorMessage =
+                                    "اشتراک‌گذاری انجام نشد.",
+                            )
+                        }
+                    }
+                }
+            } catch (
+                cancellationException: CancellationException,
+            ) {
+                throw cancellationException
+            } catch (_: Exception) {
+                mutableState.update { current ->
+                    current.copy(
+                        errorMessage =
+                            "اشتراک‌گذاری انجام نشد.",
+                    )
+                }
+            } finally {
+                mutableState.update { current ->
+                    current.copy(
+                        isSharing = false,
+                    )
+                }
+            }
         }
     }
 
-    fun consumeActionMessage() {
-        mutableState.update {
-                current ->
-            current.copy(
-                actionMessage = null,
-            )
-        }
+    fun refresh() {
+        loadReport(
+            includeRecipientName =
+                mutableState
+                    .value
+                    .includeRecipientName,
+        )
     }
 
     private fun observeIncludeRecipientName() {
@@ -229,6 +254,13 @@ class TodayReportViewModel(
                 .distinctUntilChanged()
                 .collectLatest {
                         includeRecipientName ->
+                    mutableState.update { current ->
+                        current.copy(
+                            includeRecipientName =
+                                includeRecipientName,
+                        )
+                    }
+
                     loadReport(
                         includeRecipientName =
                             includeRecipientName,
@@ -237,65 +269,47 @@ class TodayReportViewModel(
         }
     }
 
-    private fun generateReport(
+    private fun loadReport(
         includeRecipientName: Boolean,
     ) {
         viewModelScope.launch {
-            loadReport(
-                includeRecipientName =
-                    includeRecipientName,
-            )
-        }
-    }
-
-    private suspend fun loadReport(
-        includeRecipientName: Boolean,
-    ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                isLoading = true,
-                includeRecipientName =
-                    includeRecipientName,
-                errorMessage = null,
-            )
-        }
-
-        try {
-            val report =
-                formatter.createTodayReport(
-                    date = date,
-                    includeRecipientName =
-                        includeRecipientName,
-                )
-
-            mutableState.update {
-                    current ->
+            mutableState.update { current ->
                 current.copy(
-                    isLoading = false,
-                    includeRecipientName =
-                        includeRecipientName,
-                    reportText =
-                        report.value,
+                    isLoading = true,
                     errorMessage = null,
                 )
             }
-        } catch (
-            cancellationException:
-            CancellationException,
-        ) {
-            throw cancellationException
-        } catch (_: Exception) {
-            mutableState.update {
-                    current ->
-                current.copy(
-                    isLoading = false,
-                    includeRecipientName =
-                        includeRecipientName,
-                    reportText = "",
-                    errorMessage =
-                        REPORT_LOAD_ERROR_MESSAGE,
-                )
+
+            try {
+                val report =
+                    formatter.createTodayReport(
+                        date = date,
+                        includeRecipientName =
+                            includeRecipientName,
+                    )
+
+                mutableState.update {
+                        current ->
+                    current.copy(
+                        isLoading = false,
+                        reportText =
+                            report.value,
+                    )
+                }
+            } catch (
+                cancellationException:
+                CancellationException,
+            ) {
+                throw cancellationException
+            } catch (_: Exception) {
+                mutableState.update {
+                        current ->
+                    current.copy(
+                        isLoading = false,
+                        errorMessage =
+                            "گزارش آماده نشد. دوباره تلاش کنید.",
+                    )
+                }
             }
         }
     }
@@ -323,12 +337,6 @@ class TodayReportViewModel(
                     )
                 }
             }
-
-        private const val STORAGE_ERROR_MESSAGE =
-            "ذخیره انتخاب نمایش نام انجام نشد."
-
-        private const val REPORT_LOAD_ERROR_MESSAGE =
-            "ساخت گزارش امروز انجام نشد."
     }
 }
 
@@ -341,11 +349,10 @@ fun TodayReportRoute(
     textShareGateway:
     TextShareGateway,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     val viewModel:
             TodayReportViewModel =
-        viewModel(
+        androidx.lifecycle.viewmodel.compose.viewModel(
             factory =
                 TodayReportViewModel.factory(
                     date = date,
@@ -367,72 +374,63 @@ fun TodayReportRoute(
             SnackbarHostState()
         }
 
-    val actionMessage =
-        state.actionMessage
-            ?.toDisplayText()
-
-    LaunchedEffect(
-        actionMessage,
-    ) {
-        if (actionMessage != null) {
-            snackbarHostState.showSnackbar(
-                message = actionMessage,
-            )
-
-            viewModel.consumeActionMessage()
-        }
-    }
-
     TodayReportScreen(
         state = state,
         snackbarHostState =
             snackbarHostState,
+        onBack = onBack,
         onIncludeRecipientNameChanged =
             viewModel::setIncludeRecipientName,
-        onCopy =
+        onCopyReport =
             viewModel::copyReport,
-        onShare =
+        onShareReport =
             viewModel::shareReport,
         onRetry =
-            viewModel::retry,
-        onBack = onBack,
-        modifier = modifier,
+            viewModel::refresh,
+    )
+
+    ReportActionMessages(
+        actionMessage =
+            state.actionMessage,
+        snackbarHostState =
+            snackbarHostState,
+        onConsumed =
+            viewModel::consumeActionMessage,
     )
 }
 
 @Composable
-fun TodayReportScreen(
+private fun TodayReportScreen(
     state: TodayReportUiState,
     snackbarHostState:
     SnackbarHostState,
+    onBack: () -> Unit,
     onIncludeRecipientNameChanged:
         (Boolean) -> Unit,
-    onCopy: () -> Unit,
-    onShare: () -> Unit,
+    onCopyReport: () -> Unit,
+    onShareReport: () -> Unit,
     onRetry: () -> Unit,
-    onBack: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
     Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .testTag(
-                    "today_report_screen",
-                ),
         snackbarHost = {
             SnackbarHost(
                 hostState =
                     snackbarHostState,
             )
         },
-    ) { contentPadding ->
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .testTag(
+                    "today_report_screen",
+                ),
+    ) { paddingValues ->
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(
-                        contentPadding,
+                        paddingValues,
                     )
                     .verticalScroll(
                         rememberScrollState(),
@@ -446,10 +444,8 @@ fun TodayReportScreen(
                     16.dp,
                 ),
         ) {
-            OutlinedButton(
+            TextButton(
                 onClick = onBack,
-                enabled =
-                    !state.isLoading,
                 modifier =
                     Modifier.testTag(
                         "today_report_back",
@@ -486,7 +482,9 @@ fun TodayReportScreen(
                     stringResource(
                         R.string
                             .carepack_today_report_date,
-                        state.date.toString(),
+                        JalaliPresentationDate
+                            .from(state.date)
+                            .formatNumeric(),
                     ),
                 style =
                     MaterialTheme
@@ -498,303 +496,199 @@ fun TodayReportScreen(
                     ),
             )
 
-            Card(
+            IncludeRecipientNameToggle(
+                checked =
+                    state.includeRecipientName,
+                onCheckedChange =
+                    onIncludeRecipientNameChanged,
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_share_destination_notice,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
                 modifier =
-                    Modifier.fillMaxWidth(),
-            ) {
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .toggleable(
-                                value =
-                                    state
-                                        .includeRecipientName,
-                                enabled =
-                                    !state.isLoading,
-                                role = Role.Switch,
-                                onValueChange =
-                                    onIncludeRecipientNameChanged,
-                            )
-                            .padding(
-                                16.dp,
-                            )
-                            .testTag(
-                                "today_report_include_name",
-                            ),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
-                            16.dp,
-                        ),
-                    verticalAlignment =
-                        Alignment.CenterVertically,
-                ) {
-                    Column(
-                        modifier =
-                            Modifier.weight(
-                                1f,
-                            ),
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_include_recipient_name,
-                                ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .titleMedium,
-                        )
-
-                        Spacer(
-                            modifier =
-                                Modifier.height(
-                                    4.dp,
-                                ),
-                        )
-
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_include_recipient_name_description,
-                                ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .bodyMedium,
-                        )
-                    }
-
-                    Switch(
-                        checked =
-                            state
-                                .includeRecipientName,
-                        enabled =
-                            !state.isLoading,
-                        onCheckedChange = null,
-                    )
-                }
-            }
+                    Modifier.testTag(
+                        "share_notice",
+                    ),
+            )
 
             when {
                 state.isLoading -> {
-                    Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
-                                .testTag(
-                                    "today_report_loading",
-                                ),
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally,
-                    ) {
-                        CircularProgressIndicator()
-
-                        Spacer(
-                            modifier =
-                                Modifier.height(
-                                    12.dp,
-                                ),
-                        )
-
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_report_loading,
-                                ),
-                        )
-                    }
+                    LoadingReport()
                 }
 
                 state.errorMessage != null -> {
-                    Card(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
-                                .testTag(
-                                    "today_report_error",
-                                ),
-                    ) {
-                        Column(
-                            modifier =
-                                Modifier.padding(
-                                    16.dp,
-                                ),
-                            verticalArrangement =
-                                Arrangement.spacedBy(
-                                    12.dp,
-                                ),
-                        ) {
-                            Text(
-                                text =
-                                    state
-                                        .errorMessage,
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .error,
-                            )
-
-                            Button(
-                                onClick = onRetry,
-                                modifier =
-                                    Modifier.testTag(
-                                        "today_report_retry",
-                                    ),
-                            ) {
-                                Text(
-                                    text =
-                                        stringResource(
-                                            R.string.retry,
-                                        ),
-                                )
-                            }
-                        }
-                    }
+                    ErrorReport(
+                        message =
+                            state.errorMessage,
+                        onRetry = onRetry,
+                    )
                 }
 
                 else -> {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_report_preview_heading,
-                            ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleLarge,
-                        modifier =
-                            Modifier
-                                .carePackHeading()
-                                .testTag(
-                                    "today_report_preview_heading",
-                                ),
+                    ReportPreview(
+                        reportText =
+                            state.reportText,
                     )
 
-                    Card(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                    ) {
-                        SelectionContainer {
-                            Text(
-                                text =
-                                    state.reportText,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(
-                                            16.dp,
-                                        )
-                                        .semantics {
-                                            contentDescription =
-                                                state
-                                                    .reportText
-                                        }
-                                        .testTag(
-                                            "today_report_preview",
-                                        ),
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .bodyLarge,
-                            )
-                        }
-                    }
-
-                    Card(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_share_destination_notice,
-                                ),
-                            modifier =
-                                Modifier
-                                    .padding(
-                                        16.dp,
-                                    )
-                                    .testTag(
-                                        "today_report_destination_notice",
-                                    ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .bodyMedium,
-                        )
-                    }
-
-                    Row(
-                        modifier =
-                            Modifier.fillMaxWidth(),
-                        horizontalArrangement =
-                            Arrangement.spacedBy(
-                                12.dp,
-                            ),
-                    ) {
-                        OutlinedButton(
-                            onClick = onCopy,
-                            enabled =
-                                state
-                                    .reportText
-                                    .isNotBlank(),
-                            modifier =
-                                Modifier
-                                    .weight(
-                                        1f,
-                                    )
-                                    .testTag(
-                                        "today_report_copy",
-                                    ),
-                        ) {
-                            Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .carepack_copy_report,
-                                    ),
-                            )
-                        }
-
-                        Button(
-                            onClick = onShare,
-                            enabled =
-                                state
-                                    .reportText
-                                    .isNotBlank(),
-                            modifier =
-                                Modifier
-                                    .weight(
-                                        1f,
-                                    )
-                                    .testTag(
-                                        "today_report_share",
-                                    ),
-                        ) {
-                            Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .carepack_share_report,
-                                    ),
-                            )
-                        }
-                    }
+                    ReportActions(
+                        reportText =
+                            state.reportText,
+                        isSharing =
+                            state.isSharing,
+                        onCopyReport =
+                            onCopyReport,
+                        onShareReport =
+                            onShareReport,
+                    )
                 }
             }
+        }
+    }
+}
 
-            Spacer(
-                modifier =
-                    Modifier.height(
-                        16.dp,
+@Composable
+private fun IncludeRecipientNameToggle(
+    checked: Boolean,
+    onCheckedChange:
+        (Boolean) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = checked,
+                    role = Role.Switch,
+                    onValueChange =
+                        onCheckedChange,
+                )
+                .testTag(
+                    "include_recipient_name_row",
+                ),
+        horizontalArrangement =
+            Arrangement.SpaceBetween,
+        verticalAlignment =
+            Alignment.CenterVertically,
+    ) {
+        Column(
+            modifier =
+                Modifier.weight(
+                    1f,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    4.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_include_recipient_name,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_include_recipient_name_description,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodySmall,
+            )
+        }
+
+        Switch(
+            checked = checked,
+            onCheckedChange = null,
+            modifier =
+                Modifier.testTag(
+                    "include_recipient_name_switch",
+                ),
+        )
+    }
+}
+
+@Composable
+private fun LoadingReport() {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .carePackPoliteLiveRegion()
+                .testTag(
+                    "today_report_loading",
+                ),
+        horizontalAlignment =
+            Alignment.CenterHorizontally,
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp,
+            ),
+    ) {
+        CircularProgressIndicator()
+
+        Text(
+            text =
+                stringResource(
+                    R.string.carepack_report_loading,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun ErrorReport(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .carePackPoliteLiveRegion()
+                .testTag(
+                    "today_report_error",
+                ),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp,
+            ),
+    ) {
+        Text(
+            text = message,
+            color =
+                MaterialTheme
+                    .colorScheme
+                    .error,
+        )
+
+        Button(
+            onClick = onRetry,
+            modifier =
+                Modifier.testTag(
+                    "today_report_retry",
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string.retry_action,
                     ),
             )
         }
@@ -802,37 +696,162 @@ fun TodayReportScreen(
 }
 
 @Composable
-private fun TodayReportActionMessage.toDisplayText():
-        String =
-    when (this) {
-        TodayReportActionMessage.COPIED -> {
-            stringResource(
-                R.string
-                    .carepack_report_copied,
+private fun ReportPreview(
+    reportText: String,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "today_report_preview_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_report_preview_heading,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier.carePackHeading(),
             )
-        }
 
-        TodayReportActionMessage
-            .SHARE_CHOOSER_OPENED -> {
-            stringResource(
-                R.string
-                    .carepack_share_chooser_opened,
-            )
-        }
-
-        TodayReportActionMessage
-            .NO_SHARE_TARGET -> {
-            stringResource(
-                R.string
-                    .carepack_no_share_target,
-            )
-        }
-
-        TodayReportActionMessage
-            .ACTION_BLOCKED -> {
-            stringResource(
-                R.string
-                    .carepack_share_action_failed,
-            )
+            SelectionContainer {
+                Text(
+                    text =
+                        reportText,
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyMedium
+                            .copy(
+                                textDirection =
+                                    TextDirection.ContentOrRtl,
+                            ),
+                    modifier =
+                        Modifier.testTag(
+                            "today_report_preview_text",
+                        ),
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun ReportActions(
+    reportText: String,
+    isSharing: Boolean,
+    onCopyReport: () -> Unit,
+    onShareReport: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier.fillMaxWidth(),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp,
+            ),
+    ) {
+        OutlinedButton(
+            onClick =
+                onCopyReport,
+            enabled =
+                reportText.isNotBlank() &&
+                        !isSharing,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "today_report_copy",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string.carepack_copy_report,
+                    ),
+            )
+        }
+
+        Button(
+            onClick =
+                onShareReport,
+            enabled =
+                reportText.isNotBlank() &&
+                        !isSharing,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "today_report_share",
+                    ),
+        ) {
+            if (isSharing) {
+                CircularProgressIndicator()
+            } else {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.carepack_share_report,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReportActionMessages(
+    actionMessage:
+    TodayReportActionMessage?,
+    snackbarHostState:
+    SnackbarHostState,
+    onConsumed: () -> Unit,
+) {
+    val copiedMessage =
+        stringResource(
+            R.string.carepack_report_copied,
+        )
+
+    val shareOpenedMessage =
+        stringResource(
+            R.string.carepack_share_chooser_opened,
+        )
+
+    LaunchedEffect(
+        actionMessage,
+    ) {
+        if (actionMessage == null) {
+            return@LaunchedEffect
+        }
+
+        snackbarHostState.showSnackbar(
+            when (actionMessage) {
+                TodayReportActionMessage.COPIED ->
+                    copiedMessage
+
+                TodayReportActionMessage
+                    .SHARE_CHOOSER_OPENED ->
+                    shareOpenedMessage
+            },
+        )
+
+        onConsumed()
+    }
+}

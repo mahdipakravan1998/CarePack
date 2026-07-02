@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
@@ -28,19 +30,28 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
 import ir.carepack.R
+import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.careplan.CarePlanField
+import ir.carepack.domain.schedule.SchedulePatternRules
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import java.time.DayOfWeek
+import java.time.LocalDate
 
 data class ScheduleFormCallbacks(
     val onWeekdayToggled:
         (DayOfWeek) -> Unit,
+    val onInputModeSelected:
+        (ScheduleInputMode) -> Unit,
     val onTimeDraftChanged:
         (String) -> Unit,
     val onAddTime: () -> Unit,
     val onRemoveTime:
         (Int) -> Unit,
+    val onIntervalHoursSelected:
+        (Int) -> Unit,
+    val onIntervalAnchorChanged:
+        (String) -> Unit,
     val onStartDateChanged:
         (String) -> Unit,
     val onEndDateChanged:
@@ -50,9 +61,10 @@ data class ScheduleFormCallbacks(
 @Composable
 fun ScheduleFormFields(
     state: ScheduleFormUiState,
-    callbacks:
-    ScheduleFormCallbacks,
+    callbacks: ScheduleFormCallbacks,
     enabled: Boolean,
+    firstDayOfWeek: DayOfWeek,
+    previewAnchorDate: LocalDate,
     modifier: Modifier = Modifier,
 ) {
     val leftToRightTextStyle =
@@ -98,46 +110,44 @@ fun ScheduleFormFields(
                     8.dp,
                 ),
         ) {
-            DayOfWeek
-                .entries
-                .forEach {
-                        dayOfWeek ->
-                    FilterChip(
-                        selected =
-                            dayOfWeek in
-                                    state.weekdays,
-                        onClick = {
-                            callbacks
-                                .onWeekdayToggled(
-                                    dayOfWeek,
-                                )
-                        },
-                        enabled = enabled,
-                        label = {
-                            Text(
-                                text =
-                                    stringResource(
-                                        weekdayPersianNameResource(
-                                            dayOfWeek,
-                                        ),
-                                    ),
+            orderedWeekdays(
+                firstDayOfWeek,
+            ).forEach { dayOfWeek ->
+                FilterChip(
+                    selected =
+                        dayOfWeek in
+                                state.weekdays,
+                    onClick = {
+                        callbacks
+                            .onWeekdayToggled(
+                                dayOfWeek,
                             )
-                        },
-                        modifier =
-                            Modifier.testTag(
-                                "weekday_${dayOfWeek.name}",
-                            ),
-                    )
-                }
+                    },
+                    enabled = enabled,
+                    label = {
+                        Text(
+                            text =
+                                stringResource(
+                                    weekdayPersianNameResource(
+                                        dayOfWeek,
+                                    ),
+                                ),
+                        )
+                    },
+                    modifier =
+                        Modifier.testTag(
+                            "weekday_${dayOfWeek.name}",
+                        ),
+                )
+            }
         }
 
-        state.errors[
+        state
+            .errors[
             CarePlanField.WEEKDAYS
-        ]?.let {
-                message ->
+        ]?.let { message ->
             FormErrorText(
-                message =
-                    message,
+                message = message,
             )
         }
 
@@ -152,7 +162,7 @@ fun ScheduleFormFields(
             text =
                 stringResource(
                     R.string
-                        .selected_times_label,
+                        .schedule_pattern_label,
                 ),
             style =
                 MaterialTheme
@@ -169,151 +179,96 @@ fun ScheduleFormFields(
                 ),
         )
 
-        state.minutesOfDay
-            .forEach {
-                    minuteOfDay ->
-                val timeText =
-                    minuteOfDay
-                        .toHourMinuteText()
-
-                val removeDescription =
-                    "${stringResource(R.string.remove_time)} $timeText"
-
-                Row(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                vertical = 4.dp,
-                            ),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
-                            8.dp,
-                        ),
-                ) {
-                    Text(
-                        text =
-                            timeText,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyLarge
-                                .copy(
-                                    textDirection =
-                                        TextDirection.Ltr,
-                                ),
-                        modifier =
-                            Modifier
-                                .weight(
-                                    1f,
-                                )
-                                .padding(
-                                    top = 12.dp,
-                                )
-                                .testTag(
-                                    "schedule_time_$minuteOfDay",
-                                ),
-                    )
-
-                    TextButton(
-                        onClick = {
-                            callbacks
-                                .onRemoveTime(
-                                    minuteOfDay,
-                                )
-                        },
-                        enabled = enabled,
-                        modifier =
-                            Modifier
-                                .semantics {
-                                    contentDescription =
-                                        removeDescription
-                                }
-                                .testTag(
-                                    "schedule_time_remove_$minuteOfDay",
-                                ),
-                    ) {
-                        Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .remove_time,
-                                ),
-                        )
-                    }
-                }
-            }
-
-        Column(
+        Row(
             modifier =
-                Modifier.fillMaxWidth(),
-            verticalArrangement =
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(
+                        rememberScrollState(),
+                    ),
+            horizontalArrangement =
                 Arrangement.spacedBy(
                     8.dp,
                 ),
         ) {
-            OutlinedTextField(
-                value =
-                    state.timeDraft,
-                onValueChange =
-                    callbacks
-                        .onTimeDraftChanged,
+            FilterChip(
+                selected =
+                    state.inputMode ==
+                            ScheduleInputMode.FIXED_TIMES,
+                onClick = {
+                    callbacks.onInputModeSelected(
+                        ScheduleInputMode.FIXED_TIMES,
+                    )
+                },
                 enabled = enabled,
                 label = {
                     Text(
                         text =
                             stringResource(
                                 R.string
-                                    .time_label,
+                                    .fixed_time_schedule_label,
                             ),
                     )
                 },
-                singleLine = true,
-                keyboardOptions =
-                    KeyboardOptions(
-                        keyboardType =
-                            KeyboardType.Number,
-                    ),
-                textStyle =
-                    leftToRightTextStyle,
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
-                            "schedule_time_draft",
-                        ),
+                    Modifier.testTag(
+                        "schedule_pattern_fixed",
+                    ),
             )
 
-            OutlinedButton(
-                onClick =
-                    callbacks.onAddTime,
+            FilterChip(
+                selected =
+                    state.inputMode ==
+                            ScheduleInputMode.EVERY_X_HOURS,
+                onClick = {
+                    callbacks.onInputModeSelected(
+                        ScheduleInputMode.EVERY_X_HOURS,
+                    )
+                },
                 enabled = enabled,
+                label = {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .interval_schedule_label,
+                            ),
+                    )
+                },
                 modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
-                            "schedule_time_add",
-                        ),
-            ) {
-                Text(
-                    text =
-                        stringResource(
-                            R.string.add_time,
-                        ),
-                )
-            }
+                    Modifier.testTag(
+                        "schedule_pattern_interval",
+                    ),
+            )
         }
 
-        state.errors[
-            CarePlanField.TIMES
-        ]?.let {
-                message ->
-            FormErrorText(
-                message =
-                    message,
-                testTag =
-                    "schedule_times_error",
-            )
+        Spacer(
+            modifier =
+                Modifier.height(
+                    16.dp,
+                ),
+        )
+
+        when (state.inputMode) {
+            ScheduleInputMode.FIXED_TIMES -> {
+                FixedTimesEditor(
+                    state = state,
+                    callbacks = callbacks,
+                    enabled = enabled,
+                    leftToRightTextStyle =
+                        leftToRightTextStyle,
+                )
+            }
+
+            ScheduleInputMode.EVERY_X_HOURS -> {
+                IntervalEditor(
+                    state = state,
+                    callbacks = callbacks,
+                    enabled = enabled,
+                    leftToRightTextStyle =
+                        leftToRightTextStyle,
+                )
+            }
         }
 
         Spacer(
@@ -327,8 +282,7 @@ fun ScheduleFormFields(
             value =
                 state.startDateText,
             onValueChange =
-                callbacks
-                    .onStartDateChanged,
+                callbacks.onStartDateChanged,
             enabled = enabled,
             label = {
                 Text(
@@ -339,34 +293,18 @@ fun ScheduleFormFields(
                         ),
                 )
             },
-            placeholder = {
-                Text(
-                    text =
-                        "2026-06-24",
-                    style =
-                        leftToRightTextStyle,
-                )
-            },
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType =
-                        KeyboardType.Ascii,
-                ),
             textStyle =
                 leftToRightTextStyle,
+            singleLine = true,
             isError =
                 state.errors
                     .containsKey(
-                        CarePlanField
-                            .START_DATE,
+                        CarePlanField.START_DATE,
                     ),
             supportingText = {
                 state.errors[
-                    CarePlanField
-                        .START_DATE
-                ]?.let {
-                        errorMessage ->
+                    CarePlanField.START_DATE
+                ]?.let { errorMessage ->
                     Text(
                         text =
                             errorMessage,
@@ -380,23 +318,15 @@ fun ScheduleFormFields(
                 Modifier
                     .fillMaxWidth()
                     .testTag(
-                        "schedule_start_date",
+                        "start_date",
                     ),
-        )
-
-        Spacer(
-            modifier =
-                Modifier.height(
-                    12.dp,
-                ),
         )
 
         OutlinedTextField(
             value =
                 state.endDateText,
             onValueChange =
-                callbacks
-                    .onEndDateChanged,
+                callbacks.onEndDateChanged,
             enabled = enabled,
             label = {
                 Text(
@@ -407,33 +337,18 @@ fun ScheduleFormFields(
                         ),
                 )
             },
-            placeholder = {
-                Text(
-                    text =
-                        "2026-07-24",
-                    style =
-                        leftToRightTextStyle,
-                )
-            },
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType =
-                        KeyboardType.Ascii,
-                ),
             textStyle =
                 leftToRightTextStyle,
+            singleLine = true,
             isError =
                 state.errors
                     .containsKey(
-                        CarePlanField
-                            .END_DATE,
+                        CarePlanField.END_DATE,
                     ),
             supportingText = {
                 state.errors[
                     CarePlanField.END_DATE
-                ]?.let {
-                        errorMessage ->
+                ]?.let { errorMessage ->
                     Text(
                         text =
                             errorMessage,
@@ -447,22 +362,15 @@ fun ScheduleFormFields(
                 Modifier
                     .fillMaxWidth()
                     .testTag(
-                        "schedule_end_date",
+                        "end_date",
                     ),
-        )
-
-        Spacer(
-            modifier =
-                Modifier.height(
-                    12.dp,
-                ),
         )
 
         OutlinedTextField(
             value =
                 state.zoneId,
             onValueChange = {},
-            readOnly = true,
+            enabled = false,
             label = {
                 Text(
                     text =
@@ -474,6 +382,7 @@ fun ScheduleFormFields(
             },
             textStyle =
                 leftToRightTextStyle,
+            singleLine = true,
             isError =
                 state.errors
                     .containsKey(
@@ -482,8 +391,7 @@ fun ScheduleFormFields(
             supportingText = {
                 state.errors[
                     CarePlanField.ZONE_ID
-                ]?.let {
-                        errorMessage ->
+                ]?.let { errorMessage ->
                     Text(
                         text =
                             errorMessage,
@@ -500,6 +408,456 @@ fun ScheduleFormFields(
                         "schedule_zone",
                     ),
         )
+
+        Spacer(
+            modifier =
+                Modifier.height(
+                    20.dp,
+                ),
+        )
+
+        SchedulePreviewCard(
+            state = state,
+            previewAnchorDate =
+                previewAnchorDate,
+        )
+    }
+}
+
+@Composable
+private fun FixedTimesEditor(
+    state: ScheduleFormUiState,
+    callbacks: ScheduleFormCallbacks,
+    enabled: Boolean,
+    leftToRightTextStyle:
+    androidx.compose.ui.text.TextStyle,
+) {
+    Text(
+        text =
+            stringResource(
+                R.string
+                    .selected_times_label,
+            ),
+        style =
+            MaterialTheme
+                .typography
+                .labelLarge,
+        modifier =
+            Modifier.carePackHeading(),
+    )
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                8.dp,
+            ),
+    )
+
+    state
+        .minutesOfDay
+        .forEach { minuteOfDay ->
+            val timeText =
+                minuteOfDay
+                    .toHourMinuteText()
+
+            val removeDescription =
+                "${stringResource(R.string.remove_time)} $timeText"
+
+            Row(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            vertical = 4.dp,
+                        ),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        8.dp,
+                    ),
+            ) {
+                AssistChip(
+                    onClick = {},
+                    label = {
+                        Text(
+                            text =
+                                timeText,
+                            style =
+                                leftToRightTextStyle,
+                        )
+                    },
+                    modifier =
+                        Modifier
+                            .weight(
+                                1f,
+                            )
+                            .testTag(
+                                "selected_time_$minuteOfDay",
+                            ),
+                )
+
+                TextButton(
+                    onClick = {
+                        callbacks
+                            .onRemoveTime(
+                                minuteOfDay,
+                            )
+                    },
+                    enabled = enabled,
+                    modifier =
+                        Modifier
+                            .semantics {
+                                contentDescription =
+                                    removeDescription
+                            }
+                            .testTag(
+                                "remove_time_$minuteOfDay",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .remove_time,
+                            ),
+                    )
+                }
+            }
+        }
+
+    if (
+        state
+            .minutesOfDay
+            .isEmpty()
+    ) {
+        Text(
+            text =
+                stringResource(
+                    R.string
+                        .schedule_preview_empty,
+                ),
+            style =
+                MaterialTheme
+                    .typography
+                    .bodySmall,
+        )
+    }
+
+    state.errors[
+        CarePlanField.TIMES
+    ]?.let { message ->
+        FormErrorText(
+            message = message,
+            testTag = "times_error",
+        )
+    }
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
+
+    OutlinedTextField(
+        value =
+            state.timeDraft,
+        onValueChange =
+            callbacks.onTimeDraftChanged,
+        enabled = enabled,
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string.time_label,
+                    ),
+            )
+        },
+        textStyle =
+            leftToRightTextStyle,
+        singleLine = true,
+        keyboardOptions =
+            KeyboardOptions(
+                keyboardType =
+                    KeyboardType.Text,
+            ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "time_draft",
+                ),
+    )
+
+    OutlinedButton(
+        onClick =
+            callbacks.onAddTime,
+        enabled = enabled,
+        modifier =
+            Modifier
+                .padding(
+                    top = 8.dp,
+                )
+                .fillMaxWidth()
+                .testTag(
+                    "add_time",
+                ),
+    ) {
+        Text(
+            text =
+                stringResource(
+                    R.string.add_time,
+                ),
+        )
+    }
+}
+
+@Composable
+private fun IntervalEditor(
+    state: ScheduleFormUiState,
+    callbacks: ScheduleFormCallbacks,
+    enabled: Boolean,
+    leftToRightTextStyle:
+    androidx.compose.ui.text.TextStyle,
+) {
+    Text(
+        text =
+            stringResource(
+                R.string
+                    .interval_presets_label,
+            ),
+        style =
+            MaterialTheme
+                .typography
+                .labelLarge,
+        modifier =
+            Modifier.carePackHeading(),
+    )
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                8.dp,
+            ),
+    )
+
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .horizontalScroll(
+                    rememberScrollState(),
+                ),
+        horizontalArrangement =
+            Arrangement.spacedBy(
+                8.dp,
+            ),
+    ) {
+        SchedulePatternRules
+            .allowedIntervalHours
+            .sorted()
+            .forEach { hours ->
+                FilterChip(
+                    selected =
+                        state.intervalHours ==
+                                hours,
+                    onClick = {
+                        callbacks
+                            .onIntervalHoursSelected(
+                                hours,
+                            )
+                    },
+                    enabled = enabled,
+                    label = {
+                        Text(
+                            text =
+                                stringResource(
+                                    when (hours) {
+                                        6 ->
+                                            R.string
+                                                .every_6_hours
+
+                                        8 ->
+                                            R.string
+                                                .every_8_hours
+
+                                        else ->
+                                            R.string
+                                                .every_12_hours
+                                    },
+                                ),
+                        )
+                    },
+                    modifier =
+                        Modifier.testTag(
+                            "interval_${hours}_hours",
+                        ),
+                )
+            }
+    }
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
+
+    OutlinedTextField(
+        value =
+            state.intervalAnchorDraft,
+        onValueChange =
+            callbacks.onIntervalAnchorChanged,
+        enabled = enabled,
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .first_dose_time_label,
+                    ),
+            )
+        },
+        textStyle =
+            leftToRightTextStyle,
+        singleLine = true,
+        keyboardOptions =
+            KeyboardOptions(
+                keyboardType =
+                    KeyboardType.Text,
+            ),
+        isError =
+            state.errors
+                .containsKey(
+                    CarePlanField.TIMES,
+                ),
+        supportingText = {
+            state.errors[
+                CarePlanField.TIMES
+            ]?.let { errorMessage ->
+                Text(
+                    text =
+                        errorMessage,
+                    modifier =
+                        Modifier
+                            .carePackPoliteLiveRegion(),
+                )
+            }
+        },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "interval_anchor_time",
+                ),
+    )
+}
+
+@Composable
+private fun SchedulePreviewCard(
+    state: ScheduleFormUiState,
+    previewAnchorDate: LocalDate,
+) {
+    val previewItems =
+        state.previewItems(
+            anchorDate =
+                previewAnchorDate,
+        )
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "schedule_preview",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .schedule_preview_label,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier.carePackHeading(),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .schedule_preview_zone,
+                        state.zoneId,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodySmall
+                        .copy(
+                            textDirection =
+                                TextDirection.Ltr,
+                        ),
+            )
+
+            if (previewItems.isEmpty()) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .schedule_preview_empty,
+                        ),
+                    modifier =
+                        Modifier.testTag(
+                            "schedule_preview_empty",
+                        ),
+                )
+            } else {
+                previewItems
+                    .forEachIndexed {
+                            index,
+                            item ->
+                        val weekday =
+                            stringResource(
+                                weekdayPersianNameResource(
+                                    item.dayOfWeek,
+                                ),
+                            )
+
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string
+                                        .schedule_preview_item,
+                                    JalaliPresentationDate
+                                        .from(
+                                            item.localDate,
+                                        )
+                                        .formatNumeric(),
+                                    weekday,
+                                    item.minuteOfDay
+                                        .toHourMinuteText(),
+                                ),
+                            modifier =
+                                Modifier.testTag(
+                                    "schedule_preview_item_$index",
+                                ),
+                        )
+                    }
+            }
+        }
     }
 }
 
@@ -542,36 +900,52 @@ private fun FormErrorText(
     )
 }
 
+private fun orderedWeekdays(
+    firstDayOfWeek: DayOfWeek,
+): List<DayOfWeek> {
+    val days =
+        DayOfWeek.entries
+
+    val startIndex =
+        days
+            .indexOf(
+                firstDayOfWeek,
+            )
+            .coerceAtLeast(
+                0,
+            )
+
+    return days.drop(
+        startIndex,
+    ) +
+            days.take(
+                startIndex,
+            )
+}
+
 @StringRes
 internal fun weekdayPersianNameResource(
     dayOfWeek: DayOfWeek,
 ): Int =
     when (dayOfWeek) {
-        DayOfWeek.SATURDAY -> {
+        DayOfWeek.SATURDAY ->
             R.string.saturday
-        }
 
-        DayOfWeek.SUNDAY -> {
+        DayOfWeek.SUNDAY ->
             R.string.sunday
-        }
 
-        DayOfWeek.MONDAY -> {
+        DayOfWeek.MONDAY ->
             R.string.monday
-        }
 
-        DayOfWeek.TUESDAY -> {
+        DayOfWeek.TUESDAY ->
             R.string.tuesday
-        }
 
-        DayOfWeek.WEDNESDAY -> {
+        DayOfWeek.WEDNESDAY ->
             R.string.wednesday
-        }
 
-        DayOfWeek.THURSDAY -> {
+        DayOfWeek.THURSDAY ->
             R.string.thursday
-        }
 
-        DayOfWeek.FRIDAY -> {
+        DayOfWeek.FRIDAY ->
             R.string.friday
-        }
     }

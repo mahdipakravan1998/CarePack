@@ -1,5 +1,6 @@
 package ir.carepack.domain.report
 
+import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.model.CaregiverReportState
 import java.time.LocalDate
 import java.time.LocalTime
@@ -78,13 +79,11 @@ class TodayReportTextBuilderTest {
         )
 
         assertTrue(
-            secondIndex >
-                    firstIndex,
+            secondIndex > firstIndex,
         )
 
         assertTrue(
-            lateIndex >
-                    secondIndex,
+            lateIndex > secondIndex,
         )
     }
 
@@ -177,7 +176,7 @@ class TodayReportTextBuilderTest {
     }
 
     @Test
-    fun report_alwaysContainsRequestedDateAndFixedDisclaimer() {
+    fun report_alwaysContainsJalaliDateAndFixedDisclaimer() {
         val report =
             builder.build(
                 date = REPORT_DATE,
@@ -188,13 +187,21 @@ class TodayReportTextBuilderTest {
 
         assertTrue(
             report.contains(
-                REPORT_DATE.toString(),
+                JalaliPresentationDate
+                    .from(REPORT_DATE)
+                    .formatNumeric(),
             ),
         )
 
         assertTrue(
             report.contains(
                 FIXED_DISCLAIMER,
+            ),
+        )
+
+        assertFalse(
+            report.contains(
+                REPORT_DATE.toString(),
             ),
         )
     }

@@ -40,8 +40,6 @@ CarePack 1.0 has exactly one final Room schema version.
 - `CarePackDatabase` version: `1`
 - Schema file: `app/schemas/ir.carepack.data.local.CarePackDatabase/1.json`
 
-No historical schema files, migration code, migration tests, or migration documentation are part of the final 1.0 repository.
-
 The version-1 schema is the final first-release schema and contains the complete CarePack 1.0 data model.
 
 ## Domain storage contract

@@ -1,5 +1,6 @@
 package ir.carepack.domain.careplan
 
+import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.IntervalSchedule
 import ir.carepack.domain.schedule.SchedulePattern
@@ -23,6 +24,7 @@ internal data class ValidatedMedicationText(
 internal data class ValidatedScheduleDefinition(
     val weekdayMask: Int,
     val minutesOfDay: List<Int>,
+    val schedulePattern: SchedulePattern,
     val zoneId: ZoneId,
     val startDate: LocalDate?,
     val endDate: LocalDate?,
@@ -161,7 +163,7 @@ internal object CarePlanValidation {
                             field =
                                 CarePlanField.START_DATE,
                             message =
-                                "تاریخ شروع باید به شکل YYYY-MM-DD باشد.",
+                                "تاریخ شروع باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
                         ),
                     )
                 }
@@ -175,7 +177,7 @@ internal object CarePlanValidation {
                             field =
                                 CarePlanField.END_DATE,
                             message =
-                                "تاریخ پایان باید به شکل YYYY-MM-DD باشد.",
+                                "تاریخ پایان باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
                         ),
                     )
                 }
@@ -211,10 +213,20 @@ internal object CarePlanValidation {
     fun validateSchedule(
         weekdays: Set<DayOfWeek>,
         minutesOfDay: List<Int>,
+        schedulePattern: SchedulePattern =
+            FixedTimeSchedule(
+                minutesOfDay =
+                    minutesOfDay,
+            ),
         startDate: LocalDate?,
         endDate: LocalDate?,
         rawZoneId: String,
     ): ValidationResult<ValidatedScheduleDefinition> {
+        val patternValidation =
+            validateSchedulePattern(
+                schedulePattern,
+            )
+
         val errors =
             buildList {
                 if (weekdays.isEmpty()) {
@@ -224,43 +236,6 @@ internal object CarePlanValidation {
                                 CarePlanField.WEEKDAYS,
                             message =
                                 "حداقل یک روز هفته را انتخاب کنید.",
-                        ),
-                    )
-                }
-
-                if (minutesOfDay.isEmpty()) {
-                    add(
-                        CarePlanValidationError(
-                            field =
-                                CarePlanField.TIMES,
-                            message =
-                                "حداقل یک زمان را اضافه کنید.",
-                        ),
-                    )
-                }
-
-                if (
-                    minutesOfDay.any {
-                        it !in minuteOfDayRange
-                    }
-                ) {
-                    add(
-                        CarePlanValidationError(
-                            field =
-                                CarePlanField.TIMES,
-                            message =
-                                "یک یا چند زمان معتبر نیست.",
-                        ),
-                    )
-                }
-
-                if (hasDuplicateMinutes(minutesOfDay)) {
-                    add(
-                        CarePlanValidationError(
-                            field =
-                                CarePlanField.TIMES,
-                            message =
-                                "زمان‌های تکراری مجاز نیستند.",
                         ),
                     )
                 }
@@ -280,6 +255,9 @@ internal object CarePlanValidation {
                     )
                 }
             }.toMutableList()
+
+        errors +=
+            patternValidation.errorsOrEmpty()
 
         val zoneId =
             runCatching {
@@ -302,6 +280,11 @@ internal object CarePlanValidation {
             )
         }
 
+        val validPattern =
+            checkNotNull(
+                patternValidation.valueOrNull(),
+            )
+
         return ValidationResult.Valid(
             ValidatedScheduleDefinition(
                 weekdayMask =
@@ -310,9 +293,10 @@ internal object CarePlanValidation {
                                 (1 shl (day.value - 1))
                     },
                 minutesOfDay =
-                    minutesOfDay
-                        .distinct()
-                        .sorted(),
+                    validPattern
+                        .representativeMinutesOfDay,
+                schedulePattern =
+                    validPattern,
                 zoneId =
                     checkNotNull(zoneId),
                 startDate = startDate,
@@ -439,9 +423,12 @@ internal object CarePlanValidation {
             return null
         }
 
-        return runCatching {
-            LocalDate.parse(normalized)
-        }.getOrNull()
+        return JalaliPresentationDate
+            .parseNumeric(normalized)
+            ?.toLocalDate()
+            ?: runCatching {
+                LocalDate.parse(normalized)
+            }.getOrNull()
     }
 
     private fun hasDuplicateMinutes(

@@ -14,6 +14,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -136,6 +137,9 @@ class MainActivity :
                                 privacyPreferenceStore =
                                     container
                                         .privacyPreferenceStore,
+                                userExperiencePreferenceStore =
+                                    container
+                                        .userExperiencePreferenceStore,
                                 textShareGateway =
                                     container
                                         .textShareGateway,
@@ -161,6 +165,7 @@ class MainActivity :
         }
 
         recoverIncompleteDeletion()
+        handleNotificationIntent(intent)
     }
 
     override fun onNewIntent(
@@ -169,160 +174,104 @@ class MainActivity :
         super.onNewIntent(intent)
 
         setIntent(intent)
-
-        if (
-            startupDeletionState.value ==
-            StartupDeletionState.READY
-        ) {
-            validateNotificationIntent(
-                sourceIntent = intent,
-            )
-        }
+        handleNotificationIntent(intent)
     }
 
     override fun onStart() {
         super.onStart()
 
-        when (
-            startupDeletionState.value
-        ) {
-            StartupDeletionState.CHECKING -> {
-                recoverIncompleteDeletion()
-            }
+        reconcileForegroundState()
+    }
 
-            StartupDeletionState.READY -> {
-                reconcileForegroundState()
-            }
+    override fun onStop() {
+        foregroundReconciliationJob?.cancel()
+        foregroundReconciliationJob = null
+        super.onStop()
+    }
 
-            StartupDeletionState.FAILED -> {
-                Unit
+    override fun onDestroy() {
+        notificationValidationJob?.cancel()
+        deletionRecoveryJob?.cancel()
+        super.onDestroy()
+    }
+
+    private fun reconcileForegroundState() {
+        foregroundReconciliationJob?.cancel()
+
+        foregroundReconciliationJob =
+            lifecycleScope.launch {
+                try {
+                    foregroundGenerationError.value =
+                        null
+
+                    container
+                        .reminderCoordinator
+                        .reconcile(
+                            ReconciliationReason
+                                .APPLICATION_FOREGROUND,
+                        )
+                } catch (
+                    cancellationException:
+                    CancellationException,
+                ) {
+                    throw cancellationException
+                } catch (_: Exception) {
+                    foregroundGenerationError.value =
+                        getString(
+                            R.string.storage_error,
+                        )
+                }
             }
+    }
+
+    private fun handleNotificationIntent(
+        intent: Intent?,
+    ) {
+        if (intent == null) {
+            return
         }
+
+        notificationValidationJob?.cancel()
+
+        notificationValidationJob =
+            lifecycleScope.launch {
+                val occurrenceId =
+                    container
+                        .notificationNavigationValidator
+                        .validatedOccurrenceId(
+                            intent,
+                        )
+                        ?: return@launch
+
+                notificationOccurrenceId.value =
+                    occurrenceId
+            }
     }
 
     private fun recoverIncompleteDeletion() {
-        if (
-            deletionRecoveryJob
-                ?.isActive == true
-        ) {
-            return
-        }
+        deletionRecoveryJob?.cancel()
 
         deletionRecoveryJob =
             lifecycleScope.launch {
                 startupDeletionState.value =
                     StartupDeletionState.CHECKING
 
-                val result =
-                    try {
+                startupDeletionState.value =
+                    when (
                         container
                             .dataDeletionCoordinator
                             .resumeIncompleteDeletionIfNeeded()
-                    } catch (
-                        cancellation:
-                        CancellationException,
                     ) {
-                        throw cancellation
-                    } catch (_: Exception) {
-                        startupDeletionState.value =
+                        DataDeletionResult.Completed,
+                        DataDeletionResult.NoDeletionPending,
+                            -> {
+                            StartupDeletionState.READY
+                        }
+
+                        is DataDeletionResult.Failed -> {
                             StartupDeletionState.FAILED
-
-                        return@launch
+                        }
                     }
-
-                when (result) {
-                    DataDeletionResult.Completed -> {
-                        notificationOccurrenceId.value =
-                            null
-
-                        completeStartupGate()
-                    }
-
-                    DataDeletionResult
-                        .NoDeletionPending -> {
-                        completeStartupGate()
-                    }
-
-                    is DataDeletionResult.Failed -> {
-                        startupDeletionState.value =
-                            StartupDeletionState.FAILED
-                    }
-                }
-            }
-    }
-
-    private fun completeStartupGate() {
-        startupDeletionState.value =
-            StartupDeletionState.READY
-
-        validateNotificationIntent(
-            sourceIntent = intent,
-        )
-
-        reconcileForegroundState()
-    }
-
-    private fun reconcileForegroundState() {
-        if (
-            startupDeletionState.value !=
-            StartupDeletionState.READY
-        ) {
-            return
-        }
-
-        if (
-            foregroundReconciliationJob
-                ?.isActive == true
-        ) {
-            return
-        }
-
-        foregroundReconciliationJob =
-            lifecycleScope.launch {
-                foregroundGenerationError.value =
-                    null
-
-                try {
-                    container
-                        .appReconciler
-                        .reconcile(
-                            reason =
-                                ReconciliationReason
-                                    .APPLICATION_FOREGROUND,
-                        )
-                } catch (
-                    cancellation:
-                    CancellationException,
-                ) {
-                    throw cancellation
-                } catch (_: Exception) {
-                    foregroundGenerationError.value =
-                        "به‌روزرسانی نوبت‌ها و یادآورها انجام نشد."
-                }
-            }
-    }
-
-    private fun validateNotificationIntent(
-        sourceIntent: Intent?,
-    ) {
-        if (
-            startupDeletionState.value !=
-            StartupDeletionState.READY
-        ) {
-            return
-        }
-
-        notificationValidationJob
-            ?.cancel()
-
-        notificationValidationJob =
-            lifecycleScope.launch {
-                notificationOccurrenceId.value =
-                    container
-                        .notificationNavigationValidator
-                        .validatedOccurrenceId(
-                            intent = sourceIntent,
-                        )
             }
     }
 }
@@ -333,7 +282,7 @@ private enum class StartupDeletionState {
     FAILED,
 }
 
-@androidx.compose.runtime.Composable
+@Composable
 private fun StartupDeletionRecoveryScreen(
     isRetryAvailable: Boolean,
     onRetry: () -> Unit,
@@ -343,30 +292,67 @@ private fun StartupDeletionRecoveryScreen(
             Modifier
                 .fillMaxSize()
                 .testTag(
-                    "startup_deletion_gate",
+                    "startup_deletion_recovery_screen",
                 ),
-    ) { contentPadding ->
+    ) { paddingValues ->
         Column(
             modifier =
                 Modifier
                     .fillMaxSize()
                     .padding(
-                        contentPadding,
+                        paddingValues,
                     )
                     .padding(
-                        24.dp,
-                    )
-                    .carePackPoliteLiveRegion(),
+                        horizontal = 24.dp,
+                    ),
             horizontalAlignment =
                 Alignment.CenterHorizontally,
             verticalArrangement =
                 Arrangement.Center,
         ) {
-            if (!isRetryAvailable) {
+            if (isRetryAvailable) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .carepack_delete_all_failed,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .headlineSmall,
+                    modifier =
+                        Modifier
+                            .carePackHeading()
+                            .carePackPoliteLiveRegion()
+                            .testTag(
+                                "startup_deletion_recovery_error",
+                            ),
+                )
+
+                Button(
+                    onClick = onRetry,
+                    modifier =
+                        Modifier
+                            .padding(
+                                top = 16.dp,
+                            )
+                            .testTag(
+                                "startup_deletion_recovery_retry",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string.retry_action,
+                            ),
+                    )
+                }
+            } else {
                 CircularProgressIndicator(
                     modifier =
                         Modifier.testTag(
-                            "startup_deletion_progress",
+                            "startup_deletion_recovery_progress",
                         ),
                 )
 
@@ -383,53 +369,10 @@ private fun StartupDeletionRecoveryScreen(
                     modifier =
                         Modifier
                             .padding(
-                                top = 20.dp,
+                                top = 16.dp,
                             )
-                            .testTag(
-                                "startup_deletion_progress_text",
-                            ),
+                            .carePackPoliteLiveRegion(),
                 )
-            } else {
-                Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .carepack_delete_all_failed,
-                        ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .titleMedium,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .error,
-                    modifier =
-                        Modifier
-                            .carePackHeading()
-                            .testTag(
-                                "startup_deletion_error",
-                            ),
-                )
-
-                Button(
-                    onClick = onRetry,
-                    modifier =
-                        Modifier
-                            .padding(
-                                top = 20.dp,
-                            )
-                            .testTag(
-                                "startup_deletion_retry",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string.retry,
-                            ),
-                    )
-                }
             }
         }
     }

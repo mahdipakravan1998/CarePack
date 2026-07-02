@@ -5,6 +5,8 @@ import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.local.OccurrenceEntity
+import ir.carepack.domain.careplan.AddScheduleCommand
+import ir.carepack.domain.careplan.AddScheduleOutcome
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.careplan.CreateRecipientCommand
@@ -15,6 +17,8 @@ import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.reminder.RoomReminderScheduleSource
+import ir.carepack.domain.schedule.FixedTimeSchedule
+import ir.carepack.domain.schedule.SchedulePattern
 import ir.carepack.domain.today.RoomTodayQueryService
 import java.time.DayOfWeek
 import java.time.Instant
@@ -98,6 +102,11 @@ internal class CarePlanRoomTestFixture private constructor(
         weekdays: Set<DayOfWeek> =
             DayOfWeek.entries.toSet(),
         minutesOfDay: List<Int>,
+        schedulePattern: SchedulePattern =
+            FixedTimeSchedule(
+                minutesOfDay =
+                    minutesOfDay,
+            ),
         startDate: LocalDate? = null,
         endDate: LocalDate? = null,
         zoneId: String = DEFAULT_ZONE_ID,
@@ -119,6 +128,8 @@ internal class CarePlanRoomTestFixture private constructor(
                             weekdays,
                         minutesOfDay =
                             minutesOfDay,
+                        schedulePattern =
+                            schedulePattern,
                         startDate =
                             startDate,
                         endDate =
@@ -158,6 +169,74 @@ internal class CarePlanRoomTestFixture private constructor(
         }
     }
 
+    suspend fun addSchedule(
+        medicationId: String,
+        weekdays: Set<DayOfWeek> =
+            DayOfWeek.entries.toSet(),
+        minutesOfDay: List<Int>,
+        schedulePattern: SchedulePattern =
+            FixedTimeSchedule(
+                minutesOfDay =
+                    minutesOfDay,
+            ),
+        startDate: LocalDate? = null,
+        endDate: LocalDate? = null,
+        zoneId: String = DEFAULT_ZONE_ID,
+    ): CreatedTestSchedule {
+        val outcome =
+            carePlanService.addSchedule(
+                AddScheduleCommand(
+                    medicationId =
+                        medicationId,
+                    weekdays =
+                        weekdays,
+                    minutesOfDay =
+                        minutesOfDay,
+                    schedulePattern =
+                        schedulePattern,
+                    startDate =
+                        startDate,
+                    endDate =
+                        endDate,
+                    zoneId =
+                        zoneId,
+                ),
+            )
+
+        return when (outcome) {
+            is AddScheduleOutcome.Created -> {
+                CreatedTestSchedule(
+                    medicationId =
+                        outcome.medicationId,
+                    scheduleSeriesId =
+                        outcome.scheduleSeriesId,
+                    scheduleVersionId =
+                        outcome.scheduleVersionId,
+                    occurrenceIds =
+                        outcome.occurrenceIds,
+                )
+            }
+
+            AddScheduleOutcome.NotFound -> {
+                error(
+                    "Test schedule creation failed: medication not found.",
+                )
+            }
+
+            AddScheduleOutcome.NotEditable -> {
+                error(
+                    "Test schedule creation failed: medication is not editable.",
+                )
+            }
+
+            is AddScheduleOutcome.Invalid -> {
+                error(
+                    "Test schedule creation failed: ${outcome.errors}",
+                )
+            }
+        }
+    }
+
     suspend fun occurrencesForMedication(
         medicationId: String,
     ): List<OccurrenceEntity> =
@@ -165,6 +244,15 @@ internal class CarePlanRoomTestFixture private constructor(
             .occurrenceDao()
             .getForMedication(
                 medicationId,
+            )
+
+    suspend fun occurrencesForSchedule(
+        scheduleVersionId: String,
+    ): List<OccurrenceEntity> =
+        database
+            .occurrenceDao()
+            .getForVersion(
+                scheduleVersionId,
             )
 
     suspend fun occurrenceOn(
@@ -315,6 +403,13 @@ internal class CarePlanRoomTestFixture private constructor(
 
 internal data class CreatedTestPlan(
     val recipientId: String,
+    val medicationId: String,
+    val scheduleSeriesId: String,
+    val scheduleVersionId: String,
+    val occurrenceIds: List<String>,
+)
+
+internal data class CreatedTestSchedule(
     val medicationId: String,
     val scheduleSeriesId: String,
     val scheduleVersionId: String,
