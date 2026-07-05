@@ -4,18 +4,23 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.app.CarePackApp
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
+import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.AlarmFireResult
 import ir.carepack.domain.reminder.ReconciliationReason
+import ir.carepack.domain.reminder.RemindLaterOutcome
 import ir.carepack.domain.reminder.ReminderAvailability
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceState
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
+import ir.carepack.domain.reminder.SnoozedReminder
 import ir.carepack.domain.reminder.TimezoneObservation
 import ir.carepack.domain.report.RoomTodayReportFormatter
 import ir.carepack.reminder.permission.NotificationPermissionGateway
@@ -25,6 +30,7 @@ import ir.carepack.testing.InstrumentedUserExperiencePreferenceStore
 import ir.carepack.testing.RecordingDataDeletionCoordinator
 import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
@@ -68,7 +74,7 @@ class ReminderNavigationComposeTest {
     }
 
     @Test
-    fun notificationOccurrence_navigatesToDetail_withoutCreatingReport() {
+    fun notificationOccurrence_navigatesToReminderActionSurface_withoutCreatingReport() {
         val occurrenceId =
             runBlocking {
                 createNoonPlanAndReturnTodayOccurrenceId()
@@ -77,60 +83,29 @@ class ReminderNavigationComposeTest {
         var notificationHandled =
             false
 
-        composeRule.setContent {
-            CarePackTheme {
-                CarePackApp(
-                    carePlanService =
-                        fixture.carePlanService,
-                    todayQueryService =
-                        fixture.todayQueryService,
-                    caregiverReportService =
-                        fixture.reportService,
-                    setupPreferenceStore =
-                        NavigationSetupPreferenceStore(
-                            setupComplete = true,
-                        ),
-                    reminderPreferenceStore =
-                        NavigationReminderPreferenceStore(),
-                    reminderCoordinator =
-                        NavigationReminderCoordinator(),
-                    notificationPermissionGateway =
-                        NavigationNotificationPermissionGateway(),
-                    todayReportFormatter =
-                        RoomTodayReportFormatter(
-                            database =
-                                fixture.database,
-                        ),
-                    privacyPreferenceStore =
-                        InstrumentedPrivacyPreferenceStore(),
-                    userExperiencePreferenceStore =
-                        InstrumentedUserExperiencePreferenceStore(),
-                    textShareGateway =
-                        RecordingTextShareGateway(),
-                    dataDeletionCoordinator =
-                        RecordingDataDeletionCoordinator(),
-                    clock =
-                        fixture.clock,
-                    zoneProvider =
-                        zoneProvider,
-                    notificationOccurrenceId =
-                        occurrenceId,
-                    onNotificationOccurrenceHandled = {
-                        notificationHandled =
-                            true
-                    },
-                )
-            }
-        }
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+            onNotificationOccurrenceHandled = {
+                notificationHandled =
+                    true
+            },
+        )
 
         waitForTag(
             tag =
-                "occurrence_detail_screen",
+                "reminder_action_surface",
         )
 
         composeRule
             .onNodeWithTag(
-                "occurrence_detail_card",
+                "occurrence_detail_screen",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "reminder_action_surface",
             )
             .assertIsDisplayed()
 
@@ -138,6 +113,26 @@ class ReminderNavigationComposeTest {
             .onNodeWithTag(
                 "report_given",
             )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "remind_later",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "report_not_given",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "report_unknown",
+            )
+            .performScrollTo()
             .assertIsDisplayed()
 
         assertTrue(
@@ -157,52 +152,270 @@ class ReminderNavigationComposeTest {
     }
 
     @Test
+    fun reminderAction_remindLaterDoesNotCreateReport() {
+        val occurrenceId =
+            runBlocking {
+                createNoonPlanAndReturnTodayOccurrenceId()
+            }
+
+        val reminderCoordinator =
+            NavigationReminderCoordinator()
+
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+            reminderCoordinator =
+                reminderCoordinator,
+        )
+
+        waitForTag(
+            tag =
+                "reminder_action_surface",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "remind_later",
+            )
+            .performClick()
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                10_000,
+        ) {
+            reminderCoordinator
+                .remindLaterCalls == 1
+        }
+
+        assertEquals(
+            occurrenceId,
+            reminderCoordinator
+                .lastRemindLaterOccurrenceId,
+        )
+
+        assertNull(
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .getReport(
+                        occurrenceId,
+                    )
+            },
+        )
+    }
+
+    @Test
+    fun reminderAction_givenWritesReportOnlyAfterExplicitTap() {
+        val occurrenceId =
+            runBlocking {
+                createNoonPlanAndReturnTodayOccurrenceId()
+            }
+
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+        )
+
+        waitForTag(
+            tag =
+                "reminder_action_surface",
+        )
+
+        assertNull(
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .getReport(
+                        occurrenceId,
+                    )
+            },
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "report_given",
+            )
+            .performClick()
+
+        waitForReportState(
+            occurrenceId =
+                occurrenceId,
+            expectedState =
+                CaregiverReportState.GIVEN,
+        )
+    }
+
+    @Test
+    fun reminderAction_notGivenSecondaryActionWritesReport() {
+        val occurrenceId =
+            runBlocking {
+                createNoonPlanAndReturnTodayOccurrenceId()
+            }
+
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+        )
+
+        waitForTag(
+            tag =
+                "reminder_action_surface",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "report_not_given",
+            )
+            .performScrollTo()
+            .performClick()
+
+        waitForReportState(
+            occurrenceId =
+                occurrenceId,
+            expectedState =
+                CaregiverReportState.NOT_GIVEN,
+        )
+    }
+
+    @Test
+    fun reminderAction_unknownSecondaryActionWritesReport() {
+        val occurrenceId =
+            runBlocking {
+                createNoonPlanAndReturnTodayOccurrenceId()
+            }
+
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+        )
+
+        waitForTag(
+            tag =
+                "reminder_action_surface",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "report_unknown",
+            )
+            .performScrollTo()
+            .performClick()
+
+        waitForReportState(
+            occurrenceId =
+                occurrenceId,
+            expectedState =
+                CaregiverReportState.UNKNOWN,
+        )
+    }
+
+    @Test
+    fun cancelledNotificationOccurrence_disablesReminderReportActionsSafely() {
+        val occurrenceId =
+            runBlocking {
+                createCancelledNoonOccurrenceId()
+            }
+
+        setAppContent(
+            notificationOccurrenceId =
+                occurrenceId,
+        )
+
+        waitForTag(
+            tag =
+                "occurrence_cancelled_report_disabled",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "occurrence_detail_screen",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "occurrence_cancelled_report_disabled",
+            )
+            .assertIsDisplayed()
+
+        assertTagDoesNotExist(
+            tag =
+                "reminder_action_surface",
+        )
+
+        assertTagDoesNotExist(
+            tag =
+                "report_given",
+        )
+
+        assertTagDoesNotExist(
+            tag =
+                "remind_later",
+        )
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .countReports()
+            },
+        )
+    }
+
+    @Test
+    fun invalidNotificationOccurrence_opensSafeErrorStateWithoutCreatingReport() {
+        var notificationHandled =
+            false
+
+        setAppContent(
+            notificationOccurrenceId =
+                "missing-occurrence",
+            onNotificationOccurrenceHandled = {
+                notificationHandled =
+                    true
+            },
+        )
+
+        waitForTag(
+            tag =
+                "occurrence_detail_error",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "occurrence_detail_error",
+            )
+            .assertIsDisplayed()
+
+        assertTrue(
+            notificationHandled,
+        )
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .countReports()
+            },
+        )
+    }
+
+    @Test
     fun blankNotificationOccurrence_keepsPrimaryTodayDestination() {
         runBlocking {
             createNoonPlanAndReturnTodayOccurrenceId()
         }
 
-        composeRule.setContent {
-            CarePackTheme {
-                CarePackApp(
-                    carePlanService =
-                        fixture.carePlanService,
-                    todayQueryService =
-                        fixture.todayQueryService,
-                    caregiverReportService =
-                        fixture.reportService,
-                    setupPreferenceStore =
-                        NavigationSetupPreferenceStore(
-                            setupComplete = true,
-                        ),
-                    reminderPreferenceStore =
-                        NavigationReminderPreferenceStore(),
-                    reminderCoordinator =
-                        NavigationReminderCoordinator(),
-                    notificationPermissionGateway =
-                        NavigationNotificationPermissionGateway(),
-                    todayReportFormatter =
-                        RoomTodayReportFormatter(
-                            database =
-                                fixture.database,
-                        ),
-                    privacyPreferenceStore =
-                        InstrumentedPrivacyPreferenceStore(),
-                    userExperiencePreferenceStore =
-                        InstrumentedUserExperiencePreferenceStore(),
-                    textShareGateway =
-                        RecordingTextShareGateway(),
-                    dataDeletionCoordinator =
-                        RecordingDataDeletionCoordinator(),
-                    clock =
-                        fixture.clock,
-                    zoneProvider =
-                        zoneProvider,
-                    notificationOccurrenceId =
-                        "",
-                )
-            }
-        }
+        setAppContent(
+            notificationOccurrenceId =
+                "",
+        )
 
         waitForTag(
             tag =
@@ -232,6 +445,111 @@ class ReminderNavigationComposeTest {
         )
     }
 
+    @Test
+    fun todayOccurrenceNavigation_stillOpensNormalDetail() {
+        val occurrenceId =
+            runBlocking {
+                createNoonPlanAndReturnTodayOccurrenceId()
+            }
+
+        setAppContent()
+
+        waitForTag(
+            tag =
+                "today_item_$occurrenceId",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "today_item_$occurrenceId",
+            )
+            .performClick()
+
+        waitForTag(
+            tag =
+                "occurrence_detail_card",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "occurrence_detail_card",
+            )
+            .assertIsDisplayed()
+
+        assertTagDoesNotExist(
+            tag =
+                "reminder_action_surface",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "report_given",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .countReports()
+            },
+        )
+    }
+
+    private fun setAppContent(
+        notificationOccurrenceId: String? = null,
+        reminderCoordinator: NavigationReminderCoordinator =
+            NavigationReminderCoordinator(),
+        onNotificationOccurrenceHandled: () -> Unit = {},
+    ) {
+        composeRule.setContent {
+            CarePackTheme {
+                CarePackApp(
+                    carePlanService =
+                        fixture.carePlanService,
+                    todayQueryService =
+                        fixture.todayQueryService,
+                    caregiverReportService =
+                        fixture.reportService,
+                    setupPreferenceStore =
+                        NavigationSetupPreferenceStore(
+                            setupComplete = true,
+                        ),
+                    reminderPreferenceStore =
+                        NavigationReminderPreferenceStore(),
+                    reminderCoordinator =
+                        reminderCoordinator,
+                    notificationPermissionGateway =
+                        NavigationNotificationPermissionGateway(),
+                    todayReportFormatter =
+                        RoomTodayReportFormatter(
+                            database =
+                                fixture.database,
+                        ),
+                    privacyPreferenceStore =
+                        InstrumentedPrivacyPreferenceStore(),
+                    userExperiencePreferenceStore =
+                        InstrumentedUserExperiencePreferenceStore(),
+                    textShareGateway =
+                        RecordingTextShareGateway(),
+                    dataDeletionCoordinator =
+                        RecordingDataDeletionCoordinator(),
+                    clock =
+                        fixture.clock,
+                    zoneProvider =
+                        zoneProvider,
+                    notificationOccurrenceId =
+                        notificationOccurrenceId,
+                    onNotificationOccurrenceHandled =
+                        onNotificationOccurrenceHandled,
+                )
+            }
+        }
+    }
+
     private suspend fun createNoonPlanAndReturnTodayOccurrenceId():
             String {
         val plan =
@@ -253,6 +571,57 @@ class ReminderNavigationComposeTest {
             .id
     }
 
+    private suspend fun createCancelledNoonOccurrenceId():
+            String {
+        val plan =
+            fixture.createPlan(
+                minutesOfDay =
+                    listOf(
+                        NOON_MINUTE_OF_DAY,
+                    ),
+            )
+
+        val occurrenceId =
+            fixture
+                .occurrenceOn(
+                    medicationId =
+                        plan.medicationId,
+                    date = TODAY_DATE,
+                    minuteOfDay =
+                        NOON_MINUTE_OF_DAY,
+                )
+                .id
+
+        fixture
+            .carePlanService
+            .stopMedication(
+                plan.medicationId,
+            )
+
+        return occurrenceId
+    }
+
+    private fun waitForReportState(
+        occurrenceId: String,
+        expectedState: CaregiverReportState,
+    ) {
+        composeRule.waitUntil(
+            timeoutMillis =
+                10_000,
+        ) {
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .getReport(
+                        occurrenceId,
+                    )
+                    ?.state ==
+                        expectedState.name
+            }
+        }
+    }
+
     private fun waitForTag(
         tag: String,
     ) {
@@ -262,7 +631,8 @@ class ReminderNavigationComposeTest {
         ) {
             composeRule
                 .onAllNodesWithTag(
-                    tag,
+                    testTag =
+                        tag,
                 )
                 .fetchSemanticsNodes(
                     atLeastOneRootRequired =
@@ -270,6 +640,25 @@ class ReminderNavigationComposeTest {
                 )
                 .isNotEmpty()
         }
+    }
+
+    private fun assertTagDoesNotExist(
+        tag: String,
+    ) {
+        val nodes =
+            composeRule
+                .onAllNodesWithTag(
+                    testTag =
+                        tag,
+                )
+                .fetchSemanticsNodes(
+                    atLeastOneRootRequired =
+                        false,
+                )
+
+        assertTrue(
+            nodes.isEmpty(),
+        )
     }
 
     private companion object {
@@ -330,6 +719,14 @@ private class NavigationReminderPreferenceStore :
 private class NavigationReminderCoordinator :
     ReminderCoordinator {
 
+    var remindLaterCalls:
+            Int =
+        0
+
+    var lastRemindLaterOccurrenceId:
+            String? =
+        null
+
     override suspend fun currentStatus():
             ReminderStatus =
         ReminderStatus(
@@ -356,6 +753,31 @@ private class NavigationReminderCoordinator :
     ): AlarmFireResult {
         error(
             "Alarm firing is not used in this Compose test.",
+        )
+    }
+
+    override suspend fun remindLater(
+        occurrenceId: String,
+        delayMinutes: Long,
+    ): RemindLaterOutcome {
+        remindLaterCalls += 1
+        lastRemindLaterOccurrenceId =
+            occurrenceId
+
+        val createdAt =
+            Instant.parse(
+                "2026-06-24T08:00:00Z",
+            )
+
+        return RemindLaterOutcome.Scheduled(
+            SnoozedReminder(
+                occurrenceId = occurrenceId,
+                createdAt = createdAt,
+                remindAt =
+                    createdAt.plusSeconds(
+                        delayMinutes * 60L,
+                    ),
+            ),
         )
     }
 

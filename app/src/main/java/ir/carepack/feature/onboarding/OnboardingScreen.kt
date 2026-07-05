@@ -13,8 +13,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -26,6 +28,10 @@ import ir.carepack.ui.accessibility.carePackHeading
 @Composable
 fun OnboardingScreen(
     onContinue: () -> Unit,
+    onOpenPrivacy: () -> Unit,
+    simpleModeEnabled: Boolean,
+    onEnableSimpleMode: () -> Unit,
+    onKeepStandardMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Scaffold(
@@ -127,6 +133,133 @@ fun OnboardingScreen(
                             .typography
                             .bodyLarge,
                 )
+            }
+
+            TextButton(
+                onClick = onOpenPrivacy,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "onboarding_open_privacy",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .onboarding_privacy_action,
+                        ),
+                )
+            }
+
+            Card(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "onboarding_simple_mode_card",
+                        ),
+            ) {
+                Column(
+                    modifier =
+                        Modifier.padding(
+                            20.dp,
+                        ),
+                    verticalArrangement =
+                        Arrangement.spacedBy(
+                            12.dp,
+                        ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .onboarding_simple_mode_title,
+                            ),
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleMedium,
+                        modifier =
+                            Modifier.testTag(
+                                "onboarding_simple_mode_title",
+                            ),
+                    )
+
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .onboarding_simple_mode_summary,
+                            ),
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyLarge,
+                        modifier =
+                            Modifier.testTag(
+                                "onboarding_simple_mode_summary",
+                            ),
+                    )
+
+                    Text(
+                        text =
+                            stringResource(
+                                if (simpleModeEnabled) {
+                                    R.string
+                                        .onboarding_simple_mode_enabled
+                                } else {
+                                    R.string
+                                        .onboarding_simple_mode_standard
+                                },
+                            ),
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyMedium,
+                        modifier =
+                            Modifier.testTag(
+                                "onboarding_simple_mode_status",
+                            ),
+                    )
+
+                    Button(
+                        onClick = onEnableSimpleMode,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .testTag(
+                                    "onboarding_simple_mode_enable",
+                                ),
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string
+                                        .onboarding_simple_mode_enable,
+                                ),
+                        )
+                    }
+
+                    OutlinedButton(
+                        onClick = onKeepStandardMode,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .testTag(
+                                    "onboarding_simple_mode_defer",
+                                ),
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string
+                                        .onboarding_simple_mode_defer,
+                                ),
+                        )
+                    }
+                }
             }
 
             Spacer(

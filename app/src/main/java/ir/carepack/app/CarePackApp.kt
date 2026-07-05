@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -13,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -40,6 +42,8 @@ import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.SetupProgress
+import ir.carepack.domain.experience.SeniorMode
+import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReminderCoordinator
@@ -51,9 +55,12 @@ import ir.carepack.feature.careplan.CarePlanRoute
 import ir.carepack.feature.careplan.CarePlanViewModel
 import ir.carepack.feature.careplan.MedicationTextEditRoute
 import ir.carepack.feature.careplan.MedicationTextEditViewModel
+import ir.carepack.feature.careplan.RecipientNameEditRoute
+import ir.carepack.feature.careplan.RecipientNameEditViewModel
 import ir.carepack.feature.careplan.ScheduleEditRoute
 import ir.carepack.feature.careplan.ScheduleEditViewModel
 import ir.carepack.feature.deletion.DeleteAllDataRoute
+import ir.carepack.feature.detail.OccurrenceDetailEntryMode
 import ir.carepack.feature.detail.OccurrenceDetailRoute
 import ir.carepack.feature.detail.OccurrenceDetailViewModel
 import ir.carepack.feature.onboarding.OnboardingScreen
@@ -91,6 +98,7 @@ private object Routes {
     const val TodayReport = "today-report"
     const val Privacy = "privacy"
     const val DeleteAllData = "delete-all-data"
+    const val EditRecipientName = "edit-recipient-name"
 
     const val RecipientIdArgument = "recipientId"
     const val MedicationIdArgument = "medicationId"
@@ -114,6 +122,9 @@ private object Routes {
 
     const val OccurrenceDetailPattern =
         "occurrence/{$OccurrenceIdArgument}"
+
+    const val ReminderOccurrenceDetailPattern =
+        "reminder/occurrence/{$OccurrenceIdArgument}"
 
     fun medicationSchedule(
         recipientId: String,
@@ -144,6 +155,11 @@ private object Routes {
         occurrenceId: String,
     ): String =
         "occurrence/$occurrenceId"
+
+    fun reminderOccurrenceDetail(
+        occurrenceId: String,
+    ): String =
+        "reminder/occurrence/$occurrenceId"
 }
 
 private data class PrimaryDestination(
@@ -449,7 +465,7 @@ private fun CarePackNavigation(
 
         if (!occurrenceId.isNullOrBlank()) {
             navController.navigate(
-                Routes.occurrenceDetail(
+                Routes.reminderOccurrenceDetail(
                     occurrenceId =
                         occurrenceId,
                 ),
@@ -475,6 +491,28 @@ private fun CarePackNavigation(
                 )
             }
         },
+        floatingActionButton = {
+            if (currentRoute == Routes.Settings) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        navController.navigate(
+                            Routes.EditRecipientName,
+                        ) {
+                            launchSingleTop = true
+                        }
+                    },
+                    modifier =
+                        Modifier.testTag(
+                            "settings_edit_recipient_name",
+                        ),
+                ) {
+                    Text(
+                        text =
+                            "ویرایش نام فرد تحت مراقبت",
+                    )
+                }
+            }
+        },
     ) { contentPadding ->
         NavHost(
             navController = navController,
@@ -487,6 +525,17 @@ private fun CarePackNavigation(
             composable(
                 Routes.Onboarding,
             ) {
+                val onboardingScope =
+                    rememberCoroutineScope()
+
+                val userExperienceState by
+                userExperiencePreferenceStore
+                    .state
+                    .collectAsStateWithLifecycle(
+                        initialValue =
+                            UserExperiencePreferenceState(),
+                    )
+
                 OnboardingScreen(
                     onContinue = {
                         navController.navigate(
@@ -499,6 +548,33 @@ private fun CarePackNavigation(
                             }
 
                             launchSingleTop = true
+                        }
+                    },
+                    onOpenPrivacy = {
+                        navController.navigate(
+                            Routes.Privacy,
+                        ) {
+                            launchSingleTop = true
+                        }
+                    },
+                    simpleModeEnabled =
+                        userExperienceState
+                            .seniorMode ==
+                                SeniorMode.SIMPLE,
+                    onEnableSimpleMode = {
+                        onboardingScope.launch {
+                            userExperiencePreferenceStore
+                                .setSeniorMode(
+                                    SeniorMode.SIMPLE,
+                                )
+                        }
+                    },
+                    onKeepStandardMode = {
+                        onboardingScope.launch {
+                            userExperiencePreferenceStore
+                                .setSeniorMode(
+                                    SeniorMode.STANDARD,
+                                )
                         }
                     },
                 )
@@ -641,6 +717,11 @@ private fun CarePackNavigation(
                             Routes.Settings,
                         )
                     },
+                    onOpenTodayReport = {
+                        navController.navigate(
+                            Routes.TodayReport,
+                        )
+                    },
                     onOpenOccurrence = {
                             occurrenceId ->
                         navController.navigate(
@@ -761,6 +842,11 @@ private fun CarePackNavigation(
                     onOpenSettings = {
                         navController.navigatePrimary(
                             Routes.Settings,
+                        )
+                    },
+                    onOpenTodayReport = {
+                        navController.navigate(
+                            Routes.TodayReport,
                         )
                     },
                     onOpenOccurrence = {
@@ -913,6 +999,28 @@ private fun CarePackNavigation(
                 Routes.Privacy,
             ) {
                 PrivacyRoute(
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                Routes.EditRecipientName,
+            ) {
+                val viewModel:
+                        RecipientNameEditViewModel =
+                    viewModel(
+                        factory =
+                            RecipientNameEditViewModel
+                                .factory(
+                                    carePlanService =
+                                        carePlanService,
+                                ),
+                    )
+
+                RecipientNameEditRoute(
+                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -1119,6 +1227,52 @@ private fun CarePackNavigation(
                         navController.popBackStack()
                     },
                     onCompleted = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                route = Routes.ReminderOccurrenceDetailPattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.OccurrenceIdArgument,
+                        ) {
+                            type = NavType.StringType
+                        },
+                    ),
+            ) { entry ->
+                val occurrenceId =
+                    checkNotNull(
+                        entry.arguments?.getString(
+                            Routes.OccurrenceIdArgument,
+                        ),
+                    )
+
+                val viewModel:
+                        OccurrenceDetailViewModel =
+                    viewModel(
+                        factory =
+                            OccurrenceDetailViewModel
+                                .factory(
+                                    occurrenceId =
+                                        occurrenceId,
+                                    todayQueryService =
+                                        todayQueryService,
+                                    caregiverReportService =
+                                        caregiverReportService,
+                                    reminderCoordinator =
+                                        reminderCoordinator,
+                                    clock = clock,
+                                ),
+                    )
+
+                OccurrenceDetailRoute(
+                    viewModel = viewModel,
+                    entryMode =
+                        OccurrenceDetailEntryMode.REMINDER,
+                    onBack = {
                         navController.popBackStack()
                     },
                 )

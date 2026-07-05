@@ -252,17 +252,17 @@ class ReminderSystemUiTest {
 
             notificationNode!!.click()
 
-            val detailOpened =
+            val reminderActionOpened =
                 device.wait(
                     Until.hasObject(
                         By.text(
-                            "جزئیات نوبت",
+                            "ثبت نوبت یادآوری",
                         ),
                     ),
                     APP_UI_TIMEOUT_MILLIS,
                 )
 
-            assertTrue(detailOpened)
+            assertTrue(reminderActionOpened)
 
             assertTrue(
                 device.hasObject(

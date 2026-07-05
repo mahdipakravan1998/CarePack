@@ -53,6 +53,7 @@ import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
+import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ManufacturerGuidance
 import ir.carepack.domain.reminder.ManufacturerGuidanceClassifier
@@ -96,6 +97,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -114,6 +116,8 @@ data class MedicationScheduleUiState(
     val isSaving: Boolean = false,
     val isAddScheduleOnly: Boolean = false,
     val showInitialReminderGuidance: Boolean = true,
+    val seniorMode: SeniorMode = SeniorMode.STANDARD,
+    val showPostSetupSimpleModeSuggestion: Boolean = false,
 )
 
 data class FirstSetupReminderReadinessUiState(
@@ -218,6 +222,9 @@ class MedicationScheduleViewModel private constructor(
                                         locale =
                                             Locale.getDefault(),
                                     ),
+                            seniorMode =
+                                preferenceState
+                                    .seniorMode,
                         )
                     }
                 }
@@ -405,6 +412,19 @@ class MedicationScheduleViewModel private constructor(
         }
     }
 
+    fun enableSimpleModeAfterFirstSetup() {
+        completeAfterPostSetupSimpleModeSuggestion(
+            seniorMode = SeniorMode.SIMPLE,
+        )
+    }
+
+    fun deferSimpleModeAfterFirstSetup() {
+        completeAfterPostSetupSimpleModeSuggestion(
+            seniorMode = SeniorMode.STANDARD,
+        )
+    }
+
+
     fun save() {
         val effectiveFrom =
             currentEffectiveFrom()
@@ -583,6 +603,29 @@ class MedicationScheduleViewModel private constructor(
                 if (mode.completeInitialSetup) {
                     setupPreferenceStore
                         .markSetupComplete()
+
+                    val seniorMode =
+                        userExperiencePreferenceStore
+                            .state
+                            .first()
+                            .seniorMode
+
+                    if (
+                        seniorMode ==
+                        SeniorMode.STANDARD
+                    ) {
+                        mutableState.update {
+                                state ->
+                            state.copy(
+                                seniorMode =
+                                    seniorMode,
+                                showPostSetupSimpleModeSuggestion =
+                                    true,
+                            )
+                        }
+
+                        return
+                    }
                 }
 
                 eventChannel.send(
@@ -668,6 +711,30 @@ class MedicationScheduleViewModel private constructor(
                         .toFieldErrors(),
                 )
             }
+        }
+    }
+
+    private fun completeAfterPostSetupSimpleModeSuggestion(
+        seniorMode: SeniorMode,
+    ) {
+        viewModelScope.launch {
+            userExperiencePreferenceStore
+                .setSeniorMode(
+                    seniorMode,
+                )
+
+            mutableState.update {
+                    state ->
+                state.copy(
+                    seniorMode = seniorMode,
+                    showPostSetupSimpleModeSuggestion =
+                        false,
+                )
+            }
+
+            eventChannel.send(
+                MedicationScheduleEvent.Completed,
+            )
         }
     }
 
@@ -980,6 +1047,10 @@ fun MedicationScheduleRoute(
             viewModel::onEndDateChanged,
         onInitialReminderGuidanceContinue =
             viewModel::dismissInitialReminderGuidance,
+        onEnableSimpleModeAfterFirstSetup =
+            viewModel::enableSimpleModeAfterFirstSetup,
+        onDeferSimpleModeAfterFirstSetup =
+            viewModel::deferSimpleModeAfterFirstSetup,
         onOpenReminderSettings =
             onOpenReminderSettings,
         onRequestNotificationPermission =
@@ -1668,6 +1739,104 @@ private fun FirstSetupOemGuidanceSection(
 }
 
 @Composable
+private fun PostSetupSimpleModeSuggestionCard(
+    onEnableSimpleMode: () -> Unit,
+    onDeferSimpleMode: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "post_setup_simple_mode_suggestion",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .post_setup_simple_mode_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier
+                        .carePackHeading()
+                        .testTag(
+                            "post_setup_simple_mode_title",
+                        ),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .post_setup_simple_mode_summary,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                modifier =
+                    Modifier.testTag(
+                        "post_setup_simple_mode_summary",
+                    ),
+            )
+
+            Button(
+                onClick =
+                    onEnableSimpleMode,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "post_setup_enable_simple_mode",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .post_setup_simple_mode_enable,
+                        ),
+                )
+            }
+
+            TextButton(
+                onClick =
+                    onDeferSimpleMode,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "post_setup_defer_simple_mode",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .post_setup_simple_mode_defer,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MedicationScheduleScreen(
     state: MedicationScheduleUiState,
     firstSetupReminderReadiness:
@@ -1700,6 +1869,8 @@ private fun MedicationScheduleScreen(
     onEndDateChanged:
         (String) -> Unit,
     onInitialReminderGuidanceContinue: () -> Unit,
+    onEnableSimpleModeAfterFirstSetup: () -> Unit,
+    onDeferSimpleModeAfterFirstSetup: () -> Unit,
     onOpenReminderSettings: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
@@ -1784,6 +1955,17 @@ private fun MedicationScheduleScreen(
                         onRequestExactAlarmAccess,
                     onOpenBatterySettings =
                         onOpenBatterySettings,
+                )
+            }
+
+            if (
+                state.showPostSetupSimpleModeSuggestion
+            ) {
+                PostSetupSimpleModeSuggestionCard(
+                    onEnableSimpleMode =
+                        onEnableSimpleModeAfterFirstSetup,
+                    onDeferSimpleMode =
+                        onDeferSimpleModeAfterFirstSetup,
                 )
             }
 

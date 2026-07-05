@@ -2,6 +2,7 @@ package ir.carepack.ui
 
 import android.content.Context
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.test.core.app.ApplicationProvider
@@ -669,14 +671,17 @@ class MedicationScheduleSetupComposeTest {
             .performScrollTo()
             .performClick()
 
-        composeRule.waitUntil(
-            timeoutMillis =
-                WAIT_TIMEOUT_MILLIS,
-        ) {
-            completed.get()
-        }
+        waitForTag(
+            "post_setup_simple_mode_suggestion",
+        )
 
-        assertTrue(
+
+        composeRule
+            .onNodeWithTag(
+                "post_setup_defer_simple_mode",
+            )
+
+        assertFalse(
             completed.get(),
         )
 
@@ -706,6 +711,25 @@ class MedicationScheduleSetupComposeTest {
             },
         )
 
+        composeRule
+            .onNodeWithTag(
+                "post_setup_defer_simple_mode",
+            )
+            .performSemanticsAction(
+                SemanticsActions.OnClick,
+            )
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                WAIT_TIMEOUT_MILLIS,
+        ) {
+            completed.get()
+        }
+
+        assertTrue(
+            completed.get(),
+        )
+
         val createdMedication =
             runBlocking {
                 fixture
@@ -733,6 +757,182 @@ class MedicationScheduleSetupComposeTest {
 
         assertTagDoesNotExist(
             "request_notification_permission",
+        )
+    }
+
+    @Test
+    fun firstMedicationSchedule_postSetupSimpleModeSuggestionCanEnableSimpleMode() {
+        val recipientId =
+            runBlocking {
+                fixture.createOrGetRecipient()
+            }
+
+        val userExperienceStore =
+            InMemoryUserExperiencePreferenceStore()
+
+        val completed =
+            AtomicBoolean(false)
+
+        renderFirstSetup(
+            recipientId = recipientId,
+            userExperiencePreferenceStore =
+                userExperienceStore,
+            onCompleted = {
+                completed.set(
+                    true,
+                )
+            },
+        )
+
+        fillValidMedicationScheduleAndSave()
+
+        waitForTag(
+            "post_setup_simple_mode_suggestion",
+        )
+
+
+        composeRule
+            .onNodeWithTag(
+                "post_setup_enable_simple_mode",
+            )
+
+        assertFalse(
+            completed.get(),
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "post_setup_enable_simple_mode",
+            )
+            .performSemanticsAction(
+                SemanticsActions.OnClick,
+            )
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                WAIT_TIMEOUT_MILLIS,
+        ) {
+            completed.get()
+        }
+
+        assertEquals(
+            SeniorMode.SIMPLE,
+            runBlocking {
+                userExperienceStore
+                    .state
+                    .first()
+                    .seniorMode
+            },
+        )
+    }
+
+    @Test
+    fun firstMedicationSchedule_postSetupSimpleModeSuggestionCanBeDeferredAndKeepsStandardMode() {
+        val recipientId =
+            runBlocking {
+                fixture.createOrGetRecipient()
+            }
+
+        val userExperienceStore =
+            InMemoryUserExperiencePreferenceStore()
+
+        val completed =
+            AtomicBoolean(false)
+
+        renderFirstSetup(
+            recipientId = recipientId,
+            userExperiencePreferenceStore =
+                userExperienceStore,
+            onCompleted = {
+                completed.set(
+                    true,
+                )
+            },
+        )
+
+        fillValidMedicationScheduleAndSave()
+
+        waitForTag(
+            "post_setup_simple_mode_suggestion",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "post_setup_defer_simple_mode",
+            )
+            .performSemanticsAction(
+                SemanticsActions.OnClick,
+            )
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                WAIT_TIMEOUT_MILLIS,
+        ) {
+            completed.get()
+        }
+
+        assertEquals(
+            SeniorMode.STANDARD,
+            runBlocking {
+                userExperienceStore
+                    .state
+                    .first()
+                    .seniorMode
+            },
+        )
+    }
+
+    @Test
+    fun firstMedicationSchedule_doesNotShowPostSetupSuggestionWhenSimpleModeAlreadyEnabled() {
+        val recipientId =
+            runBlocking {
+                fixture.createOrGetRecipient()
+            }
+
+        val userExperienceStore =
+            InMemoryUserExperiencePreferenceStore(
+                initialState =
+                    UserExperiencePreferenceState(
+                        seniorMode =
+                            SeniorMode.SIMPLE,
+                    ),
+            )
+
+        val completed =
+            AtomicBoolean(false)
+
+        renderFirstSetup(
+            recipientId = recipientId,
+            userExperiencePreferenceStore =
+                userExperienceStore,
+            onCompleted = {
+                completed.set(
+                    true,
+                )
+            },
+        )
+
+        fillValidMedicationScheduleAndSave()
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                WAIT_TIMEOUT_MILLIS,
+        ) {
+            completed.get()
+        }
+
+        assertTagDoesNotExist(
+            "post_setup_simple_mode_suggestion",
+        )
+
+        assertEquals(
+            SeniorMode.SIMPLE,
+            runBlocking {
+                userExperienceStore
+                    .state
+                    .first()
+                    .seniorMode
+            },
         )
     }
 
@@ -796,6 +996,60 @@ class MedicationScheduleSetupComposeTest {
             )
     }
 
+    private fun fillValidMedicationScheduleAndSave() {
+        waitForTag(
+            "first_setup_reminder_guidance_continue",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "first_setup_reminder_guidance_continue",
+            )
+            .performScrollTo()
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "medication_name",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "داروی آزمون",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "medication_instruction",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "بعد از غذا",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "time_draft",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "12:00",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "add_time",
+            )
+            .performScrollTo()
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "save_medication_schedule",
+            )
+            .performScrollTo()
+            .performClick()
+    }
+
     private fun renderFirstSetup(
         recipientId: String,
         setupPreferenceStore:
@@ -804,6 +1058,9 @@ class MedicationScheduleSetupComposeTest {
         readiness:
         FirstSetupReminderReadinessUiState =
             defaultReadiness(),
+        userExperiencePreferenceStore:
+        UserExperiencePreferenceStore =
+            InMemoryUserExperiencePreferenceStore(),
         onCompleted: () -> Unit = {},
         onOpenReminderSettings: () -> Unit = {},
         onRequestNotificationPermission: () -> Unit = {},
@@ -820,6 +1077,8 @@ class MedicationScheduleSetupComposeTest {
                         setupPreferenceStore,
                     readiness =
                         readiness,
+                    userExperiencePreferenceStore =
+                        userExperiencePreferenceStore,
                     onCompleted =
                         onCompleted,
                     onOpenReminderSettings =
@@ -844,6 +1103,8 @@ class MedicationScheduleSetupComposeTest {
         SetupPreferenceStore,
         readiness:
         FirstSetupReminderReadinessUiState,
+        userExperiencePreferenceStore:
+        UserExperiencePreferenceStore,
         onCompleted: () -> Unit,
         onOpenReminderSettings: () -> Unit,
         onRequestNotificationPermission: () -> Unit,
@@ -865,7 +1126,7 @@ class MedicationScheduleSetupComposeTest {
                             setupPreferenceStore =
                                 setupPreferenceStore,
                             userExperiencePreferenceStore =
-                                InMemoryUserExperiencePreferenceStore(),
+                                userExperiencePreferenceStore,
                             completeInitialSetup =
                                 true,
                             clock =
@@ -983,12 +1244,14 @@ private class RecordingSetupPreferenceStore :
     }
 }
 
-private class InMemoryUserExperiencePreferenceStore :
-    UserExperiencePreferenceStore {
+private class InMemoryUserExperiencePreferenceStore(
+    initialState: UserExperiencePreferenceState =
+        UserExperiencePreferenceState(),
+) : UserExperiencePreferenceStore {
 
     private val mutableState =
         MutableStateFlow(
-            UserExperiencePreferenceState(),
+            initialState,
         )
 
     override val state:

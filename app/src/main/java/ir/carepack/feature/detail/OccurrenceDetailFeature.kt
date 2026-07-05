@@ -84,6 +84,11 @@ data class OccurrenceDetailUiState(
     val undoChange: ReportChange? = null,
 )
 
+enum class OccurrenceDetailEntryMode {
+    NORMAL,
+    REMINDER,
+}
+
 class OccurrenceDetailViewModel(
     private val occurrenceId: String,
     private val todayQueryService: TodayQueryService,
@@ -458,6 +463,8 @@ private sealed interface DetailLoad {
 fun OccurrenceDetailRoute(
     viewModel: OccurrenceDetailViewModel,
     onBack: () -> Unit,
+    entryMode: OccurrenceDetailEntryMode =
+        OccurrenceDetailEntryMode.NORMAL,
 ) {
     val state by
     viewModel
@@ -466,6 +473,7 @@ fun OccurrenceDetailRoute(
 
     OccurrenceDetailScreen(
         state = state,
+        entryMode = entryMode,
         onBack = onBack,
         onGiven = {
             viewModel.setReport(
@@ -494,6 +502,8 @@ fun OccurrenceDetailRoute(
 @Composable
 fun OccurrenceDetailScreen(
     state: OccurrenceDetailUiState,
+    entryMode: OccurrenceDetailEntryMode =
+        OccurrenceDetailEntryMode.NORMAL,
     onBack: () -> Unit,
     onGiven: () -> Unit,
     onNotGiven: () -> Unit,
@@ -553,7 +563,14 @@ fun OccurrenceDetailScreen(
                 Text(
                     text =
                         stringResource(
-                            R.string.detail_title,
+                            if (
+                                entryMode ==
+                                OccurrenceDetailEntryMode.REMINDER
+                            ) {
+                                R.string.reminder_action_title
+                            } else {
+                                R.string.detail_title
+                            },
                         ),
                     style =
                         MaterialTheme
@@ -593,6 +610,7 @@ fun OccurrenceDetailScreen(
                         OccurrenceDetailContent(
                             detail =
                                 state.detail,
+                            entryMode = entryMode,
                             onGiven = onGiven,
                             onNotGiven =
                                 onNotGiven,
@@ -694,6 +712,7 @@ private fun LoadingContent() {
 @Composable
 private fun OccurrenceDetailContent(
     detail: OccurrenceDetail,
+    entryMode: OccurrenceDetailEntryMode,
     onGiven: () -> Unit,
     onNotGiven: () -> Unit,
     onUnknown: () -> Unit,
@@ -702,6 +721,10 @@ private fun OccurrenceDetailContent(
     val canRecord =
         detail.lifecycle ==
                 OccurrenceLifecycle.ACTIVE
+
+    val isReminderEntry =
+        entryMode ==
+                OccurrenceDetailEntryMode.REMINDER
 
     val statusText =
         detail.statusText()
@@ -742,6 +765,33 @@ private fun OccurrenceDetailContent(
                             "occurrence_detail_medication_name",
                         ),
             )
+
+            if (
+                isReminderEntry &&
+                canRecord
+            ) {
+                ReminderEntryPrimaryActions(
+                    detail = detail,
+                    onGiven = onGiven,
+                    onRemindLater =
+                        onRemindLater,
+                )
+            }
+
+            if (isReminderEntry) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.occurrence_detail_more_details,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .titleMedium,
+                    modifier =
+                        Modifier.carePackHeading(),
+                )
+            }
 
             DetailLabelValue(
                 label =
@@ -851,55 +901,57 @@ private fun OccurrenceDetailContent(
                             ),
                 )
             } else {
-                Button(
-                    onClick = onGiven,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(
-                                min = 64.dp,
-                            )
-                            .testTag(
-                                "report_given",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string.record_given,
-                            ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleLarge,
-                    )
-                }
+                if (!isReminderEntry) {
+                    Button(
+                        onClick = onGiven,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(
+                                    min = 64.dp,
+                                )
+                                .testTag(
+                                    "report_given",
+                                ),
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string.record_given,
+                                ),
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .titleLarge,
+                        )
+                    }
 
-                Button(
-                    onClick =
-                        onRemindLater,
-                    enabled =
-                        detail.reportState == null,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(
-                                min = 64.dp,
-                            )
-                            .testTag(
-                                "remind_later",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string.remind_later,
-                            ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleLarge,
-                    )
+                    Button(
+                        onClick =
+                            onRemindLater,
+                        enabled =
+                            detail.reportState == null,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(
+                                    min = 64.dp,
+                                )
+                                .testTag(
+                                    "remind_later",
+                                ),
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string.remind_later,
+                                ),
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .titleLarge,
+                        )
+                    }
                 }
 
                 Text(
@@ -961,6 +1013,107 @@ private fun OccurrenceDetailContent(
                             onUnknown,
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderEntryPrimaryActions(
+    detail: OccurrenceDetail,
+    onGiven: () -> Unit,
+    onRemindLater: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "reminder_action_surface",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string.reminder_action_primary_actions,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleLarge,
+                modifier =
+                    Modifier.carePackHeading(),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string.reminder_action_summary,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
+            )
+
+            Button(
+                onClick = onGiven,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(
+                            min = 72.dp,
+                        )
+                        .testTag(
+                            "report_given",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.record_given,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .headlineSmall,
+                )
+            }
+
+            Button(
+                onClick = onRemindLater,
+                enabled =
+                    detail.reportState == null,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(
+                            min = 72.dp,
+                        )
+                        .testTag(
+                            "remind_later",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string.remind_later,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .headlineSmall,
+                )
             }
         }
     }

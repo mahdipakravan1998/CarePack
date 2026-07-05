@@ -5,8 +5,19 @@
     <string name="onboarding_title">کرپک</string>
     <string name="onboarding_local_summary">اطلاعات این نسخه فقط روی همین دستگاه نگهداری می‌شود و به اینترنت ارسال نمی‌شود.</string>
     <string name="onboarding_non_medical_summary">کرپک ابزار ثبت و یادآوری مراقبت است و جایگزین نظر پزشک، داروساز یا خدمات اورژانسی نیست.</string>
-    <string name="onboarding_simple_mode_summary">اگر کاربر سالمند یا کم‌حوصله است، حالت ساده مسیر روزانه را کوتاه‌تر و دکمه‌ها را بزرگ‌تر می‌کند.</string>
+    <string name="onboarding_privacy_action">مشاهده حریم خصوصی</string>
+    <string name="onboarding_simple_mode_title">پیشنهاد حالت ساده</string>
+    <string name="onboarding_simple_mode_summary">حالت ساده صفحه روزانه دارو را کوتاه‌تر می‌کند و دکمه‌های اصلی را بزرگ‌تر و روشن‌تر نشان می‌دهد.</string>
+    <string name="onboarding_simple_mode_enable">فعال کردن حالت ساده</string>
+    <string name="onboarding_simple_mode_defer">فعلاً حالت عادی بماند</string>
+    <string name="onboarding_simple_mode_enabled">حالت ساده برای استفاده روزانه فعال است.</string>
+    <string name="onboarding_simple_mode_standard">حالت عادی فعال است. بعداً هم می‌توانید از تنظیمات تغییر دهید.</string>
     <string name="onboarding_continue">شروع تنظیم</string>
+
+    <string name="post_setup_simple_mode_title">پیشنهاد حالت ساده برای استفاده روزانه</string>
+    <string name="post_setup_simple_mode_summary">برنامه دارو ذخیره شد. حالت ساده صفحه روزانه را کوتاه‌تر می‌کند و دکمه‌های اصلی را بزرگ‌تر و روشن‌تر نشان می‌دهد.</string>
+    <string name="post_setup_simple_mode_enable">فعال کردن حالت ساده</string>
+    <string name="post_setup_simple_mode_defer">فعلاً حالت عادی بماند</string>
 
     <string name="recipient_title">فرد تحت مراقبت</string>
     <string name="recipient_description">در نسخه فعلی فقط یک فرد تحت مراقبت می‌تواند ثبت شود.</string>
@@ -98,6 +109,10 @@
     <string name="record_given">مصرف شد</string>
     <string name="record_not_given">مصرف نشد</string>
     <string name="record_unknown">نامشخص</string>
+    <string name="reminder_action_title">ثبت نوبت یادآوری</string>
+    <string name="reminder_action_primary_actions">اقدام‌های اصلی</string>
+    <string name="reminder_action_summary">برای این نوبت یکی از گزینه‌ها را انتخاب کنید. اگر الان آماده نیستید، می‌توانید یادآوری بعدی را ثبت کنید.</string>
+    <string name="occurrence_detail_more_details">جزئیات نوبت</string>
     <string name="already_given">این مورد به‌عنوان مصرف شد ثبت شده است.</string>
     <string name="already_not_given">این مورد به‌عنوان مصرف نشد ثبت شده است.</string>
     <string name="already_unknown">این مورد به‌عنوان نامشخص ثبت شده است.</string>

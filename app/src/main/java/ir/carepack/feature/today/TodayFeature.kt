@@ -722,6 +722,7 @@ fun TodayRoute(
     viewModel: TodayViewModel,
     onOpenCarePlan: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenTodayReport: () -> Unit,
     onOpenOccurrence: (String) -> Unit,
 ) {
     val state by
@@ -766,6 +767,8 @@ fun TodayRoute(
             onOpenCarePlan,
         onOpenSettings =
             onOpenSettings,
+        onOpenTodayReport =
+            onOpenTodayReport,
         onOpenOccurrence =
             onOpenOccurrence,
         onGiven = { occurrenceId ->
@@ -809,6 +812,7 @@ fun TodayScreen(
     onRetry: () -> Unit,
     onOpenCarePlan: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenTodayReport: () -> Unit = {},
     onOpenOccurrence: (String) -> Unit,
     onGiven: (String) -> Unit = {},
     onNotGiven: (String) -> Unit = {},
@@ -858,6 +862,8 @@ fun TodayScreen(
                             state.seniorMode,
                         onOpenSettings =
                             onOpenSettings,
+                        onOpenTodayReport =
+                            onOpenTodayReport,
                     )
                 }
 
@@ -1205,6 +1211,7 @@ private fun TodayHeader(
     localDate: LocalDate,
     seniorMode: SeniorMode,
     onOpenSettings: () -> Unit,
+    onOpenTodayReport: () -> Unit,
 ) {
     Column(
         modifier =
@@ -1258,6 +1265,24 @@ private fun TodayHeader(
                     "today_jalali_date",
                 ),
         )
+
+        OutlinedButton(
+            onClick =
+                onOpenTodayReport,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "today_open_report",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string.carepack_settings_today_report,
+                    ),
+            )
+        }
 
         OutlinedButton(
             onClick =
