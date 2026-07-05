@@ -634,6 +634,24 @@ private fun MedicationCard(
                     ),
             )
 
+            medication
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    Text(
+                        text =
+                            details,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyMedium,
+                        modifier =
+                            Modifier.testTag(
+                                "medication_recording_details_${medication.medicationId}",
+                            ),
+                    )
+                }
+
             Text(
                 text =
                     medicationStatusText(
@@ -1180,6 +1198,39 @@ private fun ConfirmMedicationActionDialog(
         },
     )
 }
+
+private fun MedicationPlanItem.recordingDetailsText():
+        String =
+    buildList {
+        medicationType
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "نوع: $value",
+                )
+            }
+
+        dosageText
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "مقدار ثبت‌شده: $value",
+                )
+            }
+
+        doseUnit
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "واحد: $value",
+                )
+            }
+    }.joinToString(
+        separator = "، ",
+    )
 
 @Composable
 private fun medicationStatusText(

@@ -16,6 +16,9 @@ data class ScheduleDefinitionRow(
     val endEpochDay: Long?,
     val medicationNameSnapshot: String,
     val instructionSnapshot: String,
+    val medicationTypeSnapshot: String,
+    val dosageTextSnapshot: String,
+    val doseUnitSnapshot: String,
 )
 
 data class OpenScheduleVersionRow(
@@ -36,6 +39,9 @@ data class MedicationScheduleOverviewRow(
     val medicationId: String,
     val medicationName: String,
     val medicationInstruction: String,
+    val medicationType: String,
+    val dosageText: String,
+    val doseUnit: String,
     val medicationCreatedAtEpochMillis: Long,
     val medicationStoppedAtEpochMillis: Long?,
     val scheduleSeriesId: String?,

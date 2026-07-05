@@ -19,6 +19,9 @@ internal sealed interface ValidationResult<out T> {
 internal data class ValidatedMedicationText(
     val name: String,
     val instruction: String,
+    val medicationType: String,
+    val dosageText: String,
+    val doseUnit: String,
 )
 
 internal data class ValidatedScheduleDefinition(
@@ -65,6 +68,9 @@ internal object CarePlanValidation {
     fun validateMedicationText(
         rawName: String,
         rawInstruction: String,
+        rawMedicationType: String = "",
+        rawDosageText: String = "",
+        rawDoseUnit: String = "",
     ): ValidationResult<ValidatedMedicationText> {
         val nameResult =
             validateRequiredBoundedText(
@@ -94,9 +100,48 @@ internal object CarePlanValidation {
                             "${CarePlanLimits.INSTRUCTION_MAX_LENGTH} نویسه باشد.",
             )
 
+        val medicationTypeResult =
+            validateOptionalBoundedText(
+                rawValue = rawMedicationType,
+                field = CarePlanField.MEDICATION_TYPE,
+                maximumLength =
+                    CarePlanLimits
+                        .MEDICATION_TYPE_MAX_LENGTH,
+                tooLongMessage =
+                    "نوع دارو نباید بیشتر از " +
+                            "${CarePlanLimits.MEDICATION_TYPE_MAX_LENGTH} نویسه باشد.",
+            )
+
+        val dosageTextResult =
+            validateOptionalBoundedText(
+                rawValue = rawDosageText,
+                field = CarePlanField.DOSAGE_TEXT,
+                maximumLength =
+                    CarePlanLimits
+                        .DOSAGE_TEXT_MAX_LENGTH,
+                tooLongMessage =
+                    "مقدار ثبت‌شده دارو نباید بیشتر از " +
+                            "${CarePlanLimits.DOSAGE_TEXT_MAX_LENGTH} نویسه باشد.",
+            )
+
+        val doseUnitResult =
+            validateOptionalBoundedText(
+                rawValue = rawDoseUnit,
+                field = CarePlanField.DOSE_UNIT,
+                maximumLength =
+                    CarePlanLimits
+                        .DOSE_UNIT_MAX_LENGTH,
+                tooLongMessage =
+                    "واحد دوز نباید بیشتر از " +
+                            "${CarePlanLimits.DOSE_UNIT_MAX_LENGTH} نویسه باشد.",
+            )
+
         val errors =
             nameResult.errorsOrEmpty() +
-                    instructionResult.errorsOrEmpty()
+                    instructionResult.errorsOrEmpty() +
+                    medicationTypeResult.errorsOrEmpty() +
+                    dosageTextResult.errorsOrEmpty() +
+                    doseUnitResult.errorsOrEmpty()
 
         return if (errors.isEmpty()) {
             ValidationResult.Valid(
@@ -108,6 +153,18 @@ internal object CarePlanValidation {
                     instruction =
                         checkNotNull(
                             instructionResult.valueOrNull(),
+                        ),
+                    medicationType =
+                        checkNotNull(
+                            medicationTypeResult.valueOrNull(),
+                        ),
+                    dosageText =
+                        checkNotNull(
+                            dosageTextResult.valueOrNull(),
+                        ),
+                    doseUnit =
+                        checkNotNull(
+                            doseUnitResult.valueOrNull(),
                         ),
                 ),
             )
@@ -472,6 +529,32 @@ internal object CarePlanValidation {
                     normalized,
                 )
             }
+        }
+    }
+
+    private fun validateOptionalBoundedText(
+        rawValue: String,
+        field: CarePlanField,
+        maximumLength: Int,
+        tooLongMessage: String,
+    ): ValidationResult<String> {
+        val normalized =
+            rawValue.trim()
+
+        return if (
+            normalized.characterCount() >
+            maximumLength
+        ) {
+            invalid(
+                field =
+                    field,
+                message =
+                    tooLongMessage,
+            )
+        } else {
+            ValidationResult.Valid(
+                normalized,
+            )
         }
     }
 

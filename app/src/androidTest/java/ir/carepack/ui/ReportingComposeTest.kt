@@ -210,6 +210,12 @@ class ReportingComposeTest {
                                             null,
                                         phase =
                                             TemporalStatus.DUE,
+                                        medicationType =
+                                            "قرص",
+                                        dosageText =
+                                            "نصف",
+                                        doseUnit =
+                                            "عدد",
                                     ),
                                     todayItem(
                                         id =
@@ -245,6 +251,16 @@ class ReportingComposeTest {
                 "today_item_schedule-one",
             )
             .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "today_recording_details_schedule-one",
+            )
+            .assertIsDisplayed()
+
+        assertVisibleText(
+            "مقدار ثبت‌شده: نصف",
+        )
 
         composeRule
             .onNodeWithTag(
@@ -285,6 +301,15 @@ class ReportingComposeTest {
                 )
             }
         }
+
+        assertTagExists(
+            tag =
+                "occurrence_detail_recording_details",
+        )
+
+        assertVisibleText(
+            "مقدار ثبت‌شده: نصف",
+        )
 
         assertTagExists(
             tag =
@@ -711,6 +736,12 @@ class ReportingComposeTest {
                 false,
             cancellationReason =
                 cancellationReason,
+            medicationType =
+                "قرص",
+            dosageText =
+                "نصف",
+            doseUnit =
+                "عدد",
         )
 
     private fun todayItem(
@@ -721,6 +752,9 @@ class ReportingComposeTest {
         phase: TemporalStatus,
         isOverdue: Boolean =
             false,
+        medicationType: String = "",
+        dosageText: String = "",
+        doseUnit: String = "",
     ): TodayItem =
         TodayItem(
             occurrenceId =
@@ -749,6 +783,12 @@ class ReportingComposeTest {
                 phase,
             isOverdue =
                 isOverdue,
+            medicationType =
+                medicationType,
+            dosageText =
+                dosageText,
+            doseUnit =
+                doseUnit,
         )
 
     private fun historyItem(

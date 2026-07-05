@@ -17,6 +17,10 @@
     <string name="medication_schedule_title">دارو و برنامه</string>
     <string name="medication_name_label">نام دارو</string>
     <string name="instruction_label">دستور مصرف یا توضیح مراقبت</string>
+    <string name="medication_type_label">نوع دارو (اختیاری)</string>
+    <string name="dosage_text_label">مقدار/دوز ثبت‌شده (اختیاری)</string>
+    <string name="dose_unit_label">واحد دوز (اختیاری)</string>
+    <string name="medication_recording_details_label">جزئیات ثبت‌شده دارو</string>
     <string name="weekday_label">روزهای هفته</string>
     <string name="time_label">زمان ۲۴ ساعته</string>
     <string name="selected_times_label">زمان‌های روزانه</string>

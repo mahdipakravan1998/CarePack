@@ -110,6 +110,9 @@ internal class CarePlanRoomTestFixture private constructor(
         startDate: LocalDate? = null,
         endDate: LocalDate? = null,
         zoneId: String = DEFAULT_ZONE_ID,
+        medicationType: String = "",
+        dosageText: String = "",
+        doseUnit: String = "",
     ): CreatedTestPlan {
         val resolvedRecipientId =
             recipientId ?: createOrGetRecipient()
@@ -136,6 +139,12 @@ internal class CarePlanRoomTestFixture private constructor(
                             endDate,
                         zoneId =
                             zoneId,
+                        medicationType =
+                            medicationType,
+                        dosageText =
+                            dosageText,
+                        doseUnit =
+                            doseUnit,
                     ),
                 )
 

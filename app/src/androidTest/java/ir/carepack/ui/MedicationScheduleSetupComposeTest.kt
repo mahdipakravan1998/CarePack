@@ -621,6 +621,33 @@ class MedicationScheduleSetupComposeTest {
 
         composeRule
             .onNodeWithTag(
+                "medication_type",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "قرص",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "dosage_text",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "نصف",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "dose_unit",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "عدد",
+            )
+
+        composeRule
+            .onNodeWithTag(
                 "time_draft",
             )
             .performScrollTo()
@@ -677,6 +704,31 @@ class MedicationScheduleSetupComposeTest {
                     .occurrenceDao()
                     .count() > 0
             },
+        )
+
+        val createdMedication =
+            runBlocking {
+                fixture
+                    .carePlanService
+                    .observeCarePlan()
+                    .first()
+                    ?.medications
+                    ?.single()
+            }
+
+        assertEquals(
+            "قرص",
+            createdMedication?.medicationType,
+        )
+
+        assertEquals(
+            "نصف",
+            createdMedication?.dosageText,
+        )
+
+        assertEquals(
+            "عدد",
+            createdMedication?.doseUnit,
         )
 
         assertTagDoesNotExist(

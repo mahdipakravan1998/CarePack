@@ -14,6 +14,9 @@ data class ReportingOccurrenceRow(
     val scheduledAtEpochMillis: Long,
     val medicationNameSnapshot: String,
     val instructionSnapshot: String,
+    val medicationTypeSnapshot: String,
+    val dosageTextSnapshot: String,
+    val doseUnitSnapshot: String,
     val lifecycle: String,
     val cancellationReason: String?,
     val reportState: String?,
@@ -46,6 +49,12 @@ interface ReportingDao {
                 AS medicationNameSnapshot,
             occurrence.instructionSnapshot
                 AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -83,6 +92,12 @@ interface ReportingDao {
                 AS medicationNameSnapshot,
             occurrence.instructionSnapshot
                 AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -120,6 +135,12 @@ interface ReportingDao {
                 AS medicationNameSnapshot,
             occurrence.instructionSnapshot
                 AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason
@@ -159,6 +180,12 @@ interface ReportingDao {
                 AS medicationNameSnapshot,
             occurrence.instructionSnapshot
                 AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
             occurrence.lifecycle
                 AS lifecycle,
             occurrence.cancellationReason

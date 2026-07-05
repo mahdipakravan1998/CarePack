@@ -189,6 +189,15 @@ class RoomOccurrenceGenerator(
                 instructionSnapshot =
                     definition
                         .medicationInstructionSnapshot,
+                medicationTypeSnapshot =
+                    definition
+                        .medicationTypeSnapshot,
+                dosageTextSnapshot =
+                    definition
+                        .dosageTextSnapshot,
+                doseUnitSnapshot =
+                    definition
+                        .doseUnitSnapshot,
                 lifecycle =
                     OccurrenceLifecycle
                         .ACTIVE
@@ -288,6 +297,21 @@ class RoomOccurrenceGenerator(
             actual.instructionSnapshot ==
                     expected.instructionSnapshot,
         )
+
+        check(
+            actual.medicationTypeSnapshot ==
+                    expected.medicationTypeSnapshot,
+        )
+
+        check(
+            actual.dosageTextSnapshot ==
+                    expected.dosageTextSnapshot,
+        )
+
+        check(
+            actual.doseUnitSnapshot ==
+                    expected.doseUnitSnapshot,
+        )
     }
 
 }
@@ -336,6 +360,12 @@ private fun ScheduleDefinitionRow.toDomain():
             medicationNameSnapshot,
         medicationInstructionSnapshot =
             instructionSnapshot,
+        medicationTypeSnapshot =
+            medicationTypeSnapshot,
+        dosageTextSnapshot =
+            dosageTextSnapshot,
+        doseUnitSnapshot =
+            doseUnitSnapshot,
     )
 }
 

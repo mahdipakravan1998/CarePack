@@ -52,6 +52,9 @@ data class MedicationTextEditUiState(
     val isLoading: Boolean = true,
     val medicationName: String = "",
     val instruction: String = "",
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
     val errors:
     Map<CarePlanField, String> =
         emptyMap(),
@@ -126,6 +129,57 @@ class MedicationTextEditViewModel(
         }
     }
 
+    fun onMedicationTypeChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                current ->
+            current.copy(
+                medicationType =
+                    value,
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .MEDICATION_TYPE,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onDosageTextChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                current ->
+            current.copy(
+                dosageText =
+                    value,
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .DOSAGE_TEXT,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onDoseUnitChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                current ->
+            current.copy(
+                doseUnit =
+                    value,
+                errors =
+                    current.errors -
+                            CarePlanField
+                                .DOSE_UNIT,
+                generalError = null,
+            )
+        }
+    }
+
     fun save() {
         val current =
             mutableState.value
@@ -164,6 +218,15 @@ class MedicationTextEditViewModel(
                                     instruction =
                                         state
                                             .instruction,
+                                    medicationType =
+                                        state
+                                            .medicationType,
+                                    dosageText =
+                                        state
+                                            .dosageText,
+                                    doseUnit =
+                                        state
+                                            .doseUnit,
                                 ),
                             )
                 ) {
@@ -259,6 +322,12 @@ class MedicationTextEditViewModel(
                             snapshot.name,
                         instruction =
                             snapshot.instruction,
+                        medicationType =
+                            snapshot.medicationType,
+                        dosageText =
+                            snapshot.dosageText,
+                        doseUnit =
+                            snapshot.doseUnit,
                         errors = emptyMap(),
                         generalError = null,
                     )
@@ -348,6 +417,15 @@ fun MedicationTextEditRoute(
         onInstructionChanged =
             viewModel::
             onInstructionChanged,
+        onMedicationTypeChanged =
+            viewModel::
+            onMedicationTypeChanged,
+        onDosageTextChanged =
+            viewModel::
+            onDosageTextChanged,
+        onDoseUnitChanged =
+            viewModel::
+            onDoseUnitChanged,
         onSave =
             viewModel::save,
     )
@@ -361,6 +439,12 @@ private fun MedicationTextEditScreen(
     onMedicationNameChanged:
         (String) -> Unit,
     onInstructionChanged:
+        (String) -> Unit,
+    onMedicationTypeChanged:
+        (String) -> Unit,
+    onDosageTextChanged:
+        (String) -> Unit,
+    onDoseUnitChanged:
         (String) -> Unit,
     onSave: () -> Unit,
 ) {
@@ -460,6 +544,12 @@ private fun MedicationTextEditScreen(
                             state.medicationName,
                         instruction =
                             state.instruction,
+                        medicationType =
+                            state.medicationType,
+                        dosageText =
+                            state.dosageText,
+                        doseUnit =
+                            state.doseUnit,
                         errors =
                             state.errors,
                         enabled =
@@ -468,11 +558,23 @@ private fun MedicationTextEditScreen(
                             onMedicationNameChanged,
                         onInstructionChanged =
                             onInstructionChanged,
+                        onMedicationTypeChanged =
+                            onMedicationTypeChanged,
+                        onDosageTextChanged =
+                            onDosageTextChanged,
+                        onDoseUnitChanged =
+                            onDoseUnitChanged,
                         instructionMinLines = 4,
                         medicationNameTestTag =
                             "medication_text_edit_name",
                         instructionTestTag =
                             "medication_text_edit_instruction",
+                        medicationTypeTestTag =
+                            "medication_text_edit_type",
+                        dosageTextTestTag =
+                            "medication_text_edit_dosage",
+                        doseUnitTestTag =
+                            "medication_text_edit_unit",
                     )
 
                     state.generalError

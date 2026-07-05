@@ -792,6 +792,22 @@ private fun OccurrenceDetailContent(
                     "occurrence_detail_instruction",
             )
 
+            detail
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    DetailLabelValue(
+                        label =
+                            stringResource(
+                                R.string.medication_recording_details_label,
+                            ),
+                        value =
+                            details,
+                        testTag =
+                            "occurrence_detail_recording_details",
+                    )
+                }
+
             StatusCard(
                 detail =
                     detail,
@@ -1034,6 +1050,39 @@ private fun ReportActionButton(
         )
     }
 }
+
+private fun OccurrenceDetail.recordingDetailsText():
+        String =
+    buildList {
+        medicationType
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "نوع: $value",
+                )
+            }
+
+        dosageText
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "مقدار ثبت‌شده: $value",
+                )
+            }
+
+        doseUnit
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "واحد: $value",
+                )
+            }
+    }.joinToString(
+        separator = "، ",
+    )
 
 @Composable
 private fun DetailLabelValue(
