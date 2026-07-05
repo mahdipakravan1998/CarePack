@@ -14,12 +14,18 @@ object CarePlanLimits {
     const val RECIPIENT_NAME_MAX_LENGTH = 120
     const val MEDICATION_NAME_MAX_LENGTH = 120
     const val INSTRUCTION_MAX_LENGTH = 1000
+    const val MEDICATION_TYPE_MAX_LENGTH = 80
+    const val DOSAGE_TEXT_MAX_LENGTH = 120
+    const val DOSE_UNIT_MAX_LENGTH = 40
 }
 
 enum class CarePlanField {
     RECIPIENT_NAME,
     MEDICATION_NAME,
     INSTRUCTION,
+    MEDICATION_TYPE,
+    DOSAGE_TEXT,
+    DOSE_UNIT,
     WEEKDAYS,
     TIMES,
     START_DATE,
@@ -86,6 +92,9 @@ data class CreateMedicationScheduleCommand(
     val startDate: LocalDate?,
     val endDate: LocalDate?,
     val zoneId: String,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 sealed interface CreateMedicationScheduleOutcome {
@@ -143,6 +152,9 @@ data class UpdateMedicationTextCommand(
     val medicationId: String,
     val medicationName: String,
     val instruction: String,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 sealed interface UpdateMedicationTextOutcome {
@@ -264,6 +276,9 @@ data class MedicationPlanItem(
     val createdAt: Instant,
     val stoppedAt: Instant?,
     val schedules: List<SchedulePlan>,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 data class CarePlanOverview(
@@ -278,6 +293,9 @@ data class MedicationEditorSnapshot(
     val instruction: String,
     val status: MedicationStatus,
     val schedules: List<SchedulePlan>,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 data class ScheduleEditorSnapshot(
@@ -286,6 +304,9 @@ data class ScheduleEditorSnapshot(
     val instruction: String,
     val status: MedicationStatus,
     val schedule: SchedulePlan,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 interface CarePlanService {

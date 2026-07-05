@@ -103,6 +103,9 @@ import kotlinx.coroutines.launch
 data class MedicationScheduleUiState(
     val medicationName: String = "",
     val instruction: String = "",
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
     val schedule: ScheduleFormUiState,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val previewAnchorDate: LocalDate = LocalDate.now(),
@@ -250,6 +253,57 @@ class MedicationScheduleViewModel private constructor(
                         .medicationErrors -
                             CarePlanField
                                 .INSTRUCTION,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onMedicationTypeChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                currentState ->
+            currentState.copy(
+                medicationType = value,
+                medicationErrors =
+                    currentState
+                        .medicationErrors -
+                            CarePlanField
+                                .MEDICATION_TYPE,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onDosageTextChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                currentState ->
+            currentState.copy(
+                dosageText = value,
+                medicationErrors =
+                    currentState
+                        .medicationErrors -
+                            CarePlanField
+                                .DOSAGE_TEXT,
+                generalError = null,
+            )
+        }
+    }
+
+    fun onDoseUnitChanged(
+        value: String,
+    ) {
+        mutableState.update {
+                currentState ->
+            currentState.copy(
+                doseUnit = value,
+                medicationErrors =
+                    currentState
+                        .medicationErrors -
+                            CarePlanField
+                                .DOSE_UNIT,
                 generalError = null,
             )
         }
@@ -515,6 +569,12 @@ class MedicationScheduleViewModel private constructor(
                             latest
                                 .schedule
                                 .zoneId,
+                        medicationType =
+                            latest.medicationType,
+                        dosageText =
+                            latest.dosageText,
+                        doseUnit =
+                            latest.doseUnit,
                     ),
                 )
 
@@ -894,6 +954,12 @@ fun MedicationScheduleRoute(
             viewModel::onMedicationNameChanged,
         onInstructionChanged =
             viewModel::onInstructionChanged,
+        onMedicationTypeChanged =
+            viewModel::onMedicationTypeChanged,
+        onDosageTextChanged =
+            viewModel::onDosageTextChanged,
+        onDoseUnitChanged =
+            viewModel::onDoseUnitChanged,
         onWeekdayToggled =
             viewModel::onWeekdayToggled,
         onInputModeSelected =
@@ -1610,6 +1676,12 @@ private fun MedicationScheduleScreen(
         (String) -> Unit,
     onInstructionChanged:
         (String) -> Unit,
+    onMedicationTypeChanged:
+        (String) -> Unit,
+    onDosageTextChanged:
+        (String) -> Unit,
+    onDoseUnitChanged:
+        (String) -> Unit,
     onWeekdayToggled:
         (DayOfWeek) -> Unit,
     onInputModeSelected:
@@ -1721,6 +1793,12 @@ private fun MedicationScheduleScreen(
                         state.medicationName,
                     instruction =
                         state.instruction,
+                    medicationType =
+                        state.medicationType,
+                    dosageText =
+                        state.dosageText,
+                    doseUnit =
+                        state.doseUnit,
                     errors =
                         state.medicationErrors,
                     enabled =
@@ -1729,11 +1807,23 @@ private fun MedicationScheduleScreen(
                         onMedicationNameChanged,
                     onInstructionChanged =
                         onInstructionChanged,
+                    onMedicationTypeChanged =
+                        onMedicationTypeChanged,
+                    onDosageTextChanged =
+                        onDosageTextChanged,
+                    onDoseUnitChanged =
+                        onDoseUnitChanged,
                     instructionMinLines = 3,
                     medicationNameTestTag =
                         "medication_name",
                     instructionTestTag =
                         "medication_instruction",
+                    medicationTypeTestTag =
+                        "medication_type",
+                    dosageTextTestTag =
+                        "dosage_text",
+                    doseUnitTestTag =
+                        "dose_unit",
                 )
             }
 

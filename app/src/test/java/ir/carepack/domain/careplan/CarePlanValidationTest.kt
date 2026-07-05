@@ -73,6 +73,42 @@ class CarePlanValidationTest {
     }
 
     @Test
+    fun medicationRecordingFields_areOptionalTrimmedAndNotMedicallyValidated() {
+        val result =
+            CarePlanValidation
+                .validateMedicationText(
+                    rawName =
+                        "  Medication  ",
+                    rawInstruction =
+                        "  Instruction  ",
+                    rawMedicationType =
+                        "  قرص  ",
+                    rawDosageText =
+                        "  half tablet as typed  ",
+                    rawDoseUnit =
+                        "  tablet  ",
+                )
+
+        val value =
+            result.valueOrNull()
+
+        assertEquals(
+            "قرص",
+            value?.medicationType,
+        )
+
+        assertEquals(
+            "half tablet as typed",
+            value?.dosageText,
+        )
+
+        assertEquals(
+            "tablet",
+            value?.doseUnit,
+        )
+    }
+
+    @Test
     fun blankMedicationFields_areRejected() {
         val result =
             CarePlanValidation

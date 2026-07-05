@@ -59,6 +59,9 @@ data class ScheduleDefinition(
     val endDate: LocalDate?,
     val medicationNameSnapshot: String,
     val medicationInstructionSnapshot: String,
+    val medicationTypeSnapshot: String = "",
+    val dosageTextSnapshot: String = "",
+    val doseUnitSnapshot: String = "",
 )
 
 data class TodayItem(
@@ -73,6 +76,9 @@ data class TodayItem(
     val temporalStatus: TemporalStatus =
         TemporalStatus.UPCOMING,
     val isOverdue: Boolean = false,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 data class TodayModel(
@@ -96,6 +102,9 @@ data class OccurrenceDetail(
     val isOverdue: Boolean = false,
     val cancellationReason:
     OccurrenceCancellationReason? = null,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 data class HistoryItem(
@@ -109,6 +118,9 @@ data class HistoryItem(
     val reportState: CaregiverReportState?,
     val temporalStatus: TemporalStatus,
     val isOverdue: Boolean,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 data class HistoryDay(

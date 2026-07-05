@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "75425472137bd66147cac24088c10389",
+    "identityHash": "5c85bb35d49edc1a61f841f2df157205",
     "entities": [
       {
         "tableName": "care_recipients",
@@ -59,7 +59,7 @@
       },
       {
         "tableName": "medications",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `careRecipientId` TEXT NOT NULL, `name` TEXT NOT NULL, `instructionText` TEXT NOT NULL, `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `stoppedAtEpochMillis` INTEGER, `archivedAtEpochMillis` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`careRecipientId`) REFERENCES `care_recipients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `careRecipientId` TEXT NOT NULL, `name` TEXT NOT NULL, `instructionText` TEXT NOT NULL, `medicationType` TEXT NOT NULL DEFAULT '', `dosageText` TEXT NOT NULL DEFAULT '', `doseUnit` TEXT NOT NULL DEFAULT '', `createdAtEpochMillis` INTEGER NOT NULL, `updatedAtEpochMillis` INTEGER NOT NULL, `stoppedAtEpochMillis` INTEGER, `archivedAtEpochMillis` INTEGER, PRIMARY KEY(`id`), FOREIGN KEY(`careRecipientId`) REFERENCES `care_recipients`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -84,6 +84,27 @@
             "columnName": "instructionText",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "medicationType",
+            "columnName": "medicationType",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "dosageText",
+            "columnName": "dosageText",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "doseUnit",
+            "columnName": "doseUnit",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
           },
           {
             "fieldPath": "createdAtEpochMillis",
@@ -386,7 +407,7 @@
       },
       {
         "tableName": "occurrences",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleVersionId` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `localEpochDay` INTEGER NOT NULL, `minuteOfDay` INTEGER NOT NULL, `zoneIdSnapshot` TEXT NOT NULL, `scheduledAtEpochMillis` INTEGER NOT NULL, `medicationNameSnapshot` TEXT NOT NULL, `instructionSnapshot` TEXT NOT NULL, `lifecycle` TEXT NOT NULL, `cancelledAtEpochMillis` INTEGER, `cancellationReason` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleVersionId`) REFERENCES `schedule_versions`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `scheduleVersionId` TEXT NOT NULL, `medicationId` TEXT NOT NULL, `localEpochDay` INTEGER NOT NULL, `minuteOfDay` INTEGER NOT NULL, `zoneIdSnapshot` TEXT NOT NULL, `scheduledAtEpochMillis` INTEGER NOT NULL, `medicationNameSnapshot` TEXT NOT NULL, `instructionSnapshot` TEXT NOT NULL, `medicationTypeSnapshot` TEXT NOT NULL DEFAULT '', `dosageTextSnapshot` TEXT NOT NULL DEFAULT '', `doseUnitSnapshot` TEXT NOT NULL DEFAULT '', `lifecycle` TEXT NOT NULL, `cancelledAtEpochMillis` INTEGER, `cancellationReason` TEXT, `createdAtEpochMillis` INTEGER NOT NULL, PRIMARY KEY(`id`), FOREIGN KEY(`scheduleVersionId`) REFERENCES `schedule_versions`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT , FOREIGN KEY(`medicationId`) REFERENCES `medications`(`id`) ON UPDATE NO ACTION ON DELETE RESTRICT )",
         "fields": [
           {
             "fieldPath": "id",
@@ -441,6 +462,27 @@
             "columnName": "instructionSnapshot",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "medicationTypeSnapshot",
+            "columnName": "medicationTypeSnapshot",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "dosageTextSnapshot",
+            "columnName": "dosageTextSnapshot",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
+          },
+          {
+            "fieldPath": "doseUnitSnapshot",
+            "columnName": "doseUnitSnapshot",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "''"
           },
           {
             "fieldPath": "lifecycle",
@@ -598,7 +640,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '75425472137bd66147cac24088c10389')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '5c85bb35d49edc1a61f841f2df157205')"
     ]
   }
 }

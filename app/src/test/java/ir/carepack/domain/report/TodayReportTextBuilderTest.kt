@@ -207,6 +207,55 @@ class TodayReportTextBuilderTest {
     }
 
     @Test
+    fun medicationRecordingFields_areIncludedWhenPresent() {
+        val report =
+            builder.build(
+                date =
+                    REPORT_DATE,
+                recipientName = null,
+                entries =
+                    listOf(
+                        entry(
+                            occurrenceId =
+                                "recording-fields",
+                            time =
+                                LocalTime.of(
+                                    8,
+                                    0,
+                                ),
+                            medicationName =
+                                "داروی ثبت‌شده",
+                            medicationType =
+                                "قرص",
+                            dosageText =
+                                "نصف",
+                            doseUnit =
+                                "عدد",
+                        ),
+                    ),
+            )
+                .value
+
+        assertTrue(
+            report.contains(
+                "نوع: قرص",
+            ),
+        )
+
+        assertTrue(
+            report.contains(
+                "مقدار ثبت‌شده: نصف",
+            ),
+        )
+
+        assertTrue(
+            report.contains(
+                "واحد: عدد",
+            ),
+        )
+    }
+
+    @Test
     fun emptyToday_isStillACompleteDeterministicReport() {
         val first =
             builder.build(
@@ -238,6 +287,9 @@ class TodayReportTextBuilderTest {
         medicationName: String,
         reportState:
         CaregiverReportState? = null,
+        medicationType: String = "",
+        dosageText: String = "",
+        doseUnit: String = "",
     ): TodayReportEntry =
         TodayReportEntry(
             occurrenceId =
@@ -250,6 +302,12 @@ class TodayReportTextBuilderTest {
                 "دستور مصرف",
             reportState =
                 reportState,
+            medicationType =
+                medicationType,
+            dosageText =
+                dosageText,
+            doseUnit =
+                doseUnit,
         )
 
     private companion object {

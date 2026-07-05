@@ -63,6 +63,12 @@ private fun ReportingOccurrenceRow.toTodayReportEntry():
             reportState?.let(
                 CaregiverReportState::valueOf,
             ),
+        medicationType =
+            medicationTypeSnapshot,
+        dosageText =
+            dosageTextSnapshot,
+        doseUnit =
+            doseUnitSnapshot,
     )
 
 private fun Int.toLocalTime():

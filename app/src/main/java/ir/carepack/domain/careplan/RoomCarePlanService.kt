@@ -157,6 +157,12 @@ class RoomCarePlanService(
                     command.medicationName,
                 rawInstruction =
                     command.instruction,
+                rawMedicationType =
+                    command.medicationType,
+                rawDosageText =
+                    command.dosageText,
+                rawDoseUnit =
+                    command.doseUnit,
             )
 
         val scheduleValidation =
@@ -218,6 +224,12 @@ class RoomCarePlanService(
                     name = medication.name,
                     instructionText =
                         medication.instruction,
+                    medicationType =
+                        medication.medicationType,
+                    dosageText =
+                        medication.dosageText,
+                    doseUnit =
+                        medication.doseUnit,
                     createdAtEpochMillis =
                         nowEpochMillis,
                     updatedAtEpochMillis =
@@ -313,6 +325,12 @@ class RoomCarePlanService(
                     command.medicationName,
                 rawInstruction =
                     command.instruction,
+                rawMedicationType =
+                    command.medicationType,
+                rawDosageText =
+                    command.dosageText,
+                rawDoseUnit =
+                    command.doseUnit,
             )
 
         if (validation is ValidationResult.Invalid) {
@@ -337,7 +355,13 @@ class RoomCarePlanService(
             if (
                 medication.name == validated.name &&
                 medication.instructionText ==
-                validated.instruction
+                validated.instruction &&
+                medication.medicationType ==
+                validated.medicationType &&
+                medication.dosageText ==
+                validated.dosageText &&
+                medication.doseUnit ==
+                validated.doseUnit
             ) {
                 return@withTransaction UpdateMedicationTextOutcome.Unchanged
             }
@@ -365,6 +389,12 @@ class RoomCarePlanService(
                     name = validated.name,
                     instructionText =
                         validated.instruction,
+                    medicationType =
+                        validated.medicationType,
+                    dosageText =
+                        validated.dosageText,
+                    doseUnit =
+                        validated.doseUnit,
                     updatedAtEpochMillis =
                         nowEpochMillis,
                 ) == 1,
@@ -630,6 +660,12 @@ class RoomCarePlanService(
                 medication.toStatus(),
             schedules =
                 rows.toSchedulePlans(),
+            medicationType =
+                medication.medicationType,
+            dosageText =
+                medication.dosageText,
+            doseUnit =
+                medication.doseUnit,
         )
     }
 
@@ -670,6 +706,12 @@ class RoomCarePlanService(
                 },
             schedule =
                 schedule,
+            medicationType =
+                first.medicationType,
+            dosageText =
+                first.dosageText,
+            doseUnit =
+                first.doseUnit,
         )
     }
 
@@ -966,6 +1008,12 @@ private fun List<MedicationScheduleOverviewRow>.toMedicationPlans():
                         ?.let(Instant::ofEpochMilli),
                 schedules =
                     rows.toSchedulePlans(),
+                medicationType =
+                    first.medicationType,
+                dosageText =
+                    first.dosageText,
+                doseUnit =
+                    first.doseUnit,
             )
         }
         .sortedBy(

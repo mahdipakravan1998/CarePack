@@ -140,7 +140,7 @@ echo Android version:     %ANDROID_VERSION%
 echo Android user:        %DEVICE_USER_ID%
 echo.
 
-echo [1/8] Building application and test APKs...
+echo [1/9] Building application and test APKs...
 
 call "%GRADLEW%" ^
     :app:assembleDebug ^
@@ -168,14 +168,14 @@ if not exist "%TEST_APK%" (
 )
 
 echo.
-echo [2/8] Stopping previous processes...
+echo [2/9] Stopping previous processes...
 
 adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
 adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
 adb shell am force-stop com.miui.securitycenter >nul 2>&1
 
 echo.
-echo [3/8] Updating and verifying application APK...
+echo [3/9] Updating and verifying application APK...
 
 call :install_and_verify_target_apk
 
@@ -186,7 +186,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [4/8] Installing and verifying a fresh Android test APK...
+echo [4/9] Installing and verifying a fresh Android test APK...
 
 call :install_and_verify_test_apk
 
@@ -197,7 +197,26 @@ if errorlevel 1 (
 )
 
 echo.
-echo [5/8] Waiting for instrumentation registration...
+echo [5/9] Clearing stale app data for isolated test run...
+
+call :clear_app_data_for_test_run "%TARGET_PACKAGE%"
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: Could not clear target app data before instrumentation.
+    exit /b 1
+)
+
+call :clear_app_data_for_test_run "%TEST_PACKAGE%"
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: Could not clear Android test app data before instrumentation.
+    exit /b 1
+)
+
+echo.
+echo [6/9] Waiting for instrumentation registration...
 
 call :wait_for_instrumentation
 
@@ -232,7 +251,7 @@ echo Instrumentation registered:
 echo %TEST_COMPONENT%
 
 echo.
-echo [6/8] Granting Xiaomi background-window permission...
+echo [7/9] Granting Xiaomi background-window permission...
 
 call :grant_xiaomi_permission
 
@@ -246,7 +265,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo [7/8] Preparing physical device...
+echo [8/9] Preparing physical device...
 
 adb shell input keyevent 224 >nul 2>&1
 adb shell wm dismiss-keyguard >nul 2>&1
@@ -296,7 +315,7 @@ if exist "%SELECTED_REPORT_FILE%" (
 )
 
 echo.
-echo [8/8] Running instrumented tests...
+echo [9/9] Running instrumented tests...
 echo.
 
 if not "%~1"=="" goto :dispatch_selected_test
@@ -402,7 +421,7 @@ goto :selected_test_passed
 
 :run_full_suite
 
-echo [8A/8] Running non-Compose instrumented tests...
+echo [9A/9] Running non-Compose instrumented tests...
 echo Excluded classes:
 echo %COMPOSE_EXCLUDED_CLASSES%
 echo.
@@ -418,7 +437,7 @@ if errorlevel 1 goto :non_ui_tests_failed
 type nul > "%UI_REPORT_FILE%"
 
 echo.
-echo [8B/8] Running ReportingPrivacyDeletionComposeTest methods in isolated sessions...
+echo [9B/9] Running ReportingPrivacyDeletionComposeTest methods in isolated sessions...
 echo.
 
 for %%M in (%REPORTING_PRIVACY_DELETION_COMPOSE_METHODS%) do (
@@ -437,7 +456,7 @@ for %%M in (%REPORTING_PRIVACY_DELETION_COMPOSE_METHODS%) do (
 )
 
 echo.
-echo [8C/8] Running ReportingComposeTest methods in isolated sessions...
+echo [9C/9] Running ReportingComposeTest methods in isolated sessions...
 echo.
 
 for %%M in (%REPORTING_COMPOSE_METHODS%) do (
@@ -456,7 +475,7 @@ for %%M in (%REPORTING_COMPOSE_METHODS%) do (
 )
 
 echo.
-echo [8D/8] Running CarePackComposeTest methods in isolated sessions...
+echo [9D/9] Running CarePackComposeTest methods in isolated sessions...
 echo.
 
 for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
@@ -705,6 +724,33 @@ adb shell pm list packages --user "%DEVICE_USER_ID%" ^
     | findstr /I /C:"carepack"
 
 exit /b 1
+
+
+:clear_app_data_for_test_run
+
+set "PACKAGE_TO_CLEAR=%~1"
+
+call :wait_for_package "%PACKAGE_TO_CLEAR%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+echo Clearing app data:
+echo %PACKAGE_TO_CLEAR%
+
+adb shell pm clear --user "%DEVICE_USER_ID%" "%PACKAGE_TO_CLEAR%" >nul 2>&1
+
+if errorlevel 1 (
+    echo.
+    echo Failed to clear app data:
+    echo %PACKAGE_TO_CLEAR%
+    exit /b 1
+)
+
+call :wait_for_package "%PACKAGE_TO_CLEAR%"
+
+exit /b %ERRORLEVEL%
 
 
 :prepare_test_session

@@ -32,6 +32,9 @@ internal data class TodayReportEntry(
     val medicationInstruction: String,
     val reportState:
     CaregiverReportState?,
+    val medicationType: String = "",
+    val dosageText: String = "",
+    val doseUnit: String = "",
 )
 
 internal class TodayReportTextBuilder {
@@ -158,6 +161,14 @@ internal class TodayReportTextBuilder {
                 ),
             )
 
+            val recordingDetails =
+                recordingDetailsText()
+
+            if (recordingDetails.isNotBlank()) {
+                append('\n')
+                append(recordingDetails)
+            }
+
             if (medicationInstruction.isNotBlank()) {
                 append('\n')
                 append(INSTRUCTION_LABEL)
@@ -165,6 +176,39 @@ internal class TodayReportTextBuilder {
                 append(medicationInstruction)
             }
         }
+
+    private fun TodayReportEntry.recordingDetailsText():
+            String =
+        buildList {
+            medicationType
+                .trim()
+                .takeIf(String::isNotEmpty)
+                ?.let { value ->
+                    add(
+                        "$MEDICATION_TYPE_LABEL: $value",
+                    )
+                }
+
+            dosageText
+                .trim()
+                .takeIf(String::isNotEmpty)
+                ?.let { value ->
+                    add(
+                        "$DOSAGE_LABEL: $value",
+                    )
+                }
+
+            doseUnit
+                .trim()
+                .takeIf(String::isNotEmpty)
+                ?.let { value ->
+                    add(
+                        "$DOSE_UNIT_LABEL: $value",
+                    )
+                }
+        }.joinToString(
+            separator = "، ",
+        )
 
     private fun reportStateText(
         state: CaregiverReportState?,
@@ -220,6 +264,15 @@ internal class TodayReportTextBuilder {
 
         const val INSTRUCTION_LABEL =
             "توضیح"
+
+        const val MEDICATION_TYPE_LABEL =
+            "نوع"
+
+        const val DOSAGE_LABEL =
+            "مقدار ثبت‌شده"
+
+        const val DOSE_UNIT_LABEL =
+            "واحد"
 
         const val EMPTY_REPORT_MESSAGE =
             "موردی برای امروز وجود ندارد."

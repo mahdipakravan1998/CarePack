@@ -161,6 +161,9 @@ private data class MappedOccurrence(
     val scheduledAt: Instant,
     val medicationName: String,
     val medicationInstruction: String,
+    val medicationType: String,
+    val dosageText: String,
+    val doseUnit: String,
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val zoneId: String,
@@ -208,6 +211,12 @@ private fun ReportingOccurrenceRow.toMappedOccurrence(
             medicationNameSnapshot,
         medicationInstruction =
             instructionSnapshot,
+        medicationType =
+            medicationTypeSnapshot,
+        dosageText =
+            dosageTextSnapshot,
+        doseUnit =
+            doseUnitSnapshot,
         lifecycle =
             mappedLifecycle,
         reportState =
@@ -260,6 +269,12 @@ private fun MappedOccurrence.toTodayItem():
             temporalStatus,
         isOverdue =
             isOverdue,
+        medicationType =
+            medicationType,
+        dosageText =
+            dosageText,
+        doseUnit =
+            doseUnit,
     )
 
 private fun MappedOccurrence.toOccurrenceDetail():
@@ -289,6 +304,12 @@ private fun MappedOccurrence.toOccurrenceDetail():
             isOverdue,
         cancellationReason =
             cancellationReason,
+        medicationType =
+            medicationType,
+        dosageText =
+            dosageText,
+        doseUnit =
+            doseUnit,
     )
 
 private fun MappedOccurrence.toHistoryItem():
@@ -314,6 +335,12 @@ private fun MappedOccurrence.toHistoryItem():
             temporalStatus,
         isOverdue =
             isOverdue,
+        medicationType =
+            medicationType,
+        dosageText =
+            dosageText,
+        doseUnit =
+            doseUnit,
     )
 
 private fun Int.toLocalTime():

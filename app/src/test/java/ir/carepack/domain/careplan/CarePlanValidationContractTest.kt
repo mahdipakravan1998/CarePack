@@ -144,6 +144,78 @@ class CarePlanValidationContractTest {
     }
 
     @Test
+    fun medicationRecordingFieldLimits_areEnforcedWithoutMedicalMeaningChecks() {
+        val accepted =
+            CarePlanValidation
+                .validateMedicationText(
+                    rawName =
+                        "دارو",
+                    rawInstruction =
+                        "دستور",
+                    rawMedicationType =
+                        "ن".repeat(
+                            CarePlanLimits
+                                .MEDICATION_TYPE_MAX_LENGTH,
+                        ),
+                    rawDosageText =
+                        "د".repeat(
+                            CarePlanLimits
+                                .DOSAGE_TEXT_MAX_LENGTH,
+                        ),
+                    rawDoseUnit =
+                        "و".repeat(
+                            CarePlanLimits
+                                .DOSE_UNIT_MAX_LENGTH,
+                        ),
+                )
+
+        assertTrue(
+            accepted is ValidationResult.Valid,
+        )
+
+        val rejected =
+            CarePlanValidation
+                .validateMedicationText(
+                    rawName =
+                        "دارو",
+                    rawInstruction =
+                        "دستور",
+                    rawMedicationType =
+                        "ن".repeat(
+                            CarePlanLimits
+                                .MEDICATION_TYPE_MAX_LENGTH + 1,
+                        ),
+                    rawDosageText =
+                        "د".repeat(
+                            CarePlanLimits
+                                .DOSAGE_TEXT_MAX_LENGTH + 1,
+                        ),
+                    rawDoseUnit =
+                        "و".repeat(
+                            CarePlanLimits
+                                .DOSE_UNIT_MAX_LENGTH + 1,
+                        ),
+                )
+
+        val fields =
+            rejected
+                .errorsOrEmpty()
+                .map {
+                    it.field
+                }
+                .toSet()
+
+        assertEquals(
+            setOf(
+                CarePlanField.MEDICATION_TYPE,
+                CarePlanField.DOSAGE_TEXT,
+                CarePlanField.DOSE_UNIT,
+            ),
+            fields,
+        )
+    }
+
+    @Test
     fun validSevenBitWeekdayMasks_areAccepted() {
         DayOfWeek.entries.forEach { day ->
             val mask =

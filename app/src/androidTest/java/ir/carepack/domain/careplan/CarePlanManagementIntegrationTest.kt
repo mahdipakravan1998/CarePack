@@ -243,6 +243,233 @@ class CarePlanManagementIntegrationTest {
         }
 
     @Test
+    fun medicationRecordingFieldsPersistAndSnapshotHistoryAcrossEdit() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val plan =
+                    fixture.createPlan(
+                        medicationName =
+                            "داروی ثبت‌شده",
+                        instruction =
+                            "بعد از صبحانه",
+                        medicationType =
+                            "قرص",
+                        dosageText =
+                            "نصف",
+                        doseUnit =
+                            "عدد",
+                        minutesOfDay =
+                            listOf(
+                                8 * 60,
+                                20 * 60,
+                            ),
+                        startDate =
+                            anchorDate,
+                        endDate =
+                            anchorDate.plusDays(
+                                1,
+                            ),
+                    )
+
+                val overview =
+                    fixture
+                        .carePlanService
+                        .observeCarePlan()
+                        .first()
+
+                val medication =
+                    overview
+                        ?.medications
+                        ?.single()
+
+                assertEquals(
+                    "قرص",
+                    medication?.medicationType,
+                )
+
+                assertEquals(
+                    "نصف",
+                    medication?.dosageText,
+                )
+
+                assertEquals(
+                    "عدد",
+                    medication?.doseUnit,
+                )
+
+                val reportedOccurrence =
+                    fixture.occurrenceOn(
+                        medicationId =
+                            plan.medicationId,
+                        date =
+                            anchorDate,
+                        minuteOfDay =
+                            8 * 60,
+                    )
+
+                assertEquals(
+                    "قرص",
+                    reportedOccurrence
+                        .medicationTypeSnapshot,
+                )
+
+                assertEquals(
+                    "نصف",
+                    reportedOccurrence
+                        .dosageTextSnapshot,
+                )
+
+                assertEquals(
+                    "عدد",
+                    reportedOccurrence
+                        .doseUnitSnapshot,
+                )
+
+                fixture.report(
+                    occurrenceId =
+                        reportedOccurrence.id,
+                    state =
+                        CaregiverReportState.GIVEN,
+                )
+
+                fixture.moveTo(
+                    Instant.parse(
+                        "2026-06-24T09:00:00Z",
+                    ),
+                )
+
+                assertEquals(
+                    UpdateMedicationTextOutcome.Updated,
+                    fixture
+                        .carePlanService
+                        .updateMedicationText(
+                            UpdateMedicationTextCommand(
+                                medicationId =
+                                    plan.medicationId,
+                                medicationName =
+                                    "داروی ثبت‌شده جدید",
+                                instruction =
+                                    "بعد از شام",
+                                medicationType =
+                                    "کپسول",
+                                dosageText =
+                                    "یک",
+                                doseUnit =
+                                    "کپسول",
+                            ),
+                        ),
+                )
+
+                val preservedReportedOccurrence =
+                    checkNotNull(
+                        fixture
+                            .database
+                            .occurrenceDao()
+                            .getById(
+                                reportedOccurrence.id,
+                            ),
+                    )
+
+                assertEquals(
+                    OccurrenceLifecycle.ACTIVE.name,
+                    preservedReportedOccurrence
+                        .lifecycle,
+                )
+
+                assertEquals(
+                    CaregiverReportState.GIVEN.name,
+                    fixture
+                        .database
+                        .reportingDao()
+                        .getReport(
+                            reportedOccurrence.id,
+                        )
+                        ?.state,
+                )
+
+                assertEquals(
+                    "داروی ثبت‌شده",
+                    preservedReportedOccurrence
+                        .medicationNameSnapshot,
+                )
+
+                assertEquals(
+                    "بعد از صبحانه",
+                    preservedReportedOccurrence
+                        .instructionSnapshot,
+                )
+
+                assertEquals(
+                    "قرص",
+                    preservedReportedOccurrence
+                        .medicationTypeSnapshot,
+                )
+
+                assertEquals(
+                    "نصف",
+                    preservedReportedOccurrence
+                        .dosageTextSnapshot,
+                )
+
+                assertEquals(
+                    "عدد",
+                    preservedReportedOccurrence
+                        .doseUnitSnapshot,
+                )
+
+                val futureOccurrence =
+                    fixture
+                        .occurrencesForMedication(
+                            plan.medicationId,
+                        )
+                        .single { occurrence ->
+                            occurrence.scheduleVersionId !=
+                                    plan.scheduleVersionId &&
+                                    occurrence.localEpochDay ==
+                                    anchorDate
+                                        .plusDays(
+                                            1,
+                                        )
+                                        .toEpochDay() &&
+                                    occurrence.minuteOfDay ==
+                                    8 * 60 &&
+                                    occurrence.lifecycle ==
+                                    OccurrenceLifecycle.ACTIVE.name
+                        }
+
+                assertEquals(
+                    "داروی ثبت‌شده جدید",
+                    futureOccurrence
+                        .medicationNameSnapshot,
+                )
+
+                assertEquals(
+                    "بعد از شام",
+                    futureOccurrence
+                        .instructionSnapshot,
+                )
+
+                assertEquals(
+                    "کپسول",
+                    futureOccurrence
+                        .medicationTypeSnapshot,
+                )
+
+                assertEquals(
+                    "یک",
+                    futureOccurrence
+                        .dosageTextSnapshot,
+                )
+
+                assertEquals(
+                    "کپسول",
+                    futureOccurrence
+                        .doseUnitSnapshot,
+                )
+            }
+        }
+
+    @Test
     fun medicationCanHaveMultipleActiveSchedules() =
         runBlocking {
             CarePlanRoomTestFixture.create().use { fixture ->

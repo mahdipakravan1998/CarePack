@@ -27,6 +27,12 @@ class ReportingIntegrationTest {
                             "داروی صبح",
                         instruction =
                             "بعد از صبحانه",
+                        medicationType =
+                            "قرص",
+                        dosageText =
+                            "نصف",
+                        doseUnit =
+                            "عدد",
                         minutesOfDay =
                             listOf(
                                 8 * 60,
@@ -127,6 +133,24 @@ class ReportingIntegrationTest {
                 assertTrue(
                     report.contains(
                         "مصرف نشد",
+                    ),
+                )
+
+                assertTrue(
+                    report.contains(
+                        "نوع: قرص",
+                    ),
+                )
+
+                assertTrue(
+                    report.contains(
+                        "مقدار ثبت‌شده: نصف",
+                    ),
+                )
+
+                assertTrue(
+                    report.contains(
+                        "واحد: عدد",
                     ),
                 )
             }

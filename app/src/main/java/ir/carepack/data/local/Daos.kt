@@ -81,6 +81,9 @@ interface MedicationDao {
         SET
             name = :name,
             instructionText = :instructionText,
+            medicationType = :medicationType,
+            dosageText = :dosageText,
+            doseUnit = :doseUnit,
             updatedAtEpochMillis = :updatedAtEpochMillis
         WHERE id = :medicationId
           AND stoppedAtEpochMillis IS NULL
@@ -91,6 +94,9 @@ interface MedicationDao {
         medicationId: String,
         name: String,
         instructionText: String,
+        medicationType: String,
+        dosageText: String,
+        doseUnit: String,
         updatedAtEpochMillis: Long,
     ): Int
 
@@ -132,6 +138,9 @@ interface MedicationDao {
             medication.id AS medicationId,
             medication.name AS medicationName,
             medication.instructionText AS medicationInstruction,
+            medication.medicationType AS medicationType,
+            medication.dosageText AS dosageText,
+            medication.doseUnit AS doseUnit,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
@@ -176,6 +185,9 @@ interface MedicationDao {
             medication.id AS medicationId,
             medication.name AS medicationName,
             medication.instructionText AS medicationInstruction,
+            medication.medicationType AS medicationType,
+            medication.dosageText AS dosageText,
+            medication.doseUnit AS doseUnit,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
@@ -219,6 +231,9 @@ interface MedicationDao {
             medication.id AS medicationId,
             medication.name AS medicationName,
             medication.instructionText AS medicationInstruction,
+            medication.medicationType AS medicationType,
+            medication.dosageText AS dosageText,
+            medication.doseUnit AS doseUnit,
             medication.createdAtEpochMillis
                 AS medicationCreatedAtEpochMillis,
             medication.stoppedAtEpochMillis
@@ -295,7 +310,10 @@ interface ScheduleDao {
             version.startEpochDay AS startEpochDay,
             version.endEpochDay AS endEpochDay,
             medication.name AS medicationNameSnapshot,
-            medication.instructionText AS instructionSnapshot
+            medication.instructionText AS instructionSnapshot,
+            medication.medicationType AS medicationTypeSnapshot,
+            medication.dosageText AS dosageTextSnapshot,
+            medication.doseUnit AS doseUnitSnapshot
         FROM schedule_versions AS version
         INNER JOIN schedule_series AS series
             ON series.id = version.scheduleSeriesId

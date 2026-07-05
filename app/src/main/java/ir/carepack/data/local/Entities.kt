@@ -1,5 +1,6 @@
 package ir.carepack.data.local
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
@@ -44,6 +45,12 @@ data class MedicationEntity(
     val careRecipientId: String,
     val name: String,
     val instructionText: String,
+    @ColumnInfo(defaultValue = "''")
+    val medicationType: String = "",
+    @ColumnInfo(defaultValue = "''")
+    val dosageText: String = "",
+    @ColumnInfo(defaultValue = "''")
+    val doseUnit: String = "",
     val createdAtEpochMillis: Long,
     val updatedAtEpochMillis: Long,
     val stoppedAtEpochMillis: Long?,
@@ -181,6 +188,12 @@ data class OccurrenceEntity(
     val scheduledAtEpochMillis: Long,
     val medicationNameSnapshot: String,
     val instructionSnapshot: String,
+    @ColumnInfo(defaultValue = "''")
+    val medicationTypeSnapshot: String = "",
+    @ColumnInfo(defaultValue = "''")
+    val dosageTextSnapshot: String = "",
+    @ColumnInfo(defaultValue = "''")
+    val doseUnitSnapshot: String = "",
     val lifecycle: String,
     val cancelledAtEpochMillis: Long?,
     val cancellationReason: String?,

@@ -19,60 +19,50 @@ import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 internal fun MedicationTextFields(
     medicationName: String,
     instruction: String,
+    medicationType: String,
+    dosageText: String,
+    doseUnit: String,
     errors: Map<CarePlanField, String>,
     enabled: Boolean,
     onMedicationNameChanged:
         (String) -> Unit,
     onInstructionChanged:
         (String) -> Unit,
+    onMedicationTypeChanged:
+        (String) -> Unit,
+    onDosageTextChanged:
+        (String) -> Unit,
+    onDoseUnitChanged:
+        (String) -> Unit,
     instructionMinLines: Int,
     medicationNameTestTag:
     String? = null,
     instructionTestTag:
     String? = null,
+    medicationTypeTestTag:
+    String? = null,
+    dosageTextTestTag:
+    String? = null,
+    doseUnitTestTag:
+    String? = null,
 ) {
-    OutlinedTextField(
+    MedicationTextField(
         value =
             medicationName,
         onValueChange =
             onMedicationNameChanged,
         enabled = enabled,
-        label = {
-            Text(
-                text =
-                    stringResource(
-                        R.string
-                            .medication_name_label,
-                    ),
-            )
-        },
+        labelResId =
+            R.string
+                .medication_name_label,
         singleLine = true,
-        isError =
-            errors.containsKey(
-                CarePlanField
-                    .MEDICATION_NAME,
-            ),
-        supportingText = {
-            errors[
-                CarePlanField
-                    .MEDICATION_NAME
-            ]?.let {
-                    errorMessage ->
-                Text(
-                    text =
-                        errorMessage,
-                    modifier =
-                        Modifier
-                            .carePackPoliteLiveRegion(),
-                )
-            }
-        },
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .optionalTestTag(
-                    medicationNameTestTag,
-                ),
+        minLines = 1,
+        field =
+            CarePlanField
+                .MEDICATION_NAME,
+        errors = errors,
+        testTag =
+            medicationNameTestTag,
     )
 
     Spacer(
@@ -82,31 +72,141 @@ internal fun MedicationTextFields(
             ),
     )
 
-    OutlinedTextField(
+    MedicationTextField(
         value =
             instruction,
         onValueChange =
             onInstructionChanged,
         enabled = enabled,
+        labelResId =
+            R.string
+                .instruction_label,
+        singleLine = false,
+        minLines =
+            instructionMinLines,
+        field =
+            CarePlanField
+                .INSTRUCTION,
+        errors = errors,
+        testTag =
+            instructionTestTag,
+    )
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
+
+    MedicationTextField(
+        value =
+            medicationType,
+        onValueChange =
+            onMedicationTypeChanged,
+        enabled = enabled,
+        labelResId =
+            R.string
+                .medication_type_label,
+        singleLine = true,
+        minLines = 1,
+        field =
+            CarePlanField
+                .MEDICATION_TYPE,
+        errors = errors,
+        testTag =
+            medicationTypeTestTag,
+    )
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
+
+    MedicationTextField(
+        value =
+            dosageText,
+        onValueChange =
+            onDosageTextChanged,
+        enabled = enabled,
+        labelResId =
+            R.string
+                .dosage_text_label,
+        singleLine = true,
+        minLines = 1,
+        field =
+            CarePlanField
+                .DOSAGE_TEXT,
+        errors = errors,
+        testTag =
+            dosageTextTestTag,
+    )
+
+    Spacer(
+        modifier =
+            Modifier.height(
+                12.dp,
+            ),
+    )
+
+    MedicationTextField(
+        value =
+            doseUnit,
+        onValueChange =
+            onDoseUnitChanged,
+        enabled = enabled,
+        labelResId =
+            R.string
+                .dose_unit_label,
+        singleLine = true,
+        minLines = 1,
+        field =
+            CarePlanField
+                .DOSE_UNIT,
+        errors = errors,
+        testTag =
+            doseUnitTestTag,
+    )
+}
+
+@Composable
+private fun MedicationTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    labelResId: Int,
+    singleLine: Boolean,
+    minLines: Int,
+    field: CarePlanField,
+    errors: Map<CarePlanField, String>,
+    testTag: String?,
+) {
+    OutlinedTextField(
+        value =
+            value,
+        onValueChange =
+            onValueChange,
+        enabled = enabled,
         label = {
             Text(
                 text =
                     stringResource(
-                        R.string
-                            .instruction_label,
+                        labelResId,
                     ),
             )
         },
+        singleLine =
+            singleLine,
         minLines =
-            instructionMinLines,
+            minLines,
         isError =
             errors.containsKey(
-                CarePlanField.INSTRUCTION,
+                field,
             ),
         supportingText = {
-            errors[
-                CarePlanField.INSTRUCTION
-            ]?.let {
+            errors[field]?.let {
                     errorMessage ->
                 Text(
                     text =
@@ -121,7 +221,7 @@ internal fun MedicationTextFields(
             Modifier
                 .fillMaxWidth()
                 .optionalTestTag(
-                    instructionTestTag,
+                    testTag,
                 ),
     )
 }

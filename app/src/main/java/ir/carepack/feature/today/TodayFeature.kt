@@ -1478,6 +1478,24 @@ private fun SimpleTodayCard(
                     ),
             )
 
+            item
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    Text(
+                        text =
+                            details,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .titleMedium,
+                        modifier =
+                            Modifier.testTag(
+                                "simple_today_recording_details",
+                            ),
+                    )
+                }
+
             Text(
                 text =
                     statusText,
@@ -1713,6 +1731,24 @@ private fun TodayItemCard(
                         .bodyLarge,
             )
 
+            item
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    Text(
+                        text =
+                            details,
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyLarge,
+                        modifier =
+                            Modifier.testTag(
+                                "today_recording_details_${item.occurrenceId}",
+                            ),
+                    )
+                }
+
             Text(
                 text =
                     statusText,
@@ -1866,6 +1902,16 @@ private fun CompactTodayItemCard(
                 text =
                     item.statusText(),
             )
+
+            item
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    Text(
+                        text =
+                            details,
+                    )
+                }
         }
     }
 }
@@ -1914,6 +1960,16 @@ private fun HistoryItemCard(
                 text =
                     item.statusText(),
             )
+
+            item
+                .recordingDetailsText()
+                .takeIf(String::isNotBlank)
+                ?.let { details ->
+                    Text(
+                        text =
+                            details,
+                    )
+                }
         }
     }
 }
@@ -2111,6 +2167,64 @@ private fun simplePriority(
 
     return 3
 }
+
+private fun TodayItem.recordingDetailsText():
+        String =
+    medicationRecordingDetailsText(
+        medicationType =
+            medicationType,
+        dosageText =
+            dosageText,
+        doseUnit =
+            doseUnit,
+    )
+
+private fun HistoryItem.recordingDetailsText():
+        String =
+    medicationRecordingDetailsText(
+        medicationType =
+            medicationType,
+        dosageText =
+            dosageText,
+        doseUnit =
+            doseUnit,
+    )
+
+private fun medicationRecordingDetailsText(
+    medicationType: String,
+    dosageText: String,
+    doseUnit: String,
+): String =
+    buildList {
+        medicationType
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "نوع: $value",
+                )
+            }
+
+        dosageText
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "مقدار ثبت‌شده: $value",
+                )
+            }
+
+        doseUnit
+            .trim()
+            .takeIf(String::isNotEmpty)
+            ?.let { value ->
+                add(
+                    "واحد: $value",
+                )
+            }
+    }.joinToString(
+        separator = "، ",
+    )
 
 @Composable
 private fun TodayItem.statusText():
