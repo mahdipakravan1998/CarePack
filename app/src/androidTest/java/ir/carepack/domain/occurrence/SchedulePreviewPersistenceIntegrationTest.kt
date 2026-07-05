@@ -328,6 +328,121 @@ class SchedulePreviewPersistenceIntegrationTest {
         }
 
     @Test
+    fun intervalStartDatePreviewMatchesGeneratedOccurrencesAndUsesAnchorAsFirstDose() =
+        runBlocking {
+            CarePlanRoomTestFixture
+                .create(
+                    initialInstant =
+                        START_OF_ANCHOR_DAY,
+                )
+                .use { fixture ->
+                    val pattern =
+                        IntervalSchedule(
+                            intervalHours = 8,
+                            anchorMinuteOfDay =
+                                15 * 60,
+                        )
+
+                    val expected =
+                        listOf(
+                            expectedOccurrence(
+                                date = "2026-06-24",
+                                minuteOfDay = 15 * 60,
+                                scheduledAt =
+                                    "2026-06-24T15:00:00Z",
+                            ),
+                            expectedOccurrence(
+                                date = "2026-06-24",
+                                minuteOfDay = 23 * 60,
+                                scheduledAt =
+                                    "2026-06-24T23:00:00Z",
+                            ),
+                            expectedOccurrence(
+                                date = "2026-06-25",
+                                minuteOfDay = 7 * 60,
+                                scheduledAt =
+                                    "2026-06-25T07:00:00Z",
+                            ),
+                            expectedOccurrence(
+                                date = "2026-06-25",
+                                minuteOfDay = 15 * 60,
+                                scheduledAt =
+                                    "2026-06-25T15:00:00Z",
+                            ),
+                            expectedOccurrence(
+                                date = "2026-06-25",
+                                minuteOfDay = 23 * 60,
+                                scheduledAt =
+                                    "2026-06-25T23:00:00Z",
+                            ),
+                        )
+
+                    val preview =
+                        previewOccurrences(
+                            weekdays =
+                                DayOfWeek
+                                    .entries
+                                    .toSet(),
+                            schedulePattern = pattern,
+                            zoneId = UTC_ZONE_ID,
+                            effectiveFrom =
+                                fixture.clock.instant(),
+                            startDate = ANCHOR_DATE,
+                            endDate =
+                                ANCHOR_DATE
+                                    .plusDays(
+                                        1,
+                                    ),
+                            anchorDate =
+                                ANCHOR_DATE,
+                            dayCount = 2,
+                        )
+
+                    val plan =
+                        fixture.createPlan(
+                            weekdays =
+                                DayOfWeek
+                                    .entries
+                                    .toSet(),
+                            minutesOfDay =
+                                pattern.representativeMinutesOfDay,
+                            schedulePattern = pattern,
+                            startDate = ANCHOR_DATE,
+                            endDate =
+                                ANCHOR_DATE
+                                    .plusDays(
+                                        1,
+                                    ),
+                            zoneId = UTC_ZONE_ID,
+                        )
+
+                    val generated =
+                        generatedOccurrences(
+                            fixture = fixture,
+                            scheduleVersionId =
+                                plan.scheduleVersionId,
+                            anchorDate = ANCHOR_DATE,
+                            dayCount = 2,
+                        )
+
+                    assertEquals(
+                        expected,
+                        preview,
+                    )
+
+                    assertEquals(
+                        expected,
+                        generated,
+                    )
+
+                    assertEquals(
+                        generated,
+                        preview,
+                    )
+                }
+        }
+
+    @Test
     fun crossingMidnightIntervalPreviewEqualsGeneratedOccurrencesInsideExactFourteenDayWindow() =
         runBlocking {
             CarePlanRoomTestFixture

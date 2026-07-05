@@ -259,6 +259,13 @@ class ReminderAwareCaregiverReportService(
             outcome is
                     SetReportOutcome.Changed
         ) {
+            cancelReminderDelayAfterReport(
+                occurrenceId =
+                    outcome
+                        .change
+                        .occurrenceId,
+            )
+
             reconcileAfterCommit()
         }
 
@@ -281,6 +288,25 @@ class ReminderAwareCaregiverReportService(
         }
 
         return outcome
+    }
+
+    private suspend fun cancelReminderDelayAfterReport(
+        occurrenceId: String,
+    ) {
+        try {
+            reminderCoordinator
+                .cancelReminderDelay(
+                    occurrenceId =
+                        occurrenceId,
+                )
+        } catch (
+            cancellation:
+            CancellationException,
+        ) {
+            throw cancellation
+        } catch (_: Exception) {
+            Unit
+        }
     }
 
     private suspend fun reconcileAfterCommit() {

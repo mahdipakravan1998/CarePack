@@ -5,6 +5,7 @@
     <string name="onboarding_title">کرپک</string>
     <string name="onboarding_local_summary">اطلاعات این نسخه فقط روی همین دستگاه نگهداری می‌شود و به اینترنت ارسال نمی‌شود.</string>
     <string name="onboarding_non_medical_summary">کرپک ابزار ثبت و یادآوری مراقبت است و جایگزین نظر پزشک، داروساز یا خدمات اورژانسی نیست.</string>
+    <string name="onboarding_simple_mode_summary">اگر کاربر سالمند یا کم‌حوصله است، حالت ساده مسیر روزانه را کوتاه‌تر و دکمه‌ها را بزرگ‌تر می‌کند.</string>
     <string name="onboarding_continue">شروع تنظیم</string>
 
     <string name="recipient_title">فرد تحت مراقبت</string>
@@ -42,6 +43,18 @@
     <string name="today_title">امروز</string>
     <string name="today_empty_title">موردی برای امروز وجود ندارد</string>
     <string name="today_empty_body">اگر روز یا زمان انتخاب‌شده مربوط به امروز نباشد، موردی در این صفحه نمایش داده نمی‌شود.</string>
+    <string name="today_simple_title">امروز، مسیر ساده</string>
+    <string name="today_simple_empty_title">برای امروز نوبتی دیده نمی‌شود</string>
+    <string name="today_simple_empty_body">اگر دارو یا برنامه‌ای ثبت نشده باشد، از مدیریت برنامه مراقبت شروع کنید.</string>
+    <string name="today_next_item">نوبت بعدی</string>
+    <string name="today_secondary_actions">گزینه‌های دیگر</string>
+    <string name="today_item_due">زمان ثبت این نوبت رسیده است.</string>
+    <string name="today_item_upcoming">هنوز زمان ثبت این نوبت نرسیده است.</string>
+    <string name="today_item_recording_passed">زمان ثبت این نوبت گذشته است.</string>
+    <string name="today_item_recorded_given">برای این نوبت، مصرف شد ثبت شده است.</string>
+    <string name="today_item_recorded_not_given">برای این نوبت، مصرف نشد ثبت شده است.</string>
+    <string name="today_item_recorded_unknown">برای این نوبت، نامشخص ثبت شده است.</string>
+    <string name="today_item_cancelled">این نوبت لغو شده است.</string>
     <string name="manage_care_plan">مدیریت برنامه مراقبت</string>
 
     <string name="care_plan_title">برنامه مراقبت</string>
@@ -73,13 +86,21 @@
     <string name="cancel">انصراف</string>
 
     <string name="report_not_recorded">ثبت نشده</string>
-    <string name="report_given">داده شده</string>
+    <string name="report_given">مصرف شد</string>
 
     <string name="detail_title">جزئیات نوبت</string>
     <string name="scheduled_time">زمان برنامه‌ریزی‌شده</string>
     <string name="instruction">دستور</string>
-    <string name="record_given">ثبت به‌عنوان داده شده</string>
-    <string name="already_given">این مورد به‌عنوان داده شده ثبت شده است.</string>
+    <string name="record_given">مصرف شد</string>
+    <string name="record_not_given">مصرف نشد</string>
+    <string name="record_unknown">نامشخص</string>
+    <string name="already_given">این مورد به‌عنوان مصرف شد ثبت شده است.</string>
+    <string name="already_not_given">این مورد به‌عنوان مصرف نشد ثبت شده است.</string>
+    <string name="already_unknown">این مورد به‌عنوان نامشخص ثبت شده است.</string>
+    <string name="report_saved">ثبت شد.</string>
+    <string name="undo">واگرد</string>
+    <string name="undo_done">واگرد انجام شد.</string>
+    <string name="undo_unavailable">واگرد در دسترس نیست.</string>
     <string name="back">بازگشت</string>
 
     <string name="loading">در حال بارگذاری…</string>
@@ -94,7 +115,7 @@
     <string name="carepack_week_start_monday">دوشنبه</string>
     <string name="carepack_week_start_current">شروع فعلی هفته: %1$s</string>
     <string name="carepack_settings_display">نمایش ساده</string>
-    <string name="carepack_settings_display_description">حالت ساده برای استفاده روزانه با مسیر کوتاه‌تر و دکمه‌های واضح‌تر آماده نگه داشته می‌شود.</string>
+    <string name="carepack_settings_display_description">حالت ساده برای استفاده روزانه با مسیر کوتاه‌تر، متن خواناتر و دکمه‌های بزرگ‌تر است.</string>
     <string name="carepack_display_standard">حالت عادی</string>
     <string name="carepack_display_simple">حالت ساده</string>
 

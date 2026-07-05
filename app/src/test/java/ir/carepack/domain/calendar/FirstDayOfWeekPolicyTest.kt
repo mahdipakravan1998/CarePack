@@ -39,10 +39,10 @@ class FirstDayOfWeekPolicyTest {
                         "Europe/Helsinki",
                     ),
                 locale =
-                    Locale(
-                        "fa",
-                        "FI",
-                    ),
+                    Locale.Builder()
+                        .setLanguage("fa")
+                        .setRegion("FI")
+                        .build(),
             ),
         )
     }
@@ -96,10 +96,10 @@ class FirstDayOfWeekPolicyTest {
                         "Asia/Tehran",
                     ),
                 locale =
-                    Locale(
-                        "fa",
-                        "IR",
-                    ),
+                    Locale.Builder()
+                        .setLanguage("fa")
+                        .setRegion("IR")
+                        .build(),
             ),
         )
     }

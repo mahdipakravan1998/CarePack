@@ -11,6 +11,7 @@ import ir.carepack.domain.report.ReportChange
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.testing.FakeReminderCoordinator
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -20,6 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -68,7 +70,7 @@ class OccurrenceDetailViewModelTest {
                     newState =
                         CaregiverReportState.GIVEN,
                     changedAt =
-                        FIXED_INSTANT.toEpochMilli(),
+                        1_000L,
                 ),
             )
 
@@ -125,7 +127,7 @@ class OccurrenceDetailViewModelTest {
         }
 
     @Test
-    fun secondReportChange_replacesPreviousUndoChangeAndRestoresLatestChange() =
+    fun secondReportChange_replacesPreviousUndoChange() =
         runTest(dispatcher.scheduler) {
             val reportService =
                 FakeCaregiverReportService()
@@ -147,7 +149,7 @@ class OccurrenceDetailViewModelTest {
                     newState =
                         CaregiverReportState.UNKNOWN,
                     changedAt =
-                        1_001L,
+                        2_000L,
                 ),
             )
 
@@ -206,13 +208,10 @@ class OccurrenceDetailViewModelTest {
             runCurrent()
 
             assertEquals(
-                1,
-                reportService.restoreCalls,
-            )
-
-            assertEquals(
-                secondChange,
-                reportService.restoredChanges.single(),
+                listOf(
+                    secondChange,
+                ),
+                reportService.restoredChanges,
             )
 
             assertNull(
@@ -287,10 +286,46 @@ class OccurrenceDetailViewModelTest {
                     .value
                     .undoChange,
             )
+        }
+
+    @Test
+    fun remindLater_usesReminderCoordinatorAndDoesNotRecordReport() =
+        runTest(dispatcher.scheduler) {
+            val reportService =
+                FakeCaregiverReportService()
+
+            val reminderCoordinator =
+                FakeReminderCoordinator()
+
+            val viewModel =
+                createViewModel(
+                    reportService =
+                        reportService,
+                    reminderCoordinator =
+                        reminderCoordinator,
+                )
+
+            collectState(
+                viewModel,
+            )
+
+            runCurrent()
+
+            viewModel.remindLater()
+
+            runCurrent()
 
             assertEquals(
-                0,
-                reportService.restoreCalls,
+                listOf(
+                    OCCURRENCE_ID,
+                ),
+                reminderCoordinator
+                    .remindLaterOccurrenceIds,
+            )
+
+            assertEquals(
+                emptyList<CaregiverReportState>(),
+                reportService.recordedStates,
             )
         }
 
@@ -302,15 +337,18 @@ class OccurrenceDetailViewModelTest {
                 testScheduler,
             ),
         ) {
-            viewModel.state.collect {
-                Unit
-            }
+            viewModel
+                .state
+                .collect()
         }
     }
 
     private fun createViewModel(
         reportService:
-        CaregiverReportService,
+        FakeCaregiverReportService,
+        reminderCoordinator:
+        FakeReminderCoordinator =
+            FakeReminderCoordinator(),
     ): OccurrenceDetailViewModel =
         OccurrenceDetailViewModel(
             occurrenceId =
@@ -319,6 +357,8 @@ class OccurrenceDetailViewModelTest {
                 FakeTodayQueryService(),
             caregiverReportService =
                 reportService,
+            reminderCoordinator =
+                reminderCoordinator,
             clock = FIXED_CLOCK,
             now =
                 flowOf(
@@ -329,8 +369,7 @@ class OccurrenceDetailViewModelTest {
     private fun changedOutcome(
         previousState:
         CaregiverReportState?,
-        newState:
-        CaregiverReportState,
+        newState: CaregiverReportState,
         changedAt: Long,
     ): SetReportOutcome =
         SetReportOutcome.Changed(
@@ -351,14 +390,12 @@ class OccurrenceDetailViewModelTest {
         const val OCCURRENCE_ID =
             "occurrence-1"
 
-        val FIXED_INSTANT:
-                Instant =
+        val FIXED_INSTANT: Instant =
             Instant.parse(
                 "2026-06-24T08:00:00Z",
             )
 
-        val FIXED_CLOCK:
-                Clock =
+        val FIXED_CLOCK: Clock =
             Clock.fixed(
                 FIXED_INSTANT,
                 ZoneOffset.UTC,
@@ -372,12 +409,11 @@ private class FakeCaregiverReportService :
     private val outcomes =
         ArrayDeque<SetReportOutcome>()
 
+    val recordedStates =
+        mutableListOf<CaregiverReportState>()
+
     val restoredChanges =
         mutableListOf<ReportChange>()
-
-    var restoreCalls =
-        0
-        private set
 
     fun enqueue(
         outcome: SetReportOutcome,
@@ -389,17 +425,22 @@ private class FakeCaregiverReportService :
 
     override suspend fun setReport(
         occurrenceId: String,
-        newState:
-        CaregiverReportState,
-    ): SetReportOutcome =
-        outcomes.removeFirst()
+        newState: CaregiverReportState,
+    ): SetReportOutcome {
+        recordedStates += newState
+
+        return outcomes.removeFirstOrNull()
+            ?: SetReportOutcome.Unchanged(
+                occurrenceId =
+                    occurrenceId,
+                state = newState,
+            )
+    }
 
     override suspend fun restorePrevious(
         change: ReportChange,
     ): UndoReportOutcome {
-        restoreCalls += 1
-        restoredChanges +=
-            change
+        restoredChanges += change
 
         return UndoReportOutcome.Restored(
             occurrenceId =
@@ -454,12 +495,9 @@ private class FakeTodayQueryService :
     ): Flow<TodayModel> =
         flowOf(
             TodayModel(
-                localDate =
-                    localDate,
-                items =
-                    emptyList(),
-                emptyState =
-                    null,
+                localDate = localDate,
+                items = emptyList(),
+                emptyState = null,
             ),
         )
 

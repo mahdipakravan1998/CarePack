@@ -1,5 +1,14 @@
 package ir.carepack.feature.setup
 
+import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,14 +22,18 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -41,6 +54,12 @@ import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
+import ir.carepack.domain.reminder.ManufacturerGuidance
+import ir.carepack.domain.reminder.ManufacturerGuidanceClassifier
+import ir.carepack.reminder.permission.AndroidBatteryOptimizationGateway
+import ir.carepack.reminder.permission.AndroidExactAlarmCapabilityGateway
+import ir.carepack.reminder.permission.AndroidNotificationPermissionGateway
+import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.feature.careplan.MedicationTextFields
 import ir.carepack.feature.careplan.ScheduleFormCallbacks
 import ir.carepack.feature.careplan.ScheduleFormFields
@@ -91,6 +110,19 @@ data class MedicationScheduleUiState(
     val generalError: String? = null,
     val isSaving: Boolean = false,
     val isAddScheduleOnly: Boolean = false,
+    val showInitialReminderGuidance: Boolean = true,
+)
+
+data class FirstSetupReminderReadinessUiState(
+    val notificationRuntimePermissionRequired: Boolean = true,
+    val notificationPermissionGranted: Boolean = false,
+    val notificationPermissionCanBeRequested: Boolean = true,
+    val exactAlarmRelevant: Boolean = true,
+    val exactAlarmAvailable: Boolean = false,
+    val batteryOptimizationState:
+    BatteryOptimizationState =
+        BatteryOptimizationState.UNKNOWN,
+    val manufacturer: String? = null,
 )
 
 sealed interface MedicationScheduleEvent {
@@ -147,6 +179,9 @@ class MedicationScheduleViewModel private constructor(
                 isAddScheduleOnly =
                     mode is MedicationScheduleMode
                     .AddSchedule,
+                showInitialReminderGuidance =
+                    mode is MedicationScheduleMode
+                    .CreateMedication,
             ),
         )
 
@@ -221,11 +256,11 @@ class MedicationScheduleViewModel private constructor(
     }
 
     fun onWeekdayToggled(
-        day: DayOfWeek,
+        dayOfWeek: DayOfWeek,
     ) {
         updateSchedule {
             it.toggleWeekday(
-                day,
+                dayOfWeek,
             )
         }
     }
@@ -302,6 +337,16 @@ class MedicationScheduleViewModel private constructor(
         updateSchedule {
             it.withEndDate(
                 value,
+            )
+        }
+    }
+
+    fun dismissInitialReminderGuidance() {
+        mutableState.update {
+                state ->
+            state.copy(
+                showInitialReminderGuidance =
+                    false,
             )
         }
     }
@@ -724,7 +769,103 @@ fun MedicationScheduleRoute(
     viewModel:
     MedicationScheduleViewModel,
     onCompleted: () -> Unit,
+    onOpenReminderSettings: () -> Unit = {},
+    firstSetupReminderReadiness:
+    FirstSetupReminderReadinessUiState? = null,
+    onFirstSetupRequestNotificationPermission:
+    (() -> Unit)? = null,
+    onFirstSetupOpenNotificationSettings:
+    (() -> Unit)? = null,
+    onFirstSetupRequestExactAlarmAccess:
+    (() -> Unit)? = null,
+    onFirstSetupOpenBatterySettings:
+    (() -> Unit)? = null,
 ) {
+    val context =
+        LocalContext.current
+
+    val notificationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract =
+                ActivityResultContracts
+                    .RequestPermission(),
+        ) {
+            Unit
+        }
+
+    val readiness =
+        firstSetupReminderReadiness
+            ?: platformFirstSetupReminderReadiness(
+                context = context,
+            )
+
+    val requestNotificationPermission =
+        onFirstSetupRequestNotificationPermission
+            ?: {
+                if (
+                    Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.TIRAMISU
+                ) {
+                    notificationPermissionLauncher.launch(
+                        Manifest.permission.POST_NOTIFICATIONS,
+                    )
+                }
+            }
+
+    val openNotificationSettings =
+        onFirstSetupOpenNotificationSettings
+            ?: {
+                context.startFirstSetupSettingsActivity(
+                    Intent(
+                        Settings
+                            .ACTION_APP_NOTIFICATION_SETTINGS,
+                    ).putExtra(
+                        Settings
+                            .EXTRA_APP_PACKAGE,
+                        context.packageName,
+                    ),
+                )
+            }
+
+    val requestExactAlarmAccess =
+        onFirstSetupRequestExactAlarmAccess
+            ?: {
+                context.startFirstSetupSettingsActivity(
+                    Intent(
+                        Settings
+                            .ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                        Uri.parse(
+                            "package:${context.packageName}",
+                        ),
+                    ),
+                    fallback =
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse(
+                                "package:${context.packageName}",
+                            ),
+                        ),
+                )
+            }
+
+    val openBatterySettings =
+        onFirstSetupOpenBatterySettings
+            ?: {
+                context.startFirstSetupSettingsActivity(
+                    Intent(
+                        Settings
+                            .ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                    ),
+                    fallback =
+                        Intent(
+                            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                            Uri.parse(
+                                "package:${context.packageName}",
+                            ),
+                        ),
+                )
+            }
+
     val state by
     viewModel
         .state
@@ -747,6 +888,8 @@ fun MedicationScheduleRoute(
 
     MedicationScheduleScreen(
         state = state,
+        firstSetupReminderReadiness =
+            readiness,
         onMedicationNameChanged =
             viewModel::onMedicationNameChanged,
         onInstructionChanged =
@@ -769,14 +912,700 @@ fun MedicationScheduleRoute(
             viewModel::onStartDateChanged,
         onEndDateChanged =
             viewModel::onEndDateChanged,
+        onInitialReminderGuidanceContinue =
+            viewModel::dismissInitialReminderGuidance,
+        onOpenReminderSettings =
+            onOpenReminderSettings,
+        onRequestNotificationPermission =
+            requestNotificationPermission,
+        onOpenNotificationSettings =
+            openNotificationSettings,
+        onRequestExactAlarmAccess =
+            requestExactAlarmAccess,
+        onOpenBatterySettings =
+            openBatterySettings,
         onSave =
             viewModel::save,
     )
 }
 
+private fun platformFirstSetupReminderReadiness(
+    context: Context,
+): FirstSetupReminderReadinessUiState {
+    val notificationGateway =
+        AndroidNotificationPermissionGateway(
+            context = context,
+        )
+
+    val exactAlarmGateway =
+        AndroidExactAlarmCapabilityGateway(
+            context = context,
+        )
+
+    val batteryGateway =
+        AndroidBatteryOptimizationGateway(
+            context = context,
+        )
+
+    return FirstSetupReminderReadinessUiState(
+        notificationRuntimePermissionRequired =
+            notificationGateway
+                .requiresRuntimePermission(),
+        notificationPermissionGranted =
+            notificationGateway
+                .isPermissionGranted(),
+        notificationPermissionCanBeRequested =
+            notificationGateway
+                .requiresRuntimePermission() &&
+                    !notificationGateway
+                        .isPermissionGranted(),
+        exactAlarmRelevant = true,
+        exactAlarmAvailable =
+            exactAlarmGateway
+                .canScheduleExactAlarms(),
+        batteryOptimizationState =
+            batteryGateway
+                .currentState(),
+        manufacturer =
+            Build.MANUFACTURER,
+    )
+}
+
+private fun Context.startFirstSetupSettingsActivity(
+    intent: Intent,
+    fallback: Intent? = null,
+) {
+    val launchIntent =
+        Intent(
+            intent,
+        ).addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK,
+        )
+
+    try {
+        startActivity(
+            launchIntent,
+        )
+    } catch (_: ActivityNotFoundException) {
+        fallback
+            ?.let { fallbackIntent ->
+                startActivity(
+                    Intent(
+                        fallbackIntent,
+                    ).addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK,
+                    ),
+                )
+            }
+    }
+}
+
+@Composable
+private fun InitialReminderGuidanceCard(
+    readiness:
+    FirstSetupReminderReadinessUiState,
+    onContinue: () -> Unit,
+    onOpenReminderSettings: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
+) {
+    val manufacturerGuidance =
+        firstSetupManufacturerGuidance(
+            manufacturer =
+                readiness.manufacturer,
+        )
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_reminder_guidance",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .first_setup_reminder_guidance_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier
+                        .carePackHeading()
+                        .testTag(
+                            "first_setup_reminder_guidance_title",
+                        ),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .first_setup_reminder_guidance_body,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_reminder_guidance_body",
+                    ),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .first_setup_reminder_guidance_settings_path,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_reminder_guidance_settings_path",
+                    ),
+            )
+
+            FirstSetupReadinessActions(
+                readiness =
+                    readiness,
+                manufacturerGuidance =
+                    manufacturerGuidance,
+                onRequestNotificationPermission =
+                    onRequestNotificationPermission,
+                onOpenNotificationSettings =
+                    onOpenNotificationSettings,
+                onRequestExactAlarmAccess =
+                    onRequestExactAlarmAccess,
+                onOpenBatterySettings =
+                    onOpenBatterySettings,
+            )
+
+            Button(
+                onClick =
+                    onOpenReminderSettings,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "first_setup_reminder_guidance_open_reminder_settings",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .open_reminder_settings,
+                        ),
+                )
+            }
+
+            TextButton(
+                onClick =
+                    onContinue,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "first_setup_reminder_guidance_continue",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .first_setup_reminder_guidance_continue,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+private fun firstSetupManufacturerGuidance(
+    manufacturer: String?,
+): ManufacturerGuidance {
+    val normalized =
+        manufacturer
+            ?.trim()
+            ?.lowercase(
+                Locale.ROOT,
+            )
+            .orEmpty()
+
+    val classifierInput =
+        if (
+            normalized.contains(
+                other = "miui",
+            ) ||
+            normalized.contains(
+                other = "hyperos",
+            )
+        ) {
+            "Xiaomi"
+        } else {
+            manufacturer
+        }
+
+    return ManufacturerGuidanceClassifier
+        .classify(
+            manufacturer =
+                classifierInput,
+        )
+}
+
+@Composable
+private fun FirstSetupReadinessActions(
+    readiness:
+    FirstSetupReminderReadinessUiState,
+    manufacturerGuidance: ManufacturerGuidance,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
+) {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_readiness_actions",
+                ),
+        verticalArrangement =
+            Arrangement.spacedBy(
+                12.dp,
+            ),
+    ) {
+        Text(
+            text =
+                stringResource(
+                    R.string
+                        .first_setup_readiness_title,
+                ),
+            style =
+                MaterialTheme
+                    .typography
+                    .titleSmall,
+            modifier =
+                Modifier
+                    .carePackHeading()
+                    .testTag(
+                        "first_setup_readiness_title",
+                    ),
+        )
+
+        FirstSetupNotificationPermissionSection(
+            readiness =
+                readiness,
+            onRequestNotificationPermission =
+                onRequestNotificationPermission,
+            onOpenNotificationSettings =
+                onOpenNotificationSettings,
+        )
+
+        FirstSetupExactAlarmSection(
+            readiness =
+                readiness,
+            onRequestExactAlarmAccess =
+                onRequestExactAlarmAccess,
+        )
+
+        FirstSetupBatterySection(
+            readiness =
+                readiness,
+            onOpenBatterySettings =
+                onOpenBatterySettings,
+        )
+
+        FirstSetupOemGuidanceSection(
+            guidance =
+                manufacturerGuidance,
+        )
+    }
+}
+
+@Composable
+private fun FirstSetupNotificationPermissionSection(
+    readiness:
+    FirstSetupReminderReadinessUiState,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_notification_permission_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    12.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .notification_permission_rationale_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleSmall,
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        when {
+                            !readiness
+                                .notificationRuntimePermissionRequired -> {
+                                R.string
+                                    .notification_permission_not_required
+                            }
+
+                            readiness
+                                .notificationPermissionGranted -> {
+                                R.string
+                                    .notification_permission_granted
+                            }
+
+                            else -> {
+                                R.string
+                                    .notification_permission_denied
+                            }
+                        },
+                    ),
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_notification_permission_status",
+                    ),
+            )
+
+            if (
+                readiness
+                    .notificationRuntimePermissionRequired &&
+                !readiness
+                    .notificationPermissionGranted
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .notification_permission_rationale_body,
+                        ),
+                    modifier =
+                        Modifier.testTag(
+                            "first_setup_notification_permission_rationale",
+                        ),
+                )
+
+                if (
+                    readiness
+                        .notificationPermissionCanBeRequested
+                ) {
+                    Button(
+                        onClick =
+                            onRequestNotificationPermission,
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .testTag(
+                                    "first_setup_request_notification_permission",
+                                ),
+                    ) {
+                        Text(
+                            text =
+                                stringResource(
+                                    R.string
+                                        .request_notification_permission,
+                                ),
+                        )
+                    }
+                }
+
+                OutlinedButton(
+                    onClick =
+                        onOpenNotificationSettings,
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .testTag(
+                                "first_setup_open_notification_settings",
+                            ),
+                ) {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .open_notification_settings,
+                            ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstSetupExactAlarmSection(
+    readiness:
+    FirstSetupReminderReadinessUiState,
+    onRequestExactAlarmAccess: () -> Unit,
+) {
+    if (
+        !readiness.exactAlarmRelevant ||
+        readiness.exactAlarmAvailable
+    ) {
+        return
+    }
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_exact_alarm_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    12.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .exact_alarm_rationale_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleSmall,
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .exact_alarm_rationale_body,
+                    ),
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_approximate_fallback",
+                    ),
+            )
+
+            OutlinedButton(
+                onClick =
+                    onRequestExactAlarmAccess,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "first_setup_request_exact_alarm_access",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .request_exact_alarm_access,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstSetupBatterySection(
+    readiness:
+    FirstSetupReminderReadinessUiState,
+    onOpenBatterySettings: () -> Unit,
+) {
+    if (
+        readiness.batteryOptimizationState !=
+        BatteryOptimizationState.NOT_IGNORED
+    ) {
+        return
+    }
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_battery_guidance_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    12.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .battery_guidance_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleSmall,
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .battery_guidance_body,
+                    ),
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_battery_guidance_body",
+                    ),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .battery_optimization_not_ignored,
+                    ),
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_battery_optimization_status",
+                    ),
+            )
+
+            OutlinedButton(
+                onClick =
+                    onOpenBatterySettings,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "first_setup_open_battery_settings",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .open_battery_settings,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstSetupOemGuidanceSection(
+    guidance: ManufacturerGuidance,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "first_setup_oem_guidance_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    12.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    guidance.title,
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleSmall,
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_oem_guidance_title",
+                    ),
+            )
+
+            Text(
+                text =
+                    guidance.body,
+                modifier =
+                    Modifier.testTag(
+                        "first_setup_oem_guidance_body",
+                    ),
+            )
+
+            guidance
+                .actionItems
+                .forEachIndexed {
+                        index,
+                        actionItem ->
+                    Text(
+                        text =
+                            "• $actionItem",
+                        modifier =
+                            Modifier.testTag(
+                                "first_setup_oem_guidance_action_$index",
+                            ),
+                    )
+                }
+        }
+    }
+}
+
 @Composable
 private fun MedicationScheduleScreen(
     state: MedicationScheduleUiState,
+    firstSetupReminderReadiness:
+    FirstSetupReminderReadinessUiState,
     onMedicationNameChanged:
         (String) -> Unit,
     onInstructionChanged:
@@ -798,6 +1627,12 @@ private fun MedicationScheduleScreen(
         (String) -> Unit,
     onEndDateChanged:
         (String) -> Unit,
+    onInitialReminderGuidanceContinue: () -> Unit,
+    onOpenReminderSettings: () -> Unit,
+    onRequestNotificationPermission: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onRequestExactAlarmAccess: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
     onSave: () -> Unit,
 ) {
     Scaffold(
@@ -857,6 +1692,28 @@ private fun MedicationScheduleScreen(
                             "medication_schedule_title",
                         ),
             )
+
+            if (
+                !state.isAddScheduleOnly &&
+                state.showInitialReminderGuidance
+            ) {
+                InitialReminderGuidanceCard(
+                    readiness =
+                        firstSetupReminderReadiness,
+                    onContinue =
+                        onInitialReminderGuidanceContinue,
+                    onOpenReminderSettings =
+                        onOpenReminderSettings,
+                    onRequestNotificationPermission =
+                        onRequestNotificationPermission,
+                    onOpenNotificationSettings =
+                        onOpenNotificationSettings,
+                    onRequestExactAlarmAccess =
+                        onRequestExactAlarmAccess,
+                    onOpenBatterySettings =
+                        onOpenBatterySettings,
+                )
+            }
 
             if (!state.isAddScheduleOnly) {
                 MedicationTextFields(

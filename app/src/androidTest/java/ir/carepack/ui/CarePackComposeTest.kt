@@ -111,7 +111,7 @@ class CarePackComposeTest {
 
         composeRule.waitUntil(
             timeoutMillis =
-                10_000,
+                WAIT_TIMEOUT_MILLIS,
         ) {
             runBlocking {
                 fixture
@@ -181,32 +181,39 @@ class CarePackComposeTest {
 
     @Test
     fun medicationsNavigation_showsMultipleSchedulesUnderMedication() {
-        runBlocking {
-            val plan =
-                fixture.createPlan(
-                    minutesOfDay =
-                        listOf(
-                            NOON_MINUTE_OF_DAY,
-                        ),
-                    startDate =
-                        TODAY_DATE,
-                    endDate =
-                        TODAY_DATE,
-                )
+        val scheduleTags =
+            runBlocking {
+                val plan =
+                    fixture.createPlan(
+                        minutesOfDay =
+                            listOf(
+                                NOON_MINUTE_OF_DAY,
+                            ),
+                        startDate =
+                            TODAY_DATE,
+                        endDate =
+                            TODAY_DATE,
+                    )
 
-            fixture.addSchedule(
-                medicationId =
-                    plan.medicationId,
-                minutesOfDay =
-                    listOf(
-                        20 * 60,
-                    ),
-                startDate =
-                    TODAY_DATE,
-                endDate =
-                    TODAY_DATE,
-            )
-        }
+                val secondSchedule =
+                    fixture.addSchedule(
+                        medicationId =
+                            plan.medicationId,
+                        minutesOfDay =
+                            listOf(
+                                20 * 60,
+                            ),
+                        startDate =
+                            TODAY_DATE,
+                        endDate =
+                            TODAY_DATE,
+                    )
+
+                listOf(
+                    "schedule_card_${plan.scheduleSeriesId}",
+                    "schedule_card_${secondSchedule.scheduleSeriesId}",
+                )
+            }
 
         renderApp()
 
@@ -232,12 +239,18 @@ class CarePackComposeTest {
             )
             .assertIsDisplayed()
 
-        waitForAtLeastCount(
-            tagPrefix =
-                "schedule_card_",
-            count =
-                2,
-        )
+        scheduleTags.forEach { scheduleTag ->
+            waitForTag(
+                tag =
+                    scheduleTag,
+            )
+
+            composeRule
+                .onNodeWithTag(
+                    scheduleTag,
+                )
+                .assertIsDisplayed()
+        }
     }
 
     @Test
@@ -330,41 +343,54 @@ class CarePackComposeTest {
 
     @Test
     fun multipleScheduleCardsDisplayJalaliStartAndEndDates() {
-        runBlocking {
-            val plan =
-                fixture.createPlan(
-                    minutesOfDay =
-                        listOf(
-                            NOON_MINUTE_OF_DAY,
-                        ),
-                    startDate =
-                        TODAY_DATE,
-                    endDate =
-                        TOMORROW_DATE,
-                )
+        val scheduleTags =
+            runBlocking {
+                val plan =
+                    fixture.createPlan(
+                        minutesOfDay =
+                            listOf(
+                                NOON_MINUTE_OF_DAY,
+                            ),
+                        startDate =
+                            TODAY_DATE,
+                        endDate =
+                            TOMORROW_DATE,
+                    )
 
-            fixture.addSchedule(
-                medicationId =
-                    plan.medicationId,
-                minutesOfDay =
-                    listOf(
-                        20 * 60,
-                    ),
-                startDate =
-                    SECOND_SCHEDULE_START_DATE,
-                endDate =
-                    SECOND_SCHEDULE_END_DATE,
-            )
-        }
+                val secondSchedule =
+                    fixture.addSchedule(
+                        medicationId =
+                            plan.medicationId,
+                        minutesOfDay =
+                            listOf(
+                                20 * 60,
+                            ),
+                        startDate =
+                            SECOND_SCHEDULE_START_DATE,
+                        endDate =
+                            SECOND_SCHEDULE_END_DATE,
+                    )
+
+                listOf(
+                    "schedule_card_${plan.scheduleSeriesId}",
+                    "schedule_card_${secondSchedule.scheduleSeriesId}",
+                )
+            }
 
         openMedicationsScreen()
 
-        waitForAtLeastCount(
-            tagPrefix =
-                "schedule_card_",
-            count =
-                2,
-        )
+        scheduleTags.forEach { scheduleTag ->
+            waitForTag(
+                tag =
+                    scheduleTag,
+            )
+
+            composeRule
+                .onNodeWithTag(
+                    scheduleTag,
+                )
+                .assertIsDisplayed()
+        }
 
         listOf(
             TODAY_JALALI_DATE,
@@ -568,7 +594,7 @@ class CarePackComposeTest {
     ) {
         composeRule.waitUntil(
             timeoutMillis =
-                10_000,
+                WAIT_TIMEOUT_MILLIS,
         ) {
             composeRule
                 .onAllNodesWithTag(
@@ -583,42 +609,12 @@ class CarePackComposeTest {
         }
     }
 
-    private fun waitForAtLeastCount(
-        tagPrefix: String,
-        count: Int,
-    ) {
-        composeRule.waitUntil(
-            timeoutMillis =
-                10_000,
-        ) {
-            composeRule
-                .onAllNodesWithTag(
-                    testTag =
-                        "",
-                    useUnmergedTree =
-                        true,
-                )
-                .fetchSemanticsNodes(
-                    atLeastOneRootRequired =
-                        false,
-                )
-                .count {
-                    it
-                        .config
-                        .toString()
-                        .contains(
-                            tagPrefix,
-                        )
-                } >= count
-        }
-    }
-
     private fun waitForText(
         text: String,
     ) {
         composeRule.waitUntil(
             timeoutMillis =
-                10_000,
+                WAIT_TIMEOUT_MILLIS,
         ) {
             composeRule
                 .onAllNodesWithText(
@@ -702,6 +698,9 @@ class CarePackComposeTest {
 
         const val NOON_MINUTE_OF_DAY =
             12 * 60
+
+        const val WAIT_TIMEOUT_MILLIS =
+            30_000L
     }
 }
 

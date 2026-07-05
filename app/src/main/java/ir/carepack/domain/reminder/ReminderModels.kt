@@ -33,6 +33,7 @@ enum class ReconciliationReason {
     EXACT_ALARM_CAPABILITY_CHANGED,
     CARE_PLAN_CHANGED,
     REPORT_CHANGED,
+    REMINDER_DELAY_CHANGED,
     ALARM_FIRED,
     BOOT_COMPLETED,
     TIME_CHANGED,
@@ -43,11 +44,21 @@ enum class ReconciliationReason {
 
 @JvmInline
 value class AlarmKey private constructor(
-    val scheduleSeriesId: String,
+    private val value: String,
 ) {
     init {
-        require(scheduleSeriesId.isNotBlank())
+        require(value.isNotBlank())
     }
+
+    val scheduleSeriesId: String
+        get() =
+            value
+                .removePrefix(
+                    SCHEDULE_SERIES_PREFIX,
+                )
+                .removePrefix(
+                    DELAYED_OCCURRENCE_PREFIX,
+                )
 
     val stableToken: String
         get() {
@@ -55,10 +66,9 @@ value class AlarmKey private constructor(
                 MessageDigest
                     .getInstance("SHA-256")
                     .digest(
-                        scheduleSeriesId
-                            .toByteArray(
-                                Charsets.UTF_8,
-                            ),
+                        value.toByteArray(
+                            Charsets.UTF_8,
+                        ),
                     )
 
             return digest.joinToString(
@@ -71,12 +81,39 @@ value class AlarmKey private constructor(
         }
 
     companion object {
+        private const val SCHEDULE_SERIES_PREFIX =
+            "schedule-series:"
+
+        private const val DELAYED_OCCURRENCE_PREFIX =
+            "delayed-occurrence:"
+
         fun forScheduleSeries(
             scheduleSeriesId: String,
         ): AlarmKey {
+            val trimmed =
+                scheduleSeriesId.trim()
+
+            require(trimmed.isNotBlank())
+
             return AlarmKey(
-                scheduleSeriesId =
-                    scheduleSeriesId,
+                value =
+                    SCHEDULE_SERIES_PREFIX +
+                            trimmed,
+            )
+        }
+
+        fun forDelayedOccurrence(
+            occurrenceId: String,
+        ): AlarmKey {
+            val trimmed =
+                occurrenceId.trim()
+
+            require(trimmed.isNotBlank())
+
+            return AlarmKey(
+                value =
+                    DELAYED_OCCURRENCE_PREFIX +
+                            trimmed,
             )
         }
     }
@@ -118,19 +155,15 @@ sealed interface ReminderReconciliationResult {
     val cancelledCount: Int
 
     data class Reconciled(
-        override val reason:
-        ReconciliationReason,
-        override val status:
-        ReminderStatus,
+        override val reason: ReconciliationReason,
+        override val status: ReminderStatus,
         override val scheduledCount: Int,
         override val cancelledCount: Int,
     ) : ReminderReconciliationResult
 
     data class PartialFailure(
-        override val reason:
-        ReconciliationReason,
-        override val status:
-        ReminderStatus,
+        override val reason: ReconciliationReason,
+        override val status: ReminderStatus,
         override val scheduledCount: Int,
         override val cancelledCount: Int,
         val failedOperationCount: Int,
@@ -152,21 +185,17 @@ sealed interface AlarmFireResult {
 
     data class NotificationPosted(
         val occurrenceId: String,
-        val reconciliation:
-        ReminderReconciliationResult,
+        val reconciliation: ReminderReconciliationResult,
     ) : AlarmFireResult
 
     data class Ignored(
         val occurrenceId: String,
-        val reason:
-        AlarmFireIgnoreReason,
-        val reconciliation:
-        ReminderReconciliationResult,
+        val reason: AlarmFireIgnoreReason,
+        val reconciliation: ReminderReconciliationResult,
     ) : AlarmFireResult
 
     data class NotificationFailure(
         val occurrenceId: String,
-        val reconciliation:
-        ReminderReconciliationResult,
+        val reconciliation: ReminderReconciliationResult,
     ) : AlarmFireResult
 }

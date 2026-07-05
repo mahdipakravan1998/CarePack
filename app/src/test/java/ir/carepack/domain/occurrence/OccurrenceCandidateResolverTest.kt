@@ -7,6 +7,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -225,6 +226,208 @@ class OccurrenceCandidateResolverTest {
             },
             candidates.map {
                 it.localDate
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_startDateUsesAnchorAsFirstDoseOnStartDate() {
+        val candidates =
+            resolver.resolveAll(
+                definition =
+                    definition(
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minuteOfDay =
+                            15 * 60,
+                        schedulePattern =
+                            IntervalSchedule(
+                                intervalHours = 8,
+                                anchorMinuteOfDay =
+                                    15 * 60,
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                    ),
+                anchorDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+            )
+
+        assertEquals(
+            listOf(
+                15 * 60,
+                23 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_startDateDoesNotIncludeEarlierSameDayOccurrence() {
+        val candidates =
+            resolver.resolveAll(
+                definition =
+                    definition(
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minuteOfDay =
+                            15 * 60,
+                        schedulePattern =
+                            IntervalSchedule(
+                                intervalHours = 8,
+                                anchorMinuteOfDay =
+                                    15 * 60,
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                    ),
+                anchorDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+            )
+
+        assertFalse(
+            candidates.any {
+                it.minuteOfDay ==
+                        7 * 60
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_afterStartDateKeepsFullRecurringSequence() {
+        val candidates =
+            resolver.resolveAll(
+                definition =
+                    definition(
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minuteOfDay =
+                            15 * 60,
+                        schedulePattern =
+                            IntervalSchedule(
+                                intervalHours = 8,
+                                anchorMinuteOfDay =
+                                    15 * 60,
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                    ),
+                anchorDate =
+                    LocalDate.parse(
+                        "2026-06-25",
+                    ),
+            )
+
+        assertEquals(
+            listOf(
+                7 * 60,
+                15 * 60,
+                23 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_startDateCrossingMidnightStartsAtAnchorOnly() {
+        val candidates =
+            resolver.resolveAll(
+                definition =
+                    definition(
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minuteOfDay =
+                            23 * 60,
+                        schedulePattern =
+                            IntervalSchedule(
+                                intervalHours = 6,
+                                anchorMinuteOfDay =
+                                    23 * 60,
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                    ),
+                anchorDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+            )
+
+        assertEquals(
+            listOf(
+                23 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
+            },
+        )
+    }
+
+    @Test
+    fun intervalSchedule_sameDayPastStartDateDoesNotCreatePastOccurrences() {
+        val candidates =
+            resolver.resolveAll(
+                definition =
+                    definition(
+                        weekdays =
+                            DayOfWeek
+                                .entries
+                                .toSet(),
+                        minuteOfDay =
+                            15 * 60,
+                        schedulePattern =
+                            IntervalSchedule(
+                                intervalHours = 8,
+                                anchorMinuteOfDay =
+                                    15 * 60,
+                            ),
+                        effectiveFrom =
+                            Instant.parse(
+                                "2026-06-24T20:00:00Z",
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                        zoneId =
+                            "UTC",
+                    ),
+                anchorDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+            )
+
+        assertEquals(
+            listOf(
+                23 * 60,
+            ),
+            candidates.map {
+                it.minuteOfDay
             },
         )
     }

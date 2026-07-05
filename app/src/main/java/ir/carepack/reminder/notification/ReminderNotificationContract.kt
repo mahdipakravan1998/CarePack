@@ -55,6 +55,28 @@ object ReminderNotificationContract {
         }
     }
 
+    fun contentRequestCode(
+        occurrenceId: String,
+    ): Int {
+        return stableRequestCode(
+            occurrenceId =
+                occurrenceId,
+            salt =
+                CONTENT_REQUEST_CODE_SALT,
+        )
+    }
+
+    fun fullScreenRequestCode(
+        occurrenceId: String,
+    ): Int {
+        return stableRequestCode(
+            occurrenceId =
+                occurrenceId,
+            salt =
+                FULL_SCREEN_REQUEST_CODE_SALT,
+        )
+    }
+
     fun extractOccurrenceId(
         intent: Intent?,
     ): String? {
@@ -133,4 +155,22 @@ object ReminderNotificationContract {
                 String::isNotEmpty,
             )
     }
+
+    private fun stableRequestCode(
+        occurrenceId: String,
+        salt: Int,
+    ): Int {
+        require(occurrenceId.isNotBlank())
+
+        return (
+                occurrenceId.hashCode() xor
+                        salt
+                ) and Int.MAX_VALUE
+    }
+
+    private const val CONTENT_REQUEST_CODE_SALT =
+        0x3210
+
+    private const val FULL_SCREEN_REQUEST_CODE_SALT =
+        0x7321
 }

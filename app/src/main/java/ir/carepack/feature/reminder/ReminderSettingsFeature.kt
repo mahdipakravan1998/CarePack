@@ -30,6 +30,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -48,11 +49,19 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
+import ir.carepack.domain.reminder.ExactAlarmReadiness
+import ir.carepack.domain.reminder.ManufacturerGuidance
+import ir.carepack.domain.reminder.NotificationPermissionReadiness
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceStore
+import ir.carepack.domain.reminder.ReminderReadiness
+import ir.carepack.domain.reminder.ReminderReadinessPolicy
+import ir.carepack.domain.reminder.ReminderReadinessStatus
 import ir.carepack.domain.reminder.ReminderStatus
+import ir.carepack.reminder.permission.AndroidBatteryOptimizationGateway
+import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,8 +85,7 @@ data class ReminderSettingsUiState(
     val remindersEnabled: Boolean = false,
     val notificationPermissionState:
     NotificationPermissionUiState =
-        NotificationPermissionUiState
-            .DENIED,
+        NotificationPermissionUiState.DENIED,
     val notificationRuntimePermissionRequired:
     Boolean = false,
     val hasActiveSchedule: Boolean = false,
@@ -85,10 +93,13 @@ data class ReminderSettingsUiState(
     Boolean = false,
     val availability: ReminderAvailability =
         ReminderAvailability.DISABLED,
+    val readiness: ReminderReadiness? = null,
     val showNotificationRationale:
     Boolean = false,
     val showExactAlarmRationale:
     Boolean = false,
+    val showOemGuidance:
+    Boolean = true,
     val errorMessage: String? = null,
 )
 
@@ -98,6 +109,8 @@ private data class ReminderSettingsTransientState(
     Boolean = false,
     val showExactAlarmRationale:
     Boolean = false,
+    val showOemGuidance:
+    Boolean = true,
     val errorMessage: String? = null,
 )
 
@@ -108,6 +121,14 @@ class ReminderSettingsViewModel(
     ReminderCoordinator,
     private val notificationPermissionGateway:
     NotificationPermissionGateway,
+    private val batteryOptimizationState:
+        () -> BatteryOptimizationState = {
+        BatteryOptimizationState.UNKNOWN
+    },
+    private val manufacturer:
+        () -> String? = {
+        Build.MANUFACTURER
+    },
 ) : ViewModel() {
 
     private val operationMutex =
@@ -137,23 +158,41 @@ class ReminderSettingsViewModel(
                     .requiresRuntimePermission()
 
             val permissionUiState =
-                when {
-                    !runtimePermissionRequired -> {
-                        NotificationPermissionUiState
-                            .NOT_REQUIRED
-                    }
+                permissionUiStateFor(
+                    runtimePermissionRequired =
+                        runtimePermissionRequired,
+                    status =
+                        status,
+                )
 
-                    status
-                        ?.notificationPermissionGranted ==
-                            true -> {
-                        NotificationPermissionUiState
-                            .GRANTED
-                    }
-
-                    else -> {
-                        NotificationPermissionUiState
-                            .DENIED
-                    }
+            val readiness =
+                status?.let {
+                        currentStatus ->
+                    ReminderReadinessPolicy.evaluate(
+                        remindersEnabled =
+                            preferenceState
+                                .remindersEnabled,
+                        hasActiveSchedule =
+                            currentStatus
+                                .hasActiveSchedule,
+                        notificationRuntimePermissionRequired =
+                            runtimePermissionRequired,
+                        notificationPermissionGranted =
+                            currentStatus
+                                .notificationPermissionGranted,
+                        canScheduleExactAlarms =
+                            currentStatus
+                                .exactAlarmCapabilityGranted,
+                        exactAlarmRelevant =
+                            currentStatus
+                                .hasActiveSchedule &&
+                                    preferenceState
+                                        .remindersEnabled,
+                        batteryOptimizationState =
+                            batteryOptimizationState(),
+                        manufacturer =
+                            manufacturer(),
+                    )
                 }
 
             ReminderSettingsUiState(
@@ -182,12 +221,17 @@ class ReminderSettingsViewModel(
                         ?.availability
                         ?: ReminderAvailability
                             .DISABLED,
+                readiness =
+                    readiness,
                 showNotificationRationale =
                     transientState
                         .showNotificationRationale,
                 showExactAlarmRationale =
                     transientState
                         .showExactAlarmRationale,
+                showOemGuidance =
+                    transientState
+                        .showOemGuidance,
                 errorMessage =
                     transientState
                         .errorMessage,
@@ -229,17 +273,31 @@ class ReminderSettingsViewModel(
             mutableStatus.value =
                 status
 
+            val readiness =
+                currentReadinessFor(
+                    remindersEnabled =
+                        enabled,
+                    status =
+                        status,
+                )
+
             mutableTransientState.update {
                     transient ->
                 transient.copy(
                     showNotificationRationale =
                         enabled &&
-                                notificationPermissionGateway
-                                    .requiresRuntimePermission() &&
-                                !status
-                                    .notificationPermissionGranted,
+                                readiness
+                                    .notificationPermission ==
+                                NotificationPermissionReadiness
+                                    .DENIED,
                     showExactAlarmRationale =
-                        false,
+                        enabled &&
+                                readiness
+                                    .exactAlarm ==
+                                ExactAlarmReadiness
+                                    .UNAVAILABLE,
+                    showOemGuidance =
+                        true,
                 )
             }
         }
@@ -301,8 +359,11 @@ class ReminderSettingsViewModel(
                         .DENIED &&
                     currentState
                         .hasActiveSchedule &&
-                    !currentState
-                        .exactAlarmCapabilityGranted
+                    currentState
+                        .readiness
+                        ?.exactAlarm ==
+                    ExactAlarmReadiness
+                        .UNAVAILABLE
 
         if (!canRequest) {
             return
@@ -354,6 +415,29 @@ class ReminderSettingsViewModel(
         )
     }
 
+    fun continueWithoutPermissionChanges() {
+        mutableTransientState.update {
+                transient ->
+            transient.copy(
+                showNotificationRationale =
+                    false,
+                showExactAlarmRationale =
+                    false,
+                errorMessage = null,
+            )
+        }
+    }
+
+    fun showOemGuidance() {
+        mutableTransientState.update {
+                transient ->
+            transient.copy(
+                showOemGuidance =
+                    true,
+            )
+        }
+    }
+
     fun onPlatformLaunchFailed() {
         mutableTransientState.update {
                 transient ->
@@ -396,6 +480,32 @@ class ReminderSettingsViewModel(
                     )
                     .status
         }
+    }
+
+    private fun currentReadinessFor(
+        remindersEnabled: Boolean,
+        status: ReminderStatus,
+    ): ReminderReadiness {
+        return ReminderReadinessPolicy.evaluate(
+            remindersEnabled =
+                remindersEnabled,
+            hasActiveSchedule =
+                status.hasActiveSchedule,
+            notificationRuntimePermissionRequired =
+                notificationPermissionGateway
+                    .requiresRuntimePermission(),
+            notificationPermissionGranted =
+                status.notificationPermissionGranted,
+            canScheduleExactAlarms =
+                status.exactAlarmCapabilityGranted,
+            exactAlarmRelevant =
+                remindersEnabled &&
+                        status.hasActiveSchedule,
+            batteryOptimizationState =
+                batteryOptimizationState(),
+            manufacturer =
+                manufacturer(),
+        )
     }
 
     private fun runOperation(
@@ -480,6 +590,23 @@ fun ReminderSettingsRoute(
     val lifecycleOwner =
         LocalLifecycleOwner.current
 
+    val batteryOptimizationGateway =
+        remember(context) {
+            AndroidBatteryOptimizationGateway(
+                context =
+                    context,
+            )
+        }
+
+    val screenState =
+        state.withPlatformReadiness(
+            batteryOptimizationState =
+                batteryOptimizationGateway
+                    .currentState(),
+            manufacturer =
+                Build.MANUFACTURER,
+        )
+
     val notificationPermissionLauncher =
         rememberLauncherForActivityResult(
             contract =
@@ -510,6 +637,16 @@ fun ReminderSettingsRoute(
                 .onExactAlarmSettingsReturned()
         }
 
+    val batterySettingsLauncher =
+        rememberLauncherForActivityResult(
+            contract =
+                ActivityResultContracts
+                    .StartActivityForResult(),
+        ) {
+            viewModel
+                .refreshPlatformState()
+        }
+
     DisposableEffect(
         lifecycleOwner,
     ) {
@@ -537,8 +674,10 @@ fun ReminderSettingsRoute(
     }
 
     ReminderSettingsScreen(
-        state = state,
-        onBack = onBack,
+        state =
+            screenState,
+        onBack =
+            onBack,
         onRemindersEnabledChanged =
             viewModel::setRemindersEnabled,
         onRequestNotificationPermission =
@@ -565,8 +704,27 @@ fun ReminderSettingsRoute(
         },
         onRequestExactAlarmAccess =
             viewModel::showExactAlarmExplanation,
+        onOpenBatterySettings = {
+            val intent =
+                Intent(
+                    Settings
+                        .ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                )
+
+            runCatching {
+                batterySettingsLauncher
+                    .launch(intent)
+            }.onFailure {
+                viewModel
+                    .onPlatformLaunchFailed()
+            }
+        },
         onReviewSchedules =
             onReviewSchedules,
+        onContinueAnyway =
+            viewModel::continueWithoutPermissionChanges,
+        onShowOemGuidance =
+            viewModel::showOemGuidance,
         onRetry =
             viewModel::refreshPlatformState,
     )
@@ -632,7 +790,7 @@ fun ReminderSettingsRoute(
             dismissButton = {
                 TextButton(
                     onClick =
-                        viewModel::dismissNotificationPermissionExplanation,
+                        viewModel::continueWithoutPermissionChanges,
                     modifier =
                         Modifier.testTag(
                             "notification_rationale_cancel",
@@ -642,7 +800,7 @@ fun ReminderSettingsRoute(
                         text =
                             stringResource(
                                 R.string
-                                    .dismiss_for_later,
+                                    .continue_without_permissions,
                             ),
                     )
                 }
@@ -718,7 +876,7 @@ fun ReminderSettingsRoute(
             dismissButton = {
                 TextButton(
                     onClick =
-                        viewModel::dismissExactAlarmExplanation,
+                        viewModel::continueWithoutPermissionChanges,
                     modifier =
                         Modifier.testTag(
                             "exact_alarm_rationale_cancel",
@@ -728,7 +886,7 @@ fun ReminderSettingsRoute(
                         text =
                             stringResource(
                                 R.string
-                                    .dismiss_for_later,
+                                    .continue_with_approximate_reminders,
                             ),
                     )
                 }
@@ -753,7 +911,10 @@ fun ReminderSettingsScreen(
         () -> Unit,
     onRequestExactAlarmAccess:
         () -> Unit,
+    onOpenBatterySettings: () -> Unit = {},
     onReviewSchedules: () -> Unit,
+    onContinueAnyway: () -> Unit = {},
+    onShowOemGuidance: () -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -782,7 +943,12 @@ fun ReminderSettingsScreen(
                         "reminder_settings_back",
                     ),
             ) {
-                Text(text = "بازگشت")
+                Text(
+                    text =
+                        stringResource(
+                            R.string.back,
+                        ),
+                )
             }
 
             Text(
@@ -801,10 +967,31 @@ fun ReminderSettingsScreen(
                     },
             )
 
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .reminder_settings_intro,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
+                modifier =
+                    Modifier.testTag(
+                        "reminder_settings_intro",
+                    ),
+            )
+
             ReminderToggleCard(
                 state = state,
                 onRemindersEnabledChanged =
                     onRemindersEnabledChanged,
+            )
+
+            ReadinessSummaryCard(
+                readiness =
+                    state.readiness,
             )
 
             ReminderStatusCard(
@@ -831,121 +1018,45 @@ fun ReminderSettingsScreen(
                     ),
                 body =
                     reminderAvailabilityText(
-                        availability =
-                            state.availability,
+                        state =
+                            state,
                     ),
                 testTag =
                     "reminder_delivery_status",
             )
 
-            if (
-                state.remindersEnabled &&
-                state
-                    .notificationPermissionState ==
-                NotificationPermissionUiState
-                    .DENIED
-            ) {
-                Button(
-                    onClick =
-                        onRequestNotificationPermission,
-                    enabled =
-                        !state.isApplying,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .testTag(
-                                "request_notification_permission",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .request_notification_permission,
-                            ),
-                    )
-                }
+            PermissionActionSection(
+                state = state,
+                onRequestNotificationPermission =
+                    onRequestNotificationPermission,
+                onOpenNotificationSettings =
+                    onOpenNotificationSettings,
+                onRequestExactAlarmAccess =
+                    onRequestExactAlarmAccess,
+                onReviewSchedules =
+                    onReviewSchedules,
+                onContinueAnyway =
+                    onContinueAnyway,
+                onShowOemGuidance =
+                    onShowOemGuidance,
+            )
 
-                OutlinedButton(
-                    onClick =
-                        onOpenNotificationSettings,
-                    enabled =
-                        !state.isApplying,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .testTag(
-                                "open_notification_settings",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .open_notification_settings,
-                            ),
-                    )
-                }
-            }
+            BatteryGuidanceSection(
+                state =
+                    state,
+                onOpenBatterySettings =
+                    onOpenBatterySettings,
+            )
 
             if (
-                state.remindersEnabled &&
-                state
-                    .notificationPermissionState !=
-                NotificationPermissionUiState
-                    .DENIED &&
-                !state.hasActiveSchedule
+                state.showOemGuidance
             ) {
-                OutlinedButton(
-                    onClick =
-                        onReviewSchedules,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .testTag(
-                                "review_schedules_from_reminders",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .review_schedules,
-                            ),
-                    )
-                }
-            }
-
-            if (
-                state.remindersEnabled &&
-                state
-                    .notificationPermissionState !=
-                NotificationPermissionUiState
-                    .DENIED &&
-                state.hasActiveSchedule &&
-                !state
-                    .exactAlarmCapabilityGranted
-            ) {
-                Button(
-                    onClick =
-                        onRequestExactAlarmAccess,
-                    enabled =
-                        !state.isApplying,
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .testTag(
-                                "request_exact_alarm_access",
-                            ),
-                ) {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .request_exact_alarm_access,
-                            ),
-                    )
-                }
+                OemGuidanceSection(
+                    guidance =
+                        state
+                            .readiness
+                            ?.manufacturerGuidance,
+                )
             }
 
             Text(
@@ -1020,11 +1131,277 @@ fun ReminderSettingsScreen(
                                     "reminder_settings_retry",
                                 ),
                         ) {
-                            Text(text = "تلاش دوباره")
+                            Text(
+                                text =
+                                    stringResource(
+                                        R.string.retry,
+                                    ),
+                            )
                         }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReadinessSummaryCard(
+    readiness: ReminderReadiness?,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "reminder_readiness_summary",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    8.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .reminder_readiness_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier.semantics {
+                        heading()
+                    },
+            )
+
+            Text(
+                text =
+                    readiness
+                        ?.message
+                        ?: stringResource(
+                            R.string
+                                .reminder_readiness_loading,
+                        ),
+                modifier =
+                    Modifier.testTag(
+                        "reminder_readiness_message",
+                    ),
+            )
+
+            Text(
+                text =
+                    readinessStatusText(
+                        readiness =
+                            readiness,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+                modifier =
+                    Modifier.testTag(
+                        "reminder_readiness_status",
+                    ),
+            )
+        }
+    }
+}
+
+@Composable
+private fun PermissionActionSection(
+    state: ReminderSettingsUiState,
+    onRequestNotificationPermission:
+        () -> Unit,
+    onOpenNotificationSettings:
+        () -> Unit,
+    onRequestExactAlarmAccess:
+        () -> Unit,
+    onReviewSchedules: () -> Unit,
+    onContinueAnyway: () -> Unit,
+    onShowOemGuidance: () -> Unit,
+) {
+    if (
+        state.remindersEnabled &&
+        state
+            .notificationPermissionState ==
+        NotificationPermissionUiState
+            .DENIED
+    ) {
+        Button(
+            onClick =
+                onRequestNotificationPermission,
+            enabled =
+                !state.isApplying,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "request_notification_permission",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .request_notification_permission,
+                    ),
+            )
+        }
+
+        OutlinedButton(
+            onClick =
+                onOpenNotificationSettings,
+            enabled =
+                !state.isApplying,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "open_notification_settings",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .open_notification_settings,
+                    ),
+            )
+        }
+
+        TextButton(
+            onClick =
+                onContinueAnyway,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "continue_without_permissions",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .continue_without_permissions,
+                    ),
+            )
+        }
+    }
+
+    if (
+        state.remindersEnabled &&
+        state
+            .notificationPermissionState !=
+        NotificationPermissionUiState
+            .DENIED &&
+        !state.hasActiveSchedule
+    ) {
+        OutlinedButton(
+            onClick =
+                onReviewSchedules,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "review_schedules_from_reminders",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .review_schedules,
+                    ),
+            )
+        }
+    }
+
+    if (
+        state.remindersEnabled &&
+        state
+            .notificationPermissionState !=
+        NotificationPermissionUiState
+            .DENIED &&
+        state.hasActiveSchedule &&
+        state
+            .readiness
+            ?.exactAlarm ==
+        ExactAlarmReadiness
+            .UNAVAILABLE
+    ) {
+        Button(
+            onClick =
+                onRequestExactAlarmAccess,
+            enabled =
+                !state.isApplying,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "request_exact_alarm_access",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .request_exact_alarm_access,
+                    ),
+            )
+        }
+
+        TextButton(
+            onClick =
+                onContinueAnyway,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "continue_with_approximate_reminders",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .continue_with_approximate_reminders,
+                    ),
+            )
+        }
+    }
+
+    if (
+        state
+            .readiness
+            ?.manufacturerGuidanceNeeded == true
+    ) {
+        OutlinedButton(
+            onClick =
+                onShowOemGuidance,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .testTag(
+                        "view_oem_guidance",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .view_oem_guidance,
+                    ),
+            )
         }
     }
 }
@@ -1143,6 +1520,187 @@ private fun ReminderStatusCard(
 }
 
 @Composable
+private fun BatteryGuidanceSection(
+    state: ReminderSettingsUiState,
+    onOpenBatterySettings: () -> Unit,
+) {
+    val batteryText =
+        when (
+            state
+                .readiness
+                ?.batteryOptimizationState
+        ) {
+            BatteryOptimizationState.IGNORED -> {
+                stringResource(
+                    R.string
+                        .battery_optimization_ignored,
+                )
+            }
+
+            BatteryOptimizationState.NOT_IGNORED -> {
+                stringResource(
+                    R.string
+                        .battery_optimization_not_ignored,
+                )
+            }
+
+            BatteryOptimizationState.UNKNOWN,
+            null,
+                -> {
+                stringResource(
+                    R.string
+                        .battery_optimization_unknown,
+                )
+            }
+        }
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "battery_guidance_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .battery_guidance_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier.semantics {
+                        heading()
+                    },
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .battery_guidance_body,
+                    ),
+            )
+
+            Text(
+                text =
+                    batteryText,
+                modifier =
+                    Modifier.testTag(
+                        "battery_optimization_status",
+                    ),
+            )
+
+            OutlinedButton(
+                onClick =
+                    onOpenBatterySettings,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .testTag(
+                            "open_battery_settings",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .open_battery_settings,
+                        ),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun OemGuidanceSection(
+    guidance: ManufacturerGuidance?,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "oem_guidance_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    12.dp,
+                ),
+        ) {
+            Text(
+                text =
+                    guidance
+                        ?.title
+                        ?: stringResource(
+                            R.string
+                                .oem_guidance_title,
+                        ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleMedium,
+                modifier =
+                    Modifier.semantics {
+                        heading()
+                    },
+            )
+
+            Text(
+                text =
+                    guidance
+                        ?.body
+                        ?: stringResource(
+                            R.string
+                                .generic_oem_guidance_body,
+                        ),
+                modifier =
+                    Modifier.testTag(
+                        "oem_guidance_body",
+                    ),
+            )
+
+            guidance
+                ?.actionItems
+                .orEmpty()
+                .forEachIndexed {
+                        index,
+                        actionItem ->
+                    Text(
+                        text =
+                            "• $actionItem",
+                        modifier =
+                            Modifier.testTag(
+                                "oem_guidance_action_$index",
+                            ),
+                    )
+                }
+        }
+    }
+}
+
+@Composable
 private fun notificationPermissionText(
     state: NotificationPermissionUiState,
 ): String {
@@ -1171,10 +1729,23 @@ private fun notificationPermissionText(
 
 @Composable
 private fun reminderAvailabilityText(
-    availability: ReminderAvailability,
+    state: ReminderSettingsUiState,
 ): String {
+    val readiness =
+        state.readiness
+
+    if (
+        readiness
+            ?.approximateFallbackAvailable == true
+    ) {
+        return stringResource(
+            R.string
+                .reminder_mode_approximate,
+        )
+    }
+
     return stringResource(
-        when (availability) {
+        when (state.availability) {
             ReminderAvailability.DISABLED -> {
                 R.string
                     .reminder_mode_disabled
@@ -1204,3 +1775,137 @@ private fun reminderAvailabilityText(
         },
     )
 }
+
+@Composable
+private fun readinessStatusText(
+    readiness: ReminderReadiness?,
+): String {
+    return when (
+        readiness?.status
+    ) {
+        ReminderReadinessStatus.READY -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_ready,
+            )
+        }
+
+        ReminderReadinessStatus.REMINDERS_DISABLED -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_disabled,
+            )
+        }
+
+        ReminderReadinessStatus.NO_ACTIVE_SCHEDULE -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_no_schedule,
+            )
+        }
+
+        ReminderReadinessStatus.NOTIFICATION_PERMISSION_REQUIRED -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_notification_required,
+            )
+        }
+
+        ReminderReadinessStatus.EXACT_ALARM_ACCESS_RECOMMENDED -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_exact_recommended,
+            )
+        }
+
+        ReminderReadinessStatus.APPROXIMATE_DELIVERY -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_approximate,
+            )
+        }
+
+        ReminderReadinessStatus.BATTERY_GUIDANCE_RECOMMENDED -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_battery,
+            )
+        }
+
+        ReminderReadinessStatus.OEM_GUIDANCE_RECOMMENDED -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_oem,
+            )
+        }
+
+        null -> {
+            stringResource(
+                R.string
+                    .reminder_readiness_loading,
+            )
+        }
+    }
+}
+
+private fun ReminderSettingsUiState.withPlatformReadiness(
+    batteryOptimizationState:
+    BatteryOptimizationState,
+    manufacturer: String?,
+): ReminderSettingsUiState {
+    if (isLoading) {
+        return this
+    }
+
+    val notificationPermissionGranted =
+        notificationPermissionState ==
+                NotificationPermissionUiState.GRANTED ||
+                notificationPermissionState ==
+                NotificationPermissionUiState.NOT_REQUIRED
+
+    return copy(
+        readiness =
+            ReminderReadinessPolicy.evaluate(
+                remindersEnabled =
+                    remindersEnabled,
+                hasActiveSchedule =
+                    hasActiveSchedule,
+                notificationRuntimePermissionRequired =
+                    notificationRuntimePermissionRequired,
+                notificationPermissionGranted =
+                    notificationPermissionGranted,
+                canScheduleExactAlarms =
+                    exactAlarmCapabilityGranted,
+                exactAlarmRelevant =
+                    remindersEnabled &&
+                            hasActiveSchedule,
+                batteryOptimizationState =
+                    batteryOptimizationState,
+                manufacturer =
+                    manufacturer,
+            ),
+    )
+}
+
+private fun permissionUiStateFor(
+    runtimePermissionRequired: Boolean,
+    status: ReminderStatus?,
+): NotificationPermissionUiState =
+    when {
+        !runtimePermissionRequired -> {
+            NotificationPermissionUiState
+                .NOT_REQUIRED
+        }
+
+        status
+            ?.notificationPermissionGranted ==
+                true -> {
+            NotificationPermissionUiState
+                .GRANTED
+        }
+
+        else -> {
+            NotificationPermissionUiState
+                .DENIED
+        }
+    }
