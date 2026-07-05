@@ -314,6 +314,127 @@ class SchedulePreviewResolverTest {
     }
 
     @Test
+    fun intervalPreview_startDateUsesAnchorAsFirstDoseOnStartDate() {
+        val preview =
+            resolve(
+                weekdays =
+                    DayOfWeek
+                        .entries
+                        .toSet(),
+                schedulePattern =
+                    IntervalSchedule(
+                        intervalHours = 8,
+                        anchorMinuteOfDay =
+                            15 * 60,
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T00:00:00Z",
+                    ),
+                startDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+                dayCount = 2,
+            )
+
+        assertEquals(
+            expectedOccurrences(
+                "2026-06-24T15:00:00Z",
+                "2026-06-24T23:00:00Z",
+                "2026-06-25T07:00:00Z",
+                "2026-06-25T15:00:00Z",
+                "2026-06-25T23:00:00Z",
+            ),
+            preview,
+        )
+
+        assertTrue(
+            preview.none {
+                it.localDate ==
+                        LocalDate.parse(
+                            "2026-06-24",
+                        ) &&
+                        it.minuteOfDay ==
+                        7 * 60
+            },
+        )
+    }
+
+    @Test
+    fun intervalPreview_startDateCrossingMidnightStartsAtAnchorOnly() {
+        val preview =
+            resolve(
+                weekdays =
+                    DayOfWeek
+                        .entries
+                        .toSet(),
+                schedulePattern =
+                    IntervalSchedule(
+                        intervalHours = 6,
+                        anchorMinuteOfDay =
+                            23 * 60,
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T00:00:00Z",
+                    ),
+                startDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+                dayCount = 2,
+            )
+
+        assertEquals(
+            expectedOccurrences(
+                "2026-06-24T23:00:00Z",
+                "2026-06-25T05:00:00Z",
+                "2026-06-25T11:00:00Z",
+                "2026-06-25T17:00:00Z",
+                "2026-06-25T23:00:00Z",
+            ),
+            preview,
+        )
+    }
+
+    @Test
+    fun intervalPreview_sameDayPastStartDateDoesNotCreatePastOccurrences() {
+        val preview =
+            resolve(
+                weekdays =
+                    DayOfWeek
+                        .entries
+                        .toSet(),
+                schedulePattern =
+                    IntervalSchedule(
+                        intervalHours = 8,
+                        anchorMinuteOfDay =
+                            15 * 60,
+                    ),
+                effectiveFrom =
+                    Instant.parse(
+                        "2026-06-24T20:00:00Z",
+                    ),
+                startDate =
+                    LocalDate.parse(
+                        "2026-06-24",
+                    ),
+                dayCount = 2,
+            )
+
+        assertEquals(
+            expectedOccurrences(
+                "2026-06-24T23:00:00Z",
+                "2026-06-25T07:00:00Z",
+                "2026-06-25T15:00:00Z",
+                "2026-06-25T23:00:00Z",
+            ),
+            preview,
+        )
+    }
+
+    @Test
     fun crossingMidnightIntervalIsCorrectInsideExactFourteenDayRange() {
         val preview =
             resolve(

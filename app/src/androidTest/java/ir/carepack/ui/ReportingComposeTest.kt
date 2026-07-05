@@ -103,7 +103,7 @@ class ReportingComposeTest {
 
         assertVisibleText(
             context.getString(
-                R.string.report_no_report,
+                R.string.today_item_upcoming,
             ),
         )
 
@@ -128,7 +128,7 @@ class ReportingComposeTest {
 
         assertVisibleText(
             context.getString(
-                R.string.report_unknown,
+                R.string.today_item_recorded_unknown,
             ),
         )
 
@@ -153,7 +153,7 @@ class ReportingComposeTest {
 
         assertVisibleText(
             context.getString(
-                R.string.report_given,
+                R.string.today_item_recorded_given,
             ),
         )
 
@@ -178,7 +178,7 @@ class ReportingComposeTest {
 
         assertVisibleText(
             context.getString(
-                R.string.report_not_given,
+                R.string.today_item_recorded_not_given,
             ),
         )
     }
@@ -352,7 +352,7 @@ class ReportingComposeTest {
 
         assertVisibleText(
             context.getString(
-                R.string.cancelled_occurrence,
+                R.string.today_item_cancelled,
             ),
         )
 

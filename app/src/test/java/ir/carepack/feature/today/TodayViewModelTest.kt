@@ -1,14 +1,28 @@
 package ir.carepack.feature.today
 
 import ir.carepack.core.time.ZoneProvider
+import ir.carepack.domain.experience.SeniorMode
+import ir.carepack.domain.experience.UserExperiencePreferenceState
+import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.HistoryDay
 import ir.carepack.domain.model.OccurrenceDetail
-import ir.carepack.domain.model.TodayEmptyState
+import ir.carepack.domain.model.OccurrenceLifecycle
+import ir.carepack.domain.model.TemporalStatus
+import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
+import ir.carepack.domain.report.CaregiverReportService
+import ir.carepack.domain.report.ReportChange
+import ir.carepack.domain.report.SetReportOutcome
+import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.testing.FakeReminderCoordinator
+import ir.carepack.testing.InMemoryReminderPreferenceStore
+import ir.carepack.testing.InMemoryUserExperiencePreferenceStore
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -16,12 +30,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -33,7 +49,9 @@ class TodayViewModelTest {
 
     @Before
     fun setUp() {
-        Dispatchers.setMain(dispatcher)
+        Dispatchers.setMain(
+            dispatcher,
+        )
     }
 
     @After
@@ -42,241 +60,419 @@ class TodayViewModelTest {
     }
 
     @Test
-    fun crossingMidnight_rebindsTodayAndHistoryToNewDate() =
+    fun simpleMode_isExposedFromUserPreference() =
         runTest(dispatcher.scheduler) {
-            val now =
-                MutableStateFlow(
-                    BEFORE_MIDNIGHT,
-                )
-
-            val queryService =
-                RecordingTodayQueryService()
-
             val viewModel =
                 createViewModel(
-                    now = now,
-                    queryService =
-                        queryService,
+                    userExperienceStore =
+                        InMemoryUserExperiencePreferenceStore(
+                            UserExperiencePreferenceState(
+                                seniorMode =
+                                    SeniorMode.SIMPLE,
+                            ),
+                        ),
                 )
 
-            runCurrent()
+            advanceUntilIdle()
 
             assertEquals(
-                FIRST_DATE,
-                viewModel.state.value.localDate,
-            )
-
-            assertEquals(
-                listOf(FIRST_DATE),
-                queryService.todayDates,
-            )
-
-            assertEquals(
-                listOf(FIRST_DATE),
-                queryService.historyDates,
-            )
-
-            now.value =
-                AFTER_MIDNIGHT
-
-            runCurrent()
-
-            assertEquals(
-                SECOND_DATE,
-                viewModel.state.value.localDate,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                    SECOND_DATE,
-                ),
-                queryService.todayDates,
-            )
-
-            assertEquals(
-                listOf(
-                    FIRST_DATE,
-                    SECOND_DATE,
-                ),
-                queryService.historyDates,
+                SeniorMode.SIMPLE,
+                viewModel
+                    .state
+                    .value
+                    .seniorMode,
             )
         }
 
     @Test
-    fun tickingWithinSameDate_doesNotRestartDateQueries() =
+    fun givenAction_recordsGivenState() =
         runTest(dispatcher.scheduler) {
-            val now =
-                MutableStateFlow(
-                    BEFORE_MIDNIGHT,
+            val reportService =
+                FakeReportService(
+                    outcome =
+                        changedOutcome(
+                            newState =
+                                CaregiverReportState.GIVEN,
+                        ),
                 )
 
-            val queryService =
-                RecordingTodayQueryService()
+            val viewModel =
+                createViewModel(
+                    reportService =
+                        reportService,
+                )
 
-            createViewModel(
-                now = now,
-                queryService =
-                    queryService,
+            advanceUntilIdle()
+
+            viewModel.setReport(
+                occurrenceId =
+                    OCCURRENCE_ID,
+                state =
+                    CaregiverReportState.GIVEN,
             )
 
             runCurrent()
 
-            now.value =
-                BEFORE_MIDNIGHT.plusMillis(
-                    500L,
-                )
-
-            runCurrent()
-
             assertEquals(
-                listOf(FIRST_DATE),
-                queryService.todayDates,
+                listOf(
+                    CaregiverReportState.GIVEN,
+                ),
+                reportService.recordedStates,
             )
 
             assertEquals(
-                listOf(FIRST_DATE),
-                queryService.historyDates,
+                CaregiverReportState.GIVEN,
+                viewModel
+                    .state
+                    .value
+                    .undoChange
+                    ?.newState,
             )
         }
 
     @Test
-    fun retry_restartsBothDateQueriesWithoutChangingSelectedSection() =
+    fun notGivenAction_recordsNotGivenState() =
         runTest(dispatcher.scheduler) {
-            val now =
-                MutableStateFlow(
-                    BEFORE_MIDNIGHT,
+            val reportService =
+                FakeReportService(
+                    outcome =
+                        changedOutcome(
+                            newState =
+                                CaregiverReportState.NOT_GIVEN,
+                        ),
                 )
-
-            val queryService =
-                RecordingTodayQueryService()
 
             val viewModel =
                 createViewModel(
-                    now = now,
-                    queryService =
-                        queryService,
+                    reportService =
+                        reportService,
                 )
 
-            runCurrent()
+            advanceUntilIdle()
 
-            viewModel.showHistory()
-            viewModel.retry()
-
-            runCurrent()
-
-            assertEquals(
-                TodaySection.HISTORY,
-                viewModel.state.value.selectedSection,
+            viewModel.setReport(
+                occurrenceId =
+                    OCCURRENCE_ID,
+                state =
+                    CaregiverReportState.NOT_GIVEN,
             )
+
+            runCurrent()
 
             assertEquals(
                 listOf(
-                    FIRST_DATE,
-                    FIRST_DATE,
+                    CaregiverReportState.NOT_GIVEN,
                 ),
-                queryService.todayDates,
+                reportService.recordedStates,
             )
+        }
+
+    @Test
+    fun unknownAction_recordsUnknownState() =
+        runTest(dispatcher.scheduler) {
+            val reportService =
+                FakeReportService(
+                    outcome =
+                        changedOutcome(
+                            newState =
+                                CaregiverReportState.UNKNOWN,
+                        ),
+                )
+
+            val viewModel =
+                createViewModel(
+                    reportService =
+                        reportService,
+                )
+
+            advanceUntilIdle()
+
+            viewModel.setReport(
+                occurrenceId =
+                    OCCURRENCE_ID,
+                state =
+                    CaregiverReportState.UNKNOWN,
+            )
+
+            runCurrent()
 
             assertEquals(
                 listOf(
-                    FIRST_DATE,
-                    FIRST_DATE,
+                    CaregiverReportState.UNKNOWN,
                 ),
-                queryService.historyDates,
+                reportService.recordedStates,
+            )
+        }
+
+    @Test
+    fun remindLater_usesReminderCoordinatorAndDoesNotWriteReport() =
+        runTest(dispatcher.scheduler) {
+            val reportService =
+                FakeReportService(
+                    outcome =
+                        changedOutcome(
+                            newState =
+                                CaregiverReportState.GIVEN,
+                        ),
+                )
+
+            val reminderCoordinator =
+                FakeReminderCoordinator()
+
+            val viewModel =
+                createViewModel(
+                    reportService =
+                        reportService,
+                    reminderCoordinator =
+                        reminderCoordinator,
+                )
+
+            advanceUntilIdle()
+
+            viewModel.remindLater(
+                occurrenceId =
+                    OCCURRENCE_ID,
+            )
+
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    OCCURRENCE_ID,
+                ),
+                reminderCoordinator
+                    .remindLaterOccurrenceIds,
+            )
+
+            assertEquals(
+                emptyList<CaregiverReportState>(),
+                reportService.recordedStates,
+            )
+        }
+
+    @Test
+    fun undoRestoresPreviousReportAndClearsUndoChange() =
+        runTest(dispatcher.scheduler) {
+            val change =
+                ReportChange(
+                    occurrenceId =
+                        OCCURRENCE_ID,
+                    previousState =
+                        null,
+                    newState =
+                        CaregiverReportState.GIVEN,
+                    changedAtEpochMillis =
+                        1_000L,
+                )
+
+            val reportService =
+                FakeReportService(
+                    outcome =
+                        SetReportOutcome.Changed(
+                            change = change,
+                        ),
+                )
+
+            val viewModel =
+                createViewModel(
+                    reportService =
+                        reportService,
+                )
+
+            advanceUntilIdle()
+
+            viewModel.setReport(
+                occurrenceId =
+                    OCCURRENCE_ID,
+                state =
+                    CaregiverReportState.GIVEN,
+            )
+
+            runCurrent()
+
+            viewModel.undoReportChange()
+
+            runCurrent()
+
+            assertEquals(
+                listOf(
+                    change,
+                ),
+                reportService.restoredChanges,
+            )
+
+            assertNull(
+                viewModel
+                    .state
+                    .value
+                    .undoChange,
             )
         }
 
     private fun createViewModel(
-        now: Flow<Instant>,
-        queryService:
-        RecordingTodayQueryService,
+        todayQueryService:
+        TodayQueryService =
+            FakeTodayQueryService(),
+        reportService:
+        FakeReportService =
+            FakeReportService(
+                changedOutcome(
+                    CaregiverReportState.GIVEN,
+                ),
+            ),
+        reminderCoordinator:
+        FakeReminderCoordinator =
+            FakeReminderCoordinator(),
+        reminderPreferenceStore:
+        InMemoryReminderPreferenceStore =
+            InMemoryReminderPreferenceStore(),
+        userExperienceStore:
+        InMemoryUserExperiencePreferenceStore =
+            InMemoryUserExperiencePreferenceStore(),
     ): TodayViewModel =
         TodayViewModel(
             todayQueryService =
-                queryService,
+                todayQueryService,
+            caregiverReportService =
+                reportService,
+            reminderCoordinator =
+                reminderCoordinator,
             reminderPreferenceStore =
-                null,
-            clock =
-                Clock.fixed(
-                    BEFORE_MIDNIGHT,
-                    ZoneOffset.UTC,
-                ),
+                reminderPreferenceStore,
+            userExperiencePreferenceStore =
+                userExperienceStore,
+            clock = FIXED_CLOCK,
             zoneProvider =
-                ZoneProvider {
-                    ZoneOffset.UTC
-                },
-            now = now,
+                FixedZoneProvider(),
+            now =
+                flowOf(
+                    FIXED_INSTANT,
+                ),
+        )
+
+    private fun changedOutcome(
+        newState: CaregiverReportState,
+    ): SetReportOutcome =
+        SetReportOutcome.Changed(
+            ReportChange(
+                occurrenceId =
+                    OCCURRENCE_ID,
+                previousState =
+                    null,
+                newState =
+                    newState,
+                changedAtEpochMillis =
+                    FIXED_INSTANT
+                        .toEpochMilli(),
+            ),
         )
 
     private companion object {
-        val BEFORE_MIDNIGHT:
-                Instant =
+        const val OCCURRENCE_ID =
+            "occurrence-1"
+
+        val FIXED_INSTANT: Instant =
             Instant.parse(
-                "2026-06-24T23:59:59Z",
+                "2026-06-24T08:00:00Z",
             )
 
-        val AFTER_MIDNIGHT:
-                Instant =
-            Instant.parse(
-                "2026-06-25T00:00:00Z",
-            )
-
-        val FIRST_DATE:
-                LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                24,
-            )
-
-        val SECOND_DATE:
-                LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                25,
+        val FIXED_CLOCK: Clock =
+            Clock.fixed(
+                FIXED_INSTANT,
+                ZoneOffset.UTC,
             )
     }
 }
 
-private class RecordingTodayQueryService :
+private class FakeTodayQueryService :
     TodayQueryService {
-
-    val todayDates =
-        mutableListOf<LocalDate>()
-
-    val historyDates =
-        mutableListOf<LocalDate>()
 
     override fun observeToday(
         localDate: LocalDate,
         now: Flow<Instant>,
-    ): Flow<TodayModel> {
-        todayDates += localDate
-
-        return flowOf(
+    ): Flow<TodayModel> =
+        flowOf(
             TodayModel(
                 localDate = localDate,
-                items = emptyList(),
-                emptyState =
-                    TodayEmptyState.NO_MEDICATIONS,
+                items =
+                    listOf(
+                        TodayItem(
+                            occurrenceId =
+                                "occurrence-1",
+                            localDate = localDate,
+                            localTime =
+                                LocalTime.of(
+                                    12,
+                                    0,
+                                ),
+                            medicationName =
+                                "داروی نمونه",
+                            medicationInstruction =
+                                "بعد از غذا",
+                            lifecycle =
+                                OccurrenceLifecycle.ACTIVE,
+                            reportState = null,
+                            scheduledAt =
+                                Instant.parse(
+                                    "2026-06-24T08:30:00Z",
+                                ),
+                            temporalStatus =
+                                TemporalStatus.DUE,
+                            isOverdue = false,
+                        ),
+                    ),
+                emptyState = null,
             ),
         )
-    }
 
     override fun observeOccurrence(
         occurrenceId: String,
         now: Flow<Instant>,
     ): Flow<OccurrenceDetail?> =
-        flowOf(null)
+        MutableStateFlow(null)
 
     override fun observeRecentHistory(
         anchorDate: LocalDate,
         now: Flow<Instant>,
-    ): Flow<List<HistoryDay>> {
-        historyDates += anchorDate
+    ): Flow<List<HistoryDay>> =
+        flowOf(emptyList())
+}
 
-        return flowOf(emptyList())
+private class FakeReportService(
+    private val outcome: SetReportOutcome,
+) : CaregiverReportService {
+
+    val recordedStates =
+        mutableListOf<CaregiverReportState>()
+
+    val restoredChanges =
+        mutableListOf<ReportChange>()
+
+    override suspend fun setReport(
+        occurrenceId: String,
+        newState: CaregiverReportState,
+    ): SetReportOutcome {
+        recordedStates += newState
+        return outcome
     }
+
+    override suspend fun restorePrevious(
+        change: ReportChange,
+    ): UndoReportOutcome {
+        restoredChanges += change
+
+        return UndoReportOutcome.Restored(
+            occurrenceId =
+                change.occurrenceId,
+            restoredState =
+                change.previousState,
+        )
+    }
+}
+
+private class FixedZoneProvider :
+    ZoneProvider {
+    override fun currentZone():
+            ZoneId =
+        ZoneOffset.UTC
 }

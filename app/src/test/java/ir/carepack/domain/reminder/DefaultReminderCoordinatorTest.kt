@@ -10,10 +10,10 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.ZoneId
 import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -23,42 +23,39 @@ import org.junit.Test
 class DefaultReminderCoordinatorTest {
 
     @Test
-    fun disabledReminders_cancelOwnedAlarms_andScheduleNothing() =
+    fun disabledReminders_cancelOwnedAlarmsAndDoNotSchedule() =
         runTest {
             val target =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
+                    occurrenceId = "occurrence-1",
                     scheduledAt =
                         FIXED_NOW.plusSeconds(
-                            3_600L,
+                            600,
                         ),
                 )
 
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        false,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        true,
+                    remindersEnabled = false,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
                     allSeriesIds =
                         setOf(
                             "series-1",
                         ),
                     nextTargets =
-                        listOf(target),
+                        listOf(
+                            target,
+                        ),
                 )
 
             val result =
-                fixture.coordinator
-                    .reconcile(
-                        reason =
-                            ReconciliationReason
-                                .REMINDER_PREFERENCE_CHANGED,
-                    )
+                fixture.coordinator.reconcile(
+                    reason =
+                        ReconciliationReason
+                            .REMINDER_PREFERENCE_CHANGED,
+                )
 
             assertEquals(
                 ReminderAvailability.DISABLED,
@@ -66,57 +63,73 @@ class DefaultReminderCoordinatorTest {
             )
 
             assertTrue(
-                fixture.alarmGateway
-                    .scheduledRequests
+                fixture
+                    .alarmGateway
+                    .ownedRequests
                     .isEmpty(),
             )
 
             assertEquals(
                 listOf(
-                    target.alarmKey,
-                ),
-                fixture.alarmGateway
-                    .cancelledKeys,
+                    AlarmKey.forScheduleSeries(
+                        "series-1",
+                    ),
+                ).map {
+                    it.stableToken
+                },
+                fixture
+                    .alarmGateway
+                    .cancelledKeys
+                    .map {
+                        it.stableToken
+                    },
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .REMINDERS_DISABLED,
+                    ),
             )
         }
 
     @Test
-    fun deniedNotificationPermission_schedulesNothing_andKeepsUnavailableStatus() =
+    fun missingNotificationPermission_keepsCoreUsableButCancelsAlarms() =
         runTest {
             val target =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
+                    occurrenceId = "occurrence-1",
                     scheduledAt =
                         FIXED_NOW.plusSeconds(
-                            3_600L,
+                            600,
                         ),
                 )
 
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        false,
-                    exactCapabilityGranted =
-                        true,
+                    remindersEnabled = true,
+                    permissionGranted = false,
+                    exactCapabilityGranted = true,
                     allSeriesIds =
                         setOf(
                             "series-1",
                         ),
                     nextTargets =
-                        listOf(target),
+                        listOf(
+                            target,
+                        ),
                 )
 
             val result =
-                fixture.coordinator
-                    .reconcile(
-                        reason =
-                            ReconciliationReason
-                                .NOTIFICATION_PERMISSION_CHANGED,
-                    )
+                fixture.coordinator.reconcile(
+                    reason =
+                        ReconciliationReason
+                            .NOTIFICATION_PERMISSION_CHANGED,
+                )
 
             assertEquals(
                 ReminderAvailability
@@ -124,55 +137,68 @@ class DefaultReminderCoordinatorTest {
                 result.status.availability,
             )
 
-            assertFalse(
-                result.status
-                    .notificationPermissionGranted,
+            assertTrue(
+                fixture
+                    .alarmGateway
+                    .ownedRequests
+                    .isEmpty(),
+            )
+
+            assertEquals(
+                1,
+                fixture
+                    .alarmGateway
+                    .cancelledKeys
+                    .size,
             )
 
             assertTrue(
-                fixture.alarmGateway
-                    .scheduledRequests
-                    .isEmpty(),
+                fixture
+                    .diagnosticSink
+                    .events
+                    .any { event ->
+                        event.type ==
+                                ReminderDiagnosticEventType
+                                    .NOTIFICATION_PERMISSION_CHECKED &&
+                                event.outcome == "false"
+                    },
             )
         }
 
     @Test
-    fun exactCapability_registersExactAlarm() =
+    fun exactCapability_schedulesExactAlarmAndEmitsRegistrationDiagnostics() =
         runTest {
             val target =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
+                    occurrenceId = "occurrence-1",
                     scheduledAt =
                         FIXED_NOW.plusSeconds(
-                            3_600L,
+                            600,
                         ),
                 )
 
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        true,
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
                     allSeriesIds =
                         setOf(
                             "series-1",
                         ),
                     nextTargets =
-                        listOf(target),
+                        listOf(
+                            target,
+                        ),
                 )
 
             val result =
-                fixture.coordinator
-                    .reconcile(
-                        reason =
-                            ReconciliationReason
-                                .APPLICATION_FOREGROUND,
-                    )
+                fixture.coordinator.reconcile(
+                    reason =
+                        ReconciliationReason
+                            .CARE_PLAN_CHANGED,
+                )
 
             assertEquals(
                 ReminderAvailability.EXACT,
@@ -180,269 +206,225 @@ class DefaultReminderCoordinatorTest {
             )
 
             assertEquals(
-                listOf(
-                    AlarmDeliveryMode.EXACT,
-                ),
-                fixture.alarmGateway
-                    .scheduledRequests
-                    .map(
-                        AlarmRequest::deliveryMode,
-                    ),
-            )
-
-            assertEquals(
-                target.occurrenceId,
-                fixture.alarmGateway
-                    .scheduledRequests
-                    .single()
-                    .occurrenceId,
-            )
-        }
-
-    @Test
-    fun unavailableExactCapability_registersApproximateAlarm() =
-        runTest {
-            val target =
-                reminderTarget(
-                    seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
-                    scheduledAt =
-                        FIXED_NOW.plusSeconds(
-                            3_600L,
-                        ),
-                )
-
-            val fixture =
-                CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        false,
-                    allSeriesIds =
-                        setOf(
-                            "series-1",
-                        ),
-                    nextTargets =
-                        listOf(target),
-                )
-
-            val result =
-                fixture.coordinator
-                    .reconcile(
-                        reason =
-                            ReconciliationReason
-                                .APPLICATION_FOREGROUND,
+                AlarmDeliveryMode.EXACT,
+                fixture
+                    .alarmGateway
+                    .ownedRequests
+                    .getValue(
+                        target.alarmKey,
                     )
-
-            assertEquals(
-                ReminderAvailability
-                    .APPROXIMATE,
-                result.status.availability,
-            )
-
-            assertEquals(
-                listOf(
-                    AlarmDeliveryMode
-                        .APPROXIMATE,
-                ),
-                fixture.alarmGateway
-                    .scheduledRequests
-                    .map(
-                        AlarmRequest::deliveryMode,
-                    ),
-            )
-        }
-
-    @Test
-    fun exactRegistrationSecurityFailure_fallsBackToApproximate() =
-        runTest {
-            val target =
-                reminderTarget(
-                    seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
-                    scheduledAt =
-                        FIXED_NOW.plusSeconds(
-                            3_600L,
-                        ),
-                )
-
-            val fixture =
-                CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        true,
-                    allSeriesIds =
-                        setOf(
-                            "series-1",
-                        ),
-                    nextTargets =
-                        listOf(target),
-                )
-
-            fixture.alarmGateway
-                .failExactRegistration =
-                true
-
-            val result =
-                fixture.coordinator
-                    .reconcile(
-                        reason =
-                            ReconciliationReason
-                                .EXACT_ALARM_CAPABILITY_CHANGED,
-                    )
-
-            assertEquals(
-                ReminderAvailability
-                    .APPROXIMATE,
-                result.status.availability,
-            )
-
-            assertEquals(
-                listOf(
-                    AlarmDeliveryMode.EXACT,
-                    AlarmDeliveryMode
-                        .APPROXIMATE,
-                ),
-                fixture.alarmGateway
-                    .attemptedModes,
-            )
-
-            assertEquals(
-                AlarmDeliveryMode.APPROXIMATE,
-                fixture.alarmGateway
-                    .scheduledRequests
-                    .single()
                     .deliveryMode,
             )
 
             assertTrue(
-                result is
-                        ReminderReconciliationResult
-                        .Reconciled,
+                fixture
+                    .diagnosticSink
+                    .events
+                    .any { event ->
+                        event.type ==
+                                ReminderDiagnosticEventType
+                                    .ALARM_REGISTRATION_ATTEMPTED &&
+                                event.deliveryMode ==
+                                ReminderDeliveryMode.EXACT
+                    },
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .events
+                    .any { event ->
+                        event.type ==
+                                ReminderDiagnosticEventType
+                                    .ALARM_REGISTERED &&
+                                event.deliveryMode ==
+                                ReminderDeliveryMode.EXACT
+                    },
             )
         }
 
     @Test
-    fun reconciliation_replacesSameAlarmKey_withoutCreatingDuplicateOwnedIdentity() =
+    fun exactDenied_schedulesApproximateFallbackAndEmitsCapabilityDiagnostics() =
         runTest {
-            val firstTarget =
+            val target =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-1",
+                    occurrenceId = "occurrence-1",
                     scheduledAt =
                         FIXED_NOW.plusSeconds(
-                            3_600L,
-                        ),
-                )
-
-            val replacementTarget =
-                reminderTarget(
-                    seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-2",
-                    scheduledAt =
-                        FIXED_NOW.plusSeconds(
-                            7_200L,
+                            600,
                         ),
                 )
 
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        false,
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = false,
                     allSeriesIds =
                         setOf(
                             "series-1",
                         ),
                     nextTargets =
                         listOf(
-                            firstTarget,
+                            target,
                         ),
                 )
 
-            fixture.coordinator.reconcile(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
-
-            fixture.scheduleSource
-                .nextTargets =
-                listOf(
-                    replacementTarget,
+            val result =
+                fixture.coordinator.reconcile(
+                    reason =
+                        ReconciliationReason
+                            .EXACT_ALARM_CAPABILITY_CHANGED,
                 )
 
-            fixture.coordinator.reconcile(
-                reason =
-                    ReconciliationReason
-                        .REPORT_CHANGED,
+            assertEquals(
+                ReminderAvailability.APPROXIMATE,
+                result.status.availability,
             )
 
             assertEquals(
-                1,
-                fixture.alarmGateway
-                    .ownedRequests
-                    .size,
-            )
-
-            assertEquals(
-                replacementTarget
-                    .occurrenceId,
-                fixture.alarmGateway
+                AlarmDeliveryMode.APPROXIMATE,
+                fixture
+                    .alarmGateway
                     .ownedRequests
                     .getValue(
-                        replacementTarget
-                            .alarmKey,
+                        target.alarmKey,
                     )
-                    .occurrenceId,
+                    .deliveryMode,
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .EXACT_ALARM_UNAVAILABLE,
+                    ),
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .APPROXIMATE_FALLBACK_SELECTED,
+                    ),
             )
         }
 
     @Test
-    fun alarmFire_postsPrivatePayload_andAdvancesToNextTarget() =
+    fun exactRegistrationFailure_fallsBackToApproximateAndEmitsFailureDiagnostic() =
+        runTest {
+            val target =
+                reminderTarget(
+                    seriesId = "series-1",
+                    occurrenceId = "occurrence-1",
+                    scheduledAt =
+                        FIXED_NOW.plusSeconds(
+                            600,
+                        ),
+                )
+
+            val fixture =
+                CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds =
+                        setOf(
+                            "series-1",
+                        ),
+                    nextTargets =
+                        listOf(
+                            target,
+                        ),
+                    failedDeliveryModes =
+                        setOf(
+                            AlarmDeliveryMode.EXACT,
+                        ),
+                )
+
+            val result =
+                fixture.coordinator.reconcile(
+                    reason =
+                        ReconciliationReason
+                            .CARE_PLAN_CHANGED,
+                )
+
+            assertEquals(
+                ReminderAvailability.APPROXIMATE,
+                result.status.availability,
+            )
+
+            assertEquals(
+                AlarmDeliveryMode.APPROXIMATE,
+                fixture
+                    .alarmGateway
+                    .ownedRequests
+                    .getValue(
+                        target.alarmKey,
+                    )
+                    .deliveryMode,
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .events
+                    .any { event ->
+                        event.type ==
+                                ReminderDiagnosticEventType
+                                    .ALARM_REGISTRATION_FAILED &&
+                                event.deliveryMode ==
+                                ReminderDeliveryMode.EXACT
+                    },
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .events
+                    .any { event ->
+                        event.type ==
+                                ReminderDiagnosticEventType
+                                    .ALARM_REGISTERED &&
+                                event.deliveryMode ==
+                                ReminderDeliveryMode.APPROXIMATE
+                    },
+            )
+        }
+
+    @Test
+    fun alarmFire_postsNotificationWithoutWritingReportAndSchedulesNextTarget() =
         runTest {
             val firedTarget =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-fired",
+                    occurrenceId = "occurrence-fired",
                     scheduledAt =
                         FIXED_NOW.minusSeconds(
-                            1L,
+                            60,
                         ),
                 )
 
             val nextTarget =
                 reminderTarget(
                     seriesId = "series-1",
-                    occurrenceId =
-                        "occurrence-next",
+                    occurrenceId = "occurrence-next",
                     scheduledAt =
                         FIXED_NOW.plusSeconds(
-                            3_600L,
+                            600,
                         ),
                 )
 
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        false,
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
                     allSeriesIds =
                         setOf(
                             "series-1",
@@ -453,8 +435,7 @@ class DefaultReminderCoordinatorTest {
                         ),
                     eligibleTargets =
                         mapOf(
-                            firedTarget
-                                .occurrenceId to
+                            firedTarget.occurrenceId to
                                     firedTarget,
                         ),
                 )
@@ -463,8 +444,7 @@ class DefaultReminderCoordinatorTest {
                 fixture.coordinator
                     .handleAlarmFired(
                         occurrenceId =
-                            firedTarget
-                                .occurrenceId,
+                            firedTarget.occurrenceId,
                     )
 
             assertTrue(
@@ -475,42 +455,277 @@ class DefaultReminderCoordinatorTest {
 
             assertEquals(
                 firedTarget.occurrenceId,
-                fixture.notificationGateway
+                fixture
+                    .notificationGateway
                     .postedNotifications
                     .single()
                     .occurrenceId,
             )
 
             assertEquals(
-                firedTarget.medicationName,
-                fixture.notificationGateway
-                    .postedNotifications
-                    .single()
-                    .medicationName,
-            )
-
-            assertEquals(
                 nextTarget.occurrenceId,
-                fixture.alarmGateway
+                fixture
+                    .alarmGateway
                     .ownedRequests
                     .getValue(
                         nextTarget.alarmKey,
                     )
                     .occurrenceId,
             )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .containsAll(
+                        listOf(
+                            ReminderDiagnosticEventType
+                                .RECEIVER_FIRED,
+                            ReminderDiagnosticEventType
+                                .NOTIFICATION_POST_ATTEMPTED,
+                            ReminderDiagnosticEventType
+                                .NOTIFICATION_POSTED,
+                        ),
+                    ),
+            )
         }
 
     @Test
-    fun nonexistentAlarmOccurrence_isIgnored_withoutNotification() =
+    fun notificationFailure_emitsFailureDiagnosticWithoutWritingReport() =
+        runTest {
+            val firedTarget =
+                reminderTarget(
+                    seriesId = "series-1",
+                    occurrenceId = "occurrence-fired",
+                    scheduledAt =
+                        FIXED_NOW.minusSeconds(
+                            60,
+                        ),
+                )
+
+            val fixture =
+                CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds =
+                        setOf(
+                            "series-1",
+                        ),
+                    nextTargets =
+                        emptyList(),
+                    eligibleTargets =
+                        mapOf(
+                            firedTarget.occurrenceId to
+                                    firedTarget,
+                        ),
+                    notificationPostFails =
+                        true,
+                )
+
+            val result =
+                fixture.coordinator
+                    .handleAlarmFired(
+                        occurrenceId =
+                            firedTarget.occurrenceId,
+                    )
+
+            assertTrue(
+                result is
+                        AlarmFireResult
+                        .NotificationFailure,
+            )
+
+            assertTrue(
+                fixture
+                    .notificationGateway
+                    .postedNotifications
+                    .isEmpty(),
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .NOTIFICATION_FAILED,
+                    ),
+            )
+        }
+
+    @Test
+    fun remindLater_schedulesDelayedReminderAndDoesNotWriteReport() =
+        runTest {
+            val target =
+                reminderTarget(
+                    seriesId = "series-1",
+                    occurrenceId = "occurrence-1",
+                    scheduledAt =
+                        FIXED_NOW.minusSeconds(
+                            60,
+                        ),
+                )
+
+            val fixture =
+                CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds =
+                        setOf(
+                            "series-1",
+                        ),
+                    nextTargets =
+                        emptyList(),
+                    eligibleTargets =
+                        mapOf(
+                            target.occurrenceId to
+                                    target,
+                        ),
+                )
+
+            val result =
+                fixture.coordinator.remindLater(
+                    occurrenceId =
+                        target.occurrenceId,
+                    delayMinutes = 10,
+                )
+
+            assertTrue(
+                result is
+                        RemindLaterOutcome
+                        .Scheduled,
+            )
+
+            assertEquals(
+                target.occurrenceId,
+                fixture
+                    .snoozedReminderStore
+                    .reminders
+                    .first()
+                    .single()
+                    .occurrenceId,
+            )
+
+            val delayedAlarmKey =
+                AlarmKey.forDelayedOccurrence(
+                    target.occurrenceId,
+                )
+
+            assertEquals(
+                target.occurrenceId,
+                fixture
+                    .alarmGateway
+                    .ownedRequests
+                    .getValue(
+                        delayedAlarmKey,
+                    )
+                    .occurrenceId,
+            )
+
+            assertTrue(
+                fixture
+                    .notificationGateway
+                    .postedNotifications
+                    .isEmpty(),
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .USER_ACTION_HANDLED,
+                    ),
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .SNOOZE_SCHEDULED,
+                    ),
+            )
+        }
+
+    @Test
+    fun cancelReminderDelay_removesStoredDelayAndCancelsDelayedAlarm() =
+        runTest {
+            val target =
+                reminderTarget(
+                    seriesId = "series-1",
+                    occurrenceId = "occurrence-1",
+                    scheduledAt =
+                        FIXED_NOW.minusSeconds(
+                            60,
+                        ),
+                )
+
+            val fixture =
+                CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds =
+                        setOf(
+                            "series-1",
+                        ),
+                    nextTargets =
+                        emptyList(),
+                    eligibleTargets =
+                        mapOf(
+                            target.occurrenceId to
+                                    target,
+                        ),
+                )
+
+            fixture.coordinator.remindLater(
+                occurrenceId =
+                    target.occurrenceId,
+                delayMinutes = 10,
+            )
+
+            fixture.coordinator.cancelReminderDelay(
+                occurrenceId =
+                    target.occurrenceId,
+            )
+
+            assertTrue(
+                fixture
+                    .snoozedReminderStore
+                    .reminders
+                    .first()
+                    .isEmpty(),
+            )
+
+            assertTrue(
+                fixture
+                    .alarmGateway
+                    .cancelledKeys
+                    .any {
+                        it.stableToken ==
+                                AlarmKey
+                                    .forDelayedOccurrence(
+                                        target
+                                            .occurrenceId,
+                                    )
+                                    .stableToken
+                    },
+            )
+        }
+
+    @Test
+    fun nonexistentAlarmOccurrence_isIgnoredWithoutNotification() =
         runTest {
             val fixture =
                 CoordinatorFixture(
-                    remindersEnabled =
-                        true,
-                    permissionGranted =
-                        true,
-                    exactCapabilityGranted =
-                        false,
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = false,
                     allSeriesIds =
                         setOf(
                             "series-1",
@@ -522,26 +737,118 @@ class DefaultReminderCoordinatorTest {
                 )
 
             val result =
-                fixture.coordinator
-                    .handleAlarmFired(
-                        occurrenceId =
-                            "missing-occurrence",
-                    )
+                fixture.coordinator.handleAlarmFired(
+                    occurrenceId =
+                        "missing-occurrence",
+                )
 
             assertEquals(
                 AlarmFireIgnoreReason
                     .OCCURRENCE_NOT_ELIGIBLE,
                 (
                         result as
-                                AlarmFireResult
-                                .Ignored
+                                AlarmFireResult.Ignored
                         ).reason,
             )
 
             assertTrue(
-                fixture.notificationGateway
+                fixture
+                    .notificationGateway
                     .postedNotifications
                     .isEmpty(),
+            )
+
+            assertTrue(
+                fixture
+                    .diagnosticSink
+                    .eventTypes()
+                    .contains(
+                        ReminderDiagnosticEventType
+                            .NOTIFICATION_SKIPPED,
+                    ),
+            )
+        }
+
+    @Test
+    fun diagnosticPayloadDoesNotExposeMedicationNameInstructionRecipientReportOrRawIds() =
+        runTest {
+            val target =
+                reminderTarget(
+                    seriesId = "series-sensitive-raw",
+                    occurrenceId = "occurrence-sensitive-raw",
+                    scheduledAt =
+                        FIXED_NOW.minusSeconds(
+                            60,
+                        ),
+                    medicationName =
+                        "داروی محرمانه",
+                )
+
+            val fixture =
+                CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds =
+                        setOf(
+                            "series-sensitive-raw",
+                        ),
+                    nextTargets =
+                        emptyList(),
+                    eligibleTargets =
+                        mapOf(
+                            target.occurrenceId to
+                                    target,
+                        ),
+                )
+
+            fixture.coordinator.handleAlarmFired(
+                occurrenceId =
+                    target.occurrenceId,
+            )
+
+            val diagnosticText =
+                fixture
+                    .diagnosticSink
+                    .events
+                    .joinToString(
+                        separator = "\n",
+                    )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "داروی محرمانه",
+                ),
+            )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "دستور محرمانه",
+                ),
+            )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "نام فرد محرمانه",
+                ),
+            )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "گزارش محرمانه",
+                ),
+            )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "occurrence-sensitive-raw",
+                ),
+            )
+
+            assertFalse(
+                diagnosticText.contains(
+                    "series-sensitive-raw",
+                ),
             )
         }
 
@@ -549,8 +856,9 @@ class DefaultReminderCoordinatorTest {
         seriesId: String,
         occurrenceId: String,
         scheduledAt: Instant,
-    ): ReminderTarget {
-        return ReminderTarget(
+        medicationName: String = "داروی نمونه",
+    ): ReminderTarget =
+        ReminderTarget(
             alarmKey =
                 AlarmKey.forScheduleSeries(
                     scheduleSeriesId =
@@ -574,11 +882,10 @@ class DefaultReminderCoordinatorTest {
             zoneId =
                 "Asia/Tehran",
             medicationName =
-                "داروی نمونه",
+                medicationName,
         )
-    }
 
-    private companion object {
+    companion object {
         val FIXED_NOW: Instant =
             Instant.parse(
                 "2026-06-24T08:00:00Z",
@@ -592,9 +899,12 @@ private class CoordinatorFixture(
     exactCapabilityGranted: Boolean,
     allSeriesIds: Set<String>,
     nextTargets: List<ReminderTarget>,
-    eligibleTargets:
-    Map<String, ReminderTarget> =
+    eligibleTargets: Map<String, ReminderTarget> =
         emptyMap(),
+    failedDeliveryModes: Set<AlarmDeliveryMode> =
+        emptySet(),
+    notificationPostFails: Boolean =
+        false,
 ) {
     val scheduleSource =
         FakeReminderScheduleSource(
@@ -615,6 +925,9 @@ private class CoordinatorFixture(
                 ),
         )
 
+    val snoozedReminderStore =
+        FakeSnoozedReminderStore()
+
     val permissionGateway =
         MutableNotificationPermissionGateway(
             permissionGranted =
@@ -628,10 +941,19 @@ private class CoordinatorFixture(
         )
 
     val alarmGateway =
-        RecordingAlarmGateway()
+        RecordingAlarmGateway(
+            failedDeliveryModes =
+                failedDeliveryModes,
+        )
 
     val notificationGateway =
-        RecordingNotificationGateway()
+        RecordingNotificationGateway(
+            postFails =
+                notificationPostFails,
+        )
+
+    val diagnosticSink =
+        RecordingReminderDiagnosticSink()
 
     val coordinator =
         DefaultReminderCoordinator(
@@ -639,6 +961,8 @@ private class CoordinatorFixture(
                 scheduleSource,
             preferenceStore =
                 preferenceStore,
+            snoozedReminderStore =
+                snoozedReminderStore,
             notificationPermissionGateway =
                 permissionGateway,
             exactAlarmCapabilityGateway =
@@ -648,52 +972,43 @@ private class CoordinatorFixture(
             notificationGateway =
                 notificationGateway,
             clock =
-                MutableReminderClock(
-                    currentInstant =
-                        Instant.parse(
-                            "2026-06-24T08:00:00Z",
-                        ),
+                Clock.fixed(
+                    DefaultReminderCoordinatorTest
+                        .FIXED_NOW,
+                    ZoneOffset.UTC,
                 ),
+            diagnosticSink =
+                diagnosticSink,
         )
 }
 
 private class FakeReminderScheduleSource(
-    private val allSeriesIds:
-    Set<String>,
-    var nextTargets:
-    List<ReminderTarget>,
-    var eligibleTargets:
-    Map<String, ReminderTarget>,
+    private val allSeriesIds: Set<String>,
+    private val nextTargets: List<ReminderTarget>,
+    private val eligibleTargets: Map<String, ReminderTarget>,
 ) : ReminderScheduleSource {
 
     override suspend fun getAllScheduleSeriesIds():
-            Set<String> {
-        return allSeriesIds
-    }
+            Set<String> =
+        allSeriesIds
 
     override suspend fun hasActiveSchedule():
-            Boolean {
-        return allSeriesIds.isNotEmpty()
-    }
+            Boolean =
+        allSeriesIds.isNotEmpty()
 
     override suspend fun getNextEligibleTargets(
         now: Instant,
-    ): List<ReminderTarget> {
-        return nextTargets
-    }
+    ): List<ReminderTarget> =
+        nextTargets
 
     override suspend fun getEligibleOccurrence(
         occurrenceId: String,
-    ): ReminderTarget? {
-        return eligibleTargets[
-            occurrenceId
-        ]
-    }
+    ): ReminderTarget? =
+        eligibleTargets[occurrenceId]
 }
 
 private class FakeReminderPreferenceStore(
-    initialState:
-    ReminderPreferenceState,
+    initialState: ReminderPreferenceState,
 ) : ReminderPreferenceStore {
 
     private val mutableState =
@@ -719,99 +1034,87 @@ private class FakeReminderPreferenceStore(
 
     override suspend fun observeDeviceZone(
         zoneId: String,
-    ): TimezoneObservation {
-        val previousZone =
-            mutableState
-                .value
-                .lastObservedZoneId
-
-        return when {
-            previousZone == null -> {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            lastObservedZoneId =
-                                zoneId,
-                        )
-
-                TimezoneObservation.Initialized
-            }
-
-            previousZone == zoneId -> {
-                TimezoneObservation.Unchanged
-            }
-
-            else -> {
-                val warning =
-                    TimezoneWarning(
-                        previousZoneId =
-                            previousZone,
-                        currentZoneId =
-                            zoneId,
-                    )
-
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            lastObservedZoneId =
-                                zoneId,
-                            timezoneWarning =
-                                warning,
-                        )
-
-                TimezoneObservation
-                    .Changed(warning)
-            }
-        }
-    }
+    ): TimezoneObservation =
+        TimezoneObservation.Unchanged
 
     override suspend fun dismissTimezoneWarning() {
         mutableState.value =
             mutableState
                 .value
                 .copy(
-                    timezoneWarning = null,
+                    timezoneWarning =
+                        null,
                 )
     }
 }
 
+private class FakeSnoozedReminderStore :
+    SnoozedReminderStore {
+
+    private val mutableReminders =
+        MutableStateFlow<List<SnoozedReminder>>(
+            emptyList(),
+        )
+
+    override val reminders:
+            Flow<List<SnoozedReminder>> =
+        mutableReminders
+
+    override suspend fun upsert(
+        reminder: SnoozedReminder,
+    ) {
+        mutableReminders.value =
+            mutableReminders
+                .value
+                .filterNot {
+                    it.occurrenceId ==
+                            reminder.occurrenceId
+                } + reminder
+    }
+
+    override suspend fun delete(
+        occurrenceId: String,
+    ) {
+        mutableReminders.value =
+            mutableReminders
+                .value
+                .filterNot {
+                    it.occurrenceId ==
+                            occurrenceId
+                }
+    }
+
+    override suspend fun clear() {
+        mutableReminders.value =
+            emptyList()
+    }
+}
+
 private class MutableNotificationPermissionGateway(
-    var permissionGranted: Boolean,
-    var runtimePermissionRequired:
-    Boolean = true,
+    private val permissionGranted: Boolean,
 ) : NotificationPermissionGateway {
 
     override fun isPermissionGranted():
-            Boolean {
-        return permissionGranted
-    }
+            Boolean =
+        permissionGranted
 
     override fun requiresRuntimePermission():
-            Boolean {
-        return runtimePermissionRequired
-    }
+            Boolean =
+        true
 }
 
 private class MutableExactAlarmCapabilityGateway(
-    var capabilityGranted: Boolean,
+    private val capabilityGranted: Boolean,
 ) : ExactAlarmCapabilityGateway {
 
     override fun canScheduleExactAlarms():
-            Boolean {
-        return capabilityGranted
-    }
+            Boolean =
+        capabilityGranted
 }
 
-private class RecordingAlarmGateway :
-    AlarmGateway {
-
-    val attemptedModes =
-        mutableListOf<AlarmDeliveryMode>()
-
-    val scheduledRequests =
-        mutableListOf<AlarmRequest>()
+private class RecordingAlarmGateway(
+    private val failedDeliveryModes: Set<AlarmDeliveryMode>,
+) : AlarmGateway {
 
     val ownedRequests =
         linkedMapOf<AlarmKey, AlarmRequest>()
@@ -819,101 +1122,77 @@ private class RecordingAlarmGateway :
     val cancelledKeys =
         mutableListOf<AlarmKey>()
 
-    var failExactRegistration:
-            Boolean = false
-
     override fun schedule(
         request: AlarmRequest,
     ) {
-        attemptedModes +=
-            request.deliveryMode
-
         if (
-            request.deliveryMode ==
-            AlarmDeliveryMode.EXACT &&
-            failExactRegistration
+            request.deliveryMode in
+            failedDeliveryModes
         ) {
-            throw SecurityException(
-                "Synthetic exact-alarm denial.",
+            throw IllegalStateException(
+                "Forced alarm scheduling failure.",
             )
         }
 
-        scheduledRequests +=
+        ownedRequests[request.alarmKey] =
             request
-
-        ownedRequests[
-            request.alarmKey
-        ] = request
     }
 
     override fun cancel(
         alarmKey: AlarmKey,
     ) {
-        cancelledKeys +=
-            alarmKey
-
-        ownedRequests.remove(
-            alarmKey,
-        )
+        cancelledKeys += alarmKey
+        ownedRequests.remove(alarmKey)
     }
 }
 
-private class RecordingNotificationGateway :
-    NotificationGateway {
+private class RecordingNotificationGateway(
+    private val postFails: Boolean,
+) : NotificationGateway {
 
     val postedNotifications =
         mutableListOf<ReminderNotification>()
 
-    val cancelledOccurrenceIds =
-        mutableListOf<String>()
-
-    var cancelAllCalls =
+    var cancelAllCount =
         0
-        private set
 
     override fun post(
-        notification:
-        ReminderNotification,
+        notification: ReminderNotification,
     ) {
-        postedNotifications +=
-            notification
+        if (postFails) {
+            throw IllegalStateException(
+                "Forced notification posting failure.",
+            )
+        }
+
+        postedNotifications += notification
     }
 
     override fun cancel(
         occurrenceId: String,
     ) {
-        cancelledOccurrenceIds +=
-            occurrenceId
+        Unit
     }
 
     override fun cancelAll() {
-        cancelAllCalls += 1
+        cancelAllCount += 1
     }
 }
 
-private class MutableReminderClock(
-    var currentInstant: Instant,
-    private val zone:
-    ZoneId = ZoneOffset.UTC,
-) : Clock() {
+private class RecordingReminderDiagnosticSink :
+    ReminderDiagnosticSink {
 
-    override fun getZone():
-            ZoneId {
-        return zone
+    val events =
+        mutableListOf<ReminderDiagnosticEvent>()
+
+    override fun record(
+        event: ReminderDiagnosticEvent,
+    ) {
+        events += event
     }
 
-    override fun withZone(
-        zone: ZoneId,
-    ): Clock {
-        return MutableReminderClock(
-            currentInstant =
-                currentInstant,
-            zone = zone,
-        )
-    }
-
-    override fun instant():
-            Instant {
-        return currentInstant
-    }
+    fun eventTypes(): List<ReminderDiagnosticEventType> =
+        events.map {
+            it.type
+        }
 }

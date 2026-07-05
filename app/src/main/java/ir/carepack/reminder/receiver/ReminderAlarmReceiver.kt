@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import ir.carepack.CarePackApplication
+import ir.carepack.domain.reminder.ReminderDiagnosticEventType
+import ir.carepack.domain.reminder.recordReminderDiagnostic
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,6 +40,21 @@ class ReminderAlarmReceiver :
             context.applicationContext as?
                     CarePackApplication
                 ?: return
+
+        application
+            .container
+            .reminderDiagnosticSink
+            .recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .RECEIVER_FIRED,
+                clock =
+                    application
+                        .container
+                        .clock,
+                occurrenceId =
+                    occurrenceId,
+            )
 
         val pendingResult =
             goAsync()

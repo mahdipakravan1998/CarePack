@@ -14,11 +14,13 @@ import androidx.test.core.app.ApplicationProvider
 import ir.carepack.R
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.reminder.ReminderAvailability
+import ir.carepack.domain.reminder.ReminderReadinessPolicy
 import ir.carepack.feature.reminder.NotificationPermissionUiState
 import ir.carepack.feature.reminder.ReminderSettingsScreen
 import ir.carepack.feature.reminder.ReminderSettingsUiState
 import ir.carepack.feature.today.TodayScreen
 import ir.carepack.feature.today.TodayUiState
+import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
@@ -46,22 +48,19 @@ class ReminderComposeTest {
             CarePackTheme {
                 ReminderSettingsScreen(
                     state =
-                        ReminderSettingsUiState(
-                            isLoading = false,
-                            remindersEnabled =
-                                false,
-                            notificationPermissionState =
+                        reminderState(
+                            remindersEnabled = false,
+                            permissionState =
                                 NotificationPermissionUiState
                                     .DENIED,
-                            notificationRuntimePermissionRequired =
-                                true,
-                            hasActiveSchedule =
-                                true,
-                            exactAlarmCapabilityGranted =
-                                false,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = false,
                             availability =
                                 ReminderAvailability
                                     .DISABLED,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.UNKNOWN,
+                            manufacturer = "Google",
                         ),
                     onBack = {},
                     onRemindersEnabledChanged = {},
@@ -108,22 +107,19 @@ class ReminderComposeTest {
             CarePackTheme {
                 ReminderSettingsScreen(
                     state =
-                        ReminderSettingsUiState(
-                            isLoading = false,
-                            remindersEnabled =
-                                true,
-                            notificationPermissionState =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
                                 NotificationPermissionUiState
                                     .DENIED,
-                            notificationRuntimePermissionRequired =
-                                true,
-                            hasActiveSchedule =
-                                true,
-                            exactAlarmCapabilityGranted =
-                                false,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = false,
                             availability =
                                 ReminderAvailability
                                     .NOTIFICATION_PERMISSION_REQUIRED,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.UNKNOWN,
+                            manufacturer = "Google",
                         ),
                     onBack = {},
                     onRemindersEnabledChanged = {
@@ -173,6 +169,13 @@ class ReminderComposeTest {
                 "notification_permission_status",
             )
             .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "continue_without_permissions",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
     }
 
     @Test
@@ -181,22 +184,19 @@ class ReminderComposeTest {
             CarePackTheme {
                 ReminderSettingsScreen(
                     state =
-                        ReminderSettingsUiState(
-                            isLoading = false,
-                            remindersEnabled =
-                                true,
-                            notificationPermissionState =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
                                 NotificationPermissionUiState
                                     .GRANTED,
-                            notificationRuntimePermissionRequired =
-                                true,
-                            hasActiveSchedule =
-                                true,
-                            exactAlarmCapabilityGranted =
-                                false,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = false,
                             availability =
                                 ReminderAvailability
                                     .APPROXIMATE,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.IGNORED,
+                            manufacturer = "Google",
                         ),
                     onBack = {},
                     onRemindersEnabledChanged = {},
@@ -224,6 +224,13 @@ class ReminderComposeTest {
 
         composeRule
             .onNodeWithTag(
+                "continue_with_approximate_reminders",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
                 "reminder_delivery_limitations",
             )
             .performScrollTo()
@@ -242,22 +249,19 @@ class ReminderComposeTest {
             CarePackTheme {
                 ReminderSettingsScreen(
                     state =
-                        ReminderSettingsUiState(
-                            isLoading = false,
-                            remindersEnabled =
-                                true,
-                            notificationPermissionState =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
                                 NotificationPermissionUiState
                                     .GRANTED,
-                            notificationRuntimePermissionRequired =
-                                true,
-                            hasActiveSchedule =
-                                false,
-                            exactAlarmCapabilityGranted =
-                                false,
+                            hasActiveSchedule = false,
+                            exactAlarmCapabilityGranted = false,
                             availability =
                                 ReminderAvailability
                                     .NO_ACTIVE_SCHEDULE,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.UNKNOWN,
+                            manufacturer = "Google",
                         ),
                     onBack = {},
                     onRemindersEnabledChanged = {},
@@ -280,6 +284,230 @@ class ReminderComposeTest {
             )
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun batteryOptimizationNotIgnored_showsBatteryGuidance() {
+        composeRule.setContent {
+            CarePackTheme {
+                ReminderSettingsScreen(
+                    state =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
+                                NotificationPermissionUiState
+                                    .GRANTED,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                            batteryOptimizationState =
+                                BatteryOptimizationState
+                                    .NOT_IGNORED,
+                            manufacturer = "Google",
+                        ),
+                    onBack = {},
+                    onRemindersEnabledChanged = {},
+                    onRequestNotificationPermission = {},
+                    onOpenNotificationSettings = {},
+                    onRequestExactAlarmAccess = {},
+                    onOpenBatterySettings = {},
+                    onReviewSchedules = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithTag(
+                "battery_guidance_card",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "battery_optimization_status",
+            )
+            .assertIsDisplayed()
+            .assertTextEquals(
+                context.getString(
+                    R.string
+                        .battery_optimization_not_ignored,
+                ),
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "open_battery_settings",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun xiaomiGuidance_isActionableAndManufacturerSpecific() {
+        composeRule.setContent {
+            CarePackTheme {
+                ReminderSettingsScreen(
+                    state =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
+                                NotificationPermissionUiState
+                                    .GRANTED,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.IGNORED,
+                            manufacturer = "XIAOMI",
+                        ),
+                    onBack = {},
+                    onRemindersEnabledChanged = {},
+                    onRequestNotificationPermission = {},
+                    onOpenNotificationSettings = {},
+                    onRequestExactAlarmAccess = {},
+                    onReviewSchedules = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_card",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        val body =
+            composeRule
+                .onNodeWithTag(
+                    "oem_guidance_body",
+                )
+
+        body.assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_action_0",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_action_1",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "view_oem_guidance",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun samsungGuidance_isActionableAndManufacturerSpecific() {
+        composeRule.setContent {
+            CarePackTheme {
+                ReminderSettingsScreen(
+                    state =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
+                                NotificationPermissionUiState
+                                    .GRANTED,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.IGNORED,
+                            manufacturer = "SAMSUNG",
+                        ),
+                    onBack = {},
+                    onRemindersEnabledChanged = {},
+                    onRequestNotificationPermission = {},
+                    onOpenNotificationSettings = {},
+                    onRequestExactAlarmAccess = {},
+                    onReviewSchedules = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_card",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_action_0",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_action_1",
+            )
+            .assertIsDisplayed()
+    }
+
+    @Test
+    fun genericGuidance_isVisibleForUnknownManufacturerWithoutGuaranteedClaim() {
+        composeRule.setContent {
+            CarePackTheme {
+                ReminderSettingsScreen(
+                    state =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
+                                NotificationPermissionUiState
+                                    .GRANTED,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.UNKNOWN,
+                            manufacturer = "Unknown",
+                        ),
+                    onBack = {},
+                    onRemindersEnabledChanged = {},
+                    onRequestNotificationPermission = {},
+                    onOpenNotificationSettings = {},
+                    onRequestExactAlarmAccess = {},
+                    onReviewSchedules = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_card",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "oem_guidance_body",
+            )
+            .assertIsDisplayed()
+            .assertTextEquals(
+                context.getString(
+                    R.string
+                        .generic_oem_guidance_body,
+                ),
+            )
     }
 
     @Test
@@ -328,6 +556,69 @@ class ReminderComposeTest {
                 "today_screen",
             )
             .assertIsDisplayed()
+    }
+
+    private fun reminderState(
+        remindersEnabled: Boolean,
+        permissionState:
+        NotificationPermissionUiState,
+        hasActiveSchedule: Boolean,
+        exactAlarmCapabilityGranted: Boolean,
+        availability: ReminderAvailability,
+        batteryOptimizationState:
+        BatteryOptimizationState,
+        manufacturer: String?,
+    ): ReminderSettingsUiState {
+        val permissionGranted =
+            permissionState ==
+                    NotificationPermissionUiState
+                        .GRANTED ||
+                    permissionState ==
+                    NotificationPermissionUiState
+                        .NOT_REQUIRED
+
+        val readiness =
+            ReminderReadinessPolicy.evaluate(
+                remindersEnabled =
+                    remindersEnabled,
+                hasActiveSchedule =
+                    hasActiveSchedule,
+                notificationRuntimePermissionRequired =
+                    permissionState !=
+                            NotificationPermissionUiState
+                                .NOT_REQUIRED,
+                notificationPermissionGranted =
+                    permissionGranted,
+                canScheduleExactAlarms =
+                    exactAlarmCapabilityGranted,
+                exactAlarmRelevant =
+                    remindersEnabled &&
+                            hasActiveSchedule,
+                batteryOptimizationState =
+                    batteryOptimizationState,
+                manufacturer =
+                    manufacturer,
+            )
+
+        return ReminderSettingsUiState(
+            isLoading = false,
+            remindersEnabled =
+                remindersEnabled,
+            notificationPermissionState =
+                permissionState,
+            notificationRuntimePermissionRequired =
+                permissionState !=
+                        NotificationPermissionUiState
+                            .NOT_REQUIRED,
+            hasActiveSchedule =
+                hasActiveSchedule,
+            exactAlarmCapabilityGranted =
+                exactAlarmCapabilityGranted,
+            availability =
+                availability,
+            readiness =
+                readiness,
+        )
     }
 
     private fun assertTagDoesNotExist(

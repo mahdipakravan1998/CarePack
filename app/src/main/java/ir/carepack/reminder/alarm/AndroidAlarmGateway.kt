@@ -6,10 +6,20 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import ir.carepack.domain.reminder.AlarmKey
+import ir.carepack.domain.reminder.NoOpReminderDiagnosticSink
+import ir.carepack.domain.reminder.ReminderDeliveryMode
+import ir.carepack.domain.reminder.ReminderDiagnosticEventType
+import ir.carepack.domain.reminder.ReminderDiagnosticSink
+import ir.carepack.domain.reminder.recordReminderDiagnostic
 import ir.carepack.reminder.receiver.ReminderAlarmReceiver
+import java.time.Clock
 
 class AndroidAlarmGateway(
     context: Context,
+    private val clock: Clock = Clock.systemUTC(),
+    private val diagnosticSink:
+    ReminderDiagnosticSink =
+        NoOpReminderDiagnosticSink,
 ) : AlarmGateway {
 
     private val applicationContext =
@@ -26,41 +36,94 @@ class AndroidAlarmGateway(
     override fun schedule(
         request: AlarmRequest,
     ) {
-        val pendingIntent =
-            createPendingIntent(
-                alarmKey =
-                    request.alarmKey,
+        diagnosticSink.recordReminderDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .ALARM_REGISTRATION_ATTEMPTED,
+            clock = clock,
+            occurrenceId =
+                request.occurrenceId,
+            alarmKey =
+                request.alarmKey,
+            deliveryMode =
+                request
+                    .deliveryMode
+                    .toReminderDeliveryMode(),
+        )
+
+        try {
+            val pendingIntent =
+                createPendingIntent(
+                    alarmKey =
+                        request.alarmKey,
+                    occurrenceId =
+                        request.occurrenceId,
+                    flags =
+                        PendingIntent
+                            .FLAG_UPDATE_CURRENT or
+                                PendingIntent
+                                    .FLAG_IMMUTABLE,
+                )
+
+            when (request.deliveryMode) {
+                AlarmDeliveryMode.EXACT -> {
+                    alarmManager
+                        .setExactAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            request
+                                .triggerAt
+                                .toEpochMilli(),
+                            pendingIntent,
+                        )
+                }
+
+                AlarmDeliveryMode.APPROXIMATE -> {
+                    alarmManager
+                        .setAndAllowWhileIdle(
+                            AlarmManager.RTC_WAKEUP,
+                            request
+                                .triggerAt
+                                .toEpochMilli(),
+                            pendingIntent,
+                        )
+                }
+            }
+
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTERED,
+                clock = clock,
                 occurrenceId =
                     request.occurrenceId,
-                flags =
-                    PendingIntent
-                        .FLAG_UPDATE_CURRENT or
-                            PendingIntent
-                                .FLAG_IMMUTABLE,
+                alarmKey =
+                    request.alarmKey,
+                deliveryMode =
+                    request
+                        .deliveryMode
+                        .toReminderDeliveryMode(),
+            )
+        } catch (failure: RuntimeException) {
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTRATION_FAILED,
+                clock = clock,
+                occurrenceId =
+                    request.occurrenceId,
+                alarmKey =
+                    request.alarmKey,
+                deliveryMode =
+                    request
+                        .deliveryMode
+                        .toReminderDeliveryMode(),
+                outcome =
+                    failure
+                        .javaClass
+                        .simpleName,
             )
 
-        when (request.deliveryMode) {
-            AlarmDeliveryMode.EXACT -> {
-                alarmManager
-                    .setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        request
-                            .triggerAt
-                            .toEpochMilli(),
-                        pendingIntent,
-                    )
-            }
-
-            AlarmDeliveryMode.APPROXIMATE -> {
-                alarmManager
-                    .setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        request
-                            .triggerAt
-                            .toEpochMilli(),
-                        pendingIntent,
-                    )
-            }
+            throw failure
         }
     }
 
@@ -153,6 +216,16 @@ class AndroidAlarmGateway(
                     .packageName
         }
     }
+
+    private fun AlarmDeliveryMode.toReminderDeliveryMode():
+            ReminderDeliveryMode =
+        when (this) {
+            AlarmDeliveryMode.EXACT ->
+                ReminderDeliveryMode.EXACT
+
+            AlarmDeliveryMode.APPROXIMATE ->
+                ReminderDeliveryMode.APPROXIMATE
+        }
 
     private companion object {
         const val REQUEST_CODE =

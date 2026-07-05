@@ -20,8 +20,7 @@ import org.xmlpull.v1.XmlPullParser
 @RunWith(AndroidJUnit4::class)
 class ReleaseManifestContractTest {
 
-    private val context:
-            Context =
+    private val context: Context =
         ApplicationProvider
             .getApplicationContext()
 
@@ -49,8 +48,10 @@ class ReleaseManifestContractTest {
         val unapprovedPermissions =
             requestedPermissions
                 .filterNot { permission ->
-                    permission in APPROVED_PRODUCT_PERMISSIONS ||
-                            permission == debugDynamicReceiverPermission()
+                    permission in
+                            APPROVED_PRODUCT_PERMISSIONS ||
+                            permission ==
+                            debugDynamicReceiverPermission()
                 }
 
         assertTrue(
@@ -66,7 +67,8 @@ class ReleaseManifestContractTest {
 
         assertFalse(
             applicationInfo.flags and
-                    ApplicationInfo.FLAG_ALLOW_BACKUP != 0,
+                    ApplicationInfo.FLAG_ALLOW_BACKUP !=
+                    0,
         )
 
         assertEquals(
@@ -97,7 +99,9 @@ class ReleaseManifestContractTest {
             packageManager.getPackageInfo(
                 context.packageName,
                 PackageManager.PackageInfoFlags.of(
-                    PackageManager.GET_PERMISSIONS.toLong(),
+                    PackageManager
+                        .GET_PERMISSIONS
+                        .toLong(),
                 ),
             )
         } else {
@@ -120,7 +124,9 @@ class ReleaseManifestContractTest {
         ) {
             packageManager.getApplicationInfo(
                 context.packageName,
-                PackageManager.ApplicationInfoFlags.of(0L),
+                PackageManager.ApplicationInfoFlags.of(
+                    0L,
+                ),
             )
         } else {
             @Suppress("DEPRECATION")
@@ -182,6 +188,8 @@ class ReleaseManifestContractTest {
                 Manifest.permission.POST_NOTIFICATIONS,
                 Manifest.permission.SCHEDULE_EXACT_ALARM,
                 Manifest.permission.RECEIVE_BOOT_COMPLETED,
+                Manifest.permission.USE_FULL_SCREEN_INTENT,
+                Manifest.permission.VIBRATE,
             )
 
         val REQUIRED_BACKUP_DOMAINS =

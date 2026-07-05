@@ -41,6 +41,7 @@ import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.SetupProgress
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
+import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.report.CaregiverReportService
@@ -155,34 +156,28 @@ private val primaryDestinations =
     listOf(
         PrimaryDestination(
             route = Routes.Today,
-            labelResId =
-                R.string.primary_nav_today,
+            labelResId = R.string.primary_nav_today,
             testTag = "primary_nav_today",
         ),
         PrimaryDestination(
             route = Routes.CarePlan,
-            labelResId =
-                R.string.primary_nav_medications,
+            labelResId = R.string.primary_nav_medications,
             testTag = "primary_nav_medications",
         ),
         PrimaryDestination(
             route = Routes.History,
-            labelResId =
-                R.string.primary_nav_history,
+            labelResId = R.string.primary_nav_history,
             testTag = "primary_nav_history",
         ),
         PrimaryDestination(
             route = Routes.Settings,
-            labelResId =
-                R.string.primary_nav_settings,
+            labelResId = R.string.primary_nav_settings,
             testTag = "primary_nav_settings",
         ),
     )
 
 sealed interface AppLaunchState {
-
-    data object Loading :
-        AppLaunchState
+    data object Loading : AppLaunchState
 
     data class Ready(
         val startRoute: String,
@@ -195,8 +190,7 @@ sealed interface AppLaunchState {
 
 class AppViewModel(
     private val carePlanService: CarePlanService,
-    private val setupPreferenceStore:
-    SetupPreferenceStore,
+    private val setupPreferenceStore: SetupPreferenceStore,
 ) : ViewModel() {
 
     private val mutableState =
@@ -238,7 +232,8 @@ class AppViewModel(
                     )
                 } catch (_: Exception) {
                     AppLaunchState.Error(
-                        "راه‌اندازی برنامه انجام نشد.",
+                        message =
+                            "راه‌اندازی برنامه انجام نشد.",
                     )
                 }
         }
@@ -247,8 +242,8 @@ class AppViewModel(
     private fun routeFor(
         setupCompleted: Boolean,
         progress: SetupProgress,
-    ): String =
-        when {
+    ): String {
+        return when {
             setupCompleted &&
                     progress == SetupProgress.Complete -> {
                 Routes.Today
@@ -256,7 +251,8 @@ class AppViewModel(
 
             progress is SetupProgress.RecipientOnly -> {
                 Routes.medicationSchedule(
-                    progress.recipientId,
+                    recipientId =
+                        progress.recipientId,
                 )
             }
 
@@ -268,13 +264,12 @@ class AppViewModel(
                 Routes.Onboarding
             }
         }
+    }
 
     companion object {
-
         fun factory(
             carePlanService: CarePlanService,
-            setupPreferenceStore:
-            SetupPreferenceStore,
+            setupPreferenceStore: SetupPreferenceStore,
         ): ViewModelProvider.Factory =
             viewModelFactory {
                 initializer {
@@ -292,34 +287,21 @@ class AppViewModel(
 @Composable
 fun CarePackApp(
     carePlanService: CarePlanService,
-    todayQueryService:
-    TodayQueryService,
-    caregiverReportService:
-    CaregiverReportService,
-    setupPreferenceStore:
-    SetupPreferenceStore,
-    reminderPreferenceStore:
-    ReminderPreferenceStore,
-    reminderCoordinator:
-    ReminderCoordinator,
-    notificationPermissionGateway:
-    NotificationPermissionGateway,
-    todayReportFormatter:
-    TodayReportFormatter,
-    privacyPreferenceStore:
-    PrivacyPreferenceStore,
-    userExperiencePreferenceStore:
-    UserExperiencePreferenceStore,
-    textShareGateway:
-    TextShareGateway,
-    dataDeletionCoordinator:
-    DataDeletionCoordinator,
+    todayQueryService: TodayQueryService,
+    caregiverReportService: CaregiverReportService,
+    setupPreferenceStore: SetupPreferenceStore,
+    reminderPreferenceStore: ReminderPreferenceStore,
+    reminderCoordinator: ReminderCoordinator,
+    notificationPermissionGateway: NotificationPermissionGateway,
+    todayReportFormatter: TodayReportFormatter,
+    privacyPreferenceStore: PrivacyPreferenceStore,
+    userExperiencePreferenceStore: UserExperiencePreferenceStore,
+    textShareGateway: TextShareGateway,
+    dataDeletionCoordinator: DataDeletionCoordinator,
     clock: Clock,
     zoneProvider: ZoneProvider,
-    notificationOccurrenceId:
-    String? = null,
-    onNotificationOccurrenceHandled:
-        () -> Unit = {},
+    notificationOccurrenceId: String? = null,
+    onNotificationOccurrenceHandled: () -> Unit = {},
 ) {
     val appViewModel:
             AppViewModel =
@@ -338,54 +320,37 @@ fun CarePackApp(
         .state
         .collectAsStateWithLifecycle()
 
-    when (
-        val currentState =
-            launchState
-    ) {
+    when (val state = launchState) {
         AppLaunchState.Loading -> {
             LoadingScreen()
         }
 
         is AppLaunchState.Error -> {
             LaunchErrorScreen(
-                message =
-                    currentState.message,
-                onRetry =
-                    appViewModel::refresh,
+                message = state.message,
+                onRetry = appViewModel::refresh,
             )
         }
 
         is AppLaunchState.Ready -> {
             CarePackNavigation(
-                startRoute =
-                    currentState.startRoute,
-                carePlanService =
-                    carePlanService,
-                todayQueryService =
-                    todayQueryService,
-                caregiverReportService =
-                    caregiverReportService,
-                setupPreferenceStore =
-                    setupPreferenceStore,
-                reminderPreferenceStore =
-                    reminderPreferenceStore,
-                reminderCoordinator =
-                    reminderCoordinator,
+                startRoute = state.startRoute,
+                carePlanService = carePlanService,
+                todayQueryService = todayQueryService,
+                caregiverReportService = caregiverReportService,
+                setupPreferenceStore = setupPreferenceStore,
+                reminderPreferenceStore = reminderPreferenceStore,
+                reminderCoordinator = reminderCoordinator,
                 notificationPermissionGateway =
                     notificationPermissionGateway,
-                todayReportFormatter =
-                    todayReportFormatter,
-                privacyPreferenceStore =
-                    privacyPreferenceStore,
+                todayReportFormatter = todayReportFormatter,
+                privacyPreferenceStore = privacyPreferenceStore,
                 userExperiencePreferenceStore =
                     userExperiencePreferenceStore,
-                textShareGateway =
-                    textShareGateway,
-                dataDeletionCoordinator =
-                    dataDeletionCoordinator,
+                textShareGateway = textShareGateway,
+                dataDeletionCoordinator = dataDeletionCoordinator,
                 clock = clock,
-                zoneProvider =
-                    zoneProvider,
+                zoneProvider = zoneProvider,
                 notificationOccurrenceId =
                     notificationOccurrenceId,
                 onNotificationOccurrenceHandled =
@@ -418,9 +383,7 @@ private fun LaunchErrorScreen(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(
-                    24.dp,
-                ),
+                .padding(24.dp),
         horizontalAlignment =
             Alignment.CenterHorizontally,
         verticalArrangement =
@@ -438,7 +401,9 @@ private fun LaunchErrorScreen(
                 ),
         ) {
             Text(
-                text = "تلاش دوباره",
+                text = stringResource(
+                    R.string.retry,
+                ),
             )
         }
     }
@@ -447,45 +412,32 @@ private fun LaunchErrorScreen(
 @Composable
 private fun CarePackNavigation(
     startRoute: String,
-    carePlanService:
-    CarePlanService,
-    todayQueryService:
-    TodayQueryService,
-    caregiverReportService:
-    CaregiverReportService,
-    setupPreferenceStore:
-    SetupPreferenceStore,
-    reminderPreferenceStore:
-    ReminderPreferenceStore,
-    reminderCoordinator:
-    ReminderCoordinator,
-    notificationPermissionGateway:
-    NotificationPermissionGateway,
-    todayReportFormatter:
-    TodayReportFormatter,
-    privacyPreferenceStore:
-    PrivacyPreferenceStore,
-    userExperiencePreferenceStore:
-    UserExperiencePreferenceStore,
-    textShareGateway:
-    TextShareGateway,
-    dataDeletionCoordinator:
-    DataDeletionCoordinator,
+    carePlanService: CarePlanService,
+    todayQueryService: TodayQueryService,
+    caregiverReportService: CaregiverReportService,
+    setupPreferenceStore: SetupPreferenceStore,
+    reminderPreferenceStore: ReminderPreferenceStore,
+    reminderCoordinator: ReminderCoordinator,
+    notificationPermissionGateway: NotificationPermissionGateway,
+    todayReportFormatter: TodayReportFormatter,
+    privacyPreferenceStore: PrivacyPreferenceStore,
+    userExperiencePreferenceStore: UserExperiencePreferenceStore,
+    textShareGateway: TextShareGateway,
+    dataDeletionCoordinator: DataDeletionCoordinator,
     clock: Clock,
     zoneProvider: ZoneProvider,
-    notificationOccurrenceId:
-    String?,
-    onNotificationOccurrenceHandled:
-        () -> Unit,
+    notificationOccurrenceId: String?,
+    onNotificationOccurrenceHandled: () -> Unit,
 ) {
     val navController =
         rememberNavController()
 
-    val navBackStackEntry by
-    navController.currentBackStackEntryAsState()
+    val backStackEntry by
+    navController
+        .currentBackStackEntryAsState()
 
     val currentRoute =
-        navBackStackEntry
+        backStackEntry
             ?.destination
             ?.route
 
@@ -498,7 +450,8 @@ private fun CarePackNavigation(
         if (!occurrenceId.isNullOrBlank()) {
             navController.navigate(
                 Routes.occurrenceDetail(
-                    occurrenceId,
+                    occurrenceId =
+                        occurrenceId,
                 ),
             ) {
                 launchSingleTop = true
@@ -511,15 +464,14 @@ private fun CarePackNavigation(
     Scaffold(
         bottomBar = {
             if (
-                currentRoute in primaryDestinations.map {
+                currentRoute in
+                primaryDestinations.map {
                     it.route
                 }
             ) {
                 CarePackPrimaryNavigationBar(
-                    currentRoute =
-                        currentRoute,
-                    navController =
-                        navController,
+                    currentRoute = currentRoute,
+                    navController = navController,
                 )
             }
         },
@@ -555,7 +507,7 @@ private fun CarePackNavigation(
             composable(
                 Routes.Recipient,
             ) {
-                val recipientViewModel:
+                val viewModel:
                         RecipientSetupViewModel =
                     viewModel(
                         factory =
@@ -567,13 +519,13 @@ private fun CarePackNavigation(
                     )
 
                 RecipientSetupRoute(
-                    viewModel =
-                        recipientViewModel,
+                    viewModel = viewModel,
                     onContinue = {
                             recipientId ->
                         navController.navigate(
                             Routes.medicationSchedule(
-                                recipientId,
+                                recipientId =
+                                    recipientId,
                             ),
                         ) {
                             popUpTo(
@@ -589,43 +541,37 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.MedicationSchedulePattern,
+                route = Routes.MedicationSchedulePattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.RecipientIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val recipientId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.RecipientIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.RecipientIdArgument,
+                        ),
                     )
 
-                val medicationViewModel:
+                val viewModel:
                         MedicationScheduleViewModel =
                     viewModel(
                         factory =
                             MedicationScheduleViewModel
                                 .factory(
-                                    recipientId =
-                                        recipientId,
+                                    recipientId = recipientId,
                                     carePlanService =
                                         carePlanService,
                                     setupPreferenceStore =
                                         setupPreferenceStore,
                                     userExperiencePreferenceStore =
                                         userExperiencePreferenceStore,
-                                    completeInitialSetup =
-                                        true,
+                                    completeInitialSetup = true,
                                     clock = clock,
                                     zoneProvider =
                                         zoneProvider,
@@ -633,8 +579,7 @@ private fun CarePackNavigation(
                     )
 
                 MedicationScheduleRoute(
-                    viewModel =
-                        medicationViewModel,
+                    viewModel = viewModel,
                     onCompleted = {
                         navController.navigate(
                             Routes.Today,
@@ -648,13 +593,20 @@ private fun CarePackNavigation(
                             launchSingleTop = true
                         }
                     },
+                    onOpenReminderSettings = {
+                        navController.navigate(
+                            Routes.ReminderSettings,
+                        ) {
+                            launchSingleTop = true
+                        }
+                    },
                 )
             }
 
             composable(
                 Routes.Today,
             ) {
-                val todayViewModel:
+                val viewModel:
                         TodayViewModel =
                     viewModel(
                         factory =
@@ -667,6 +619,10 @@ private fun CarePackNavigation(
                                     carePlanService,
                                 reminderPreferenceStore =
                                     reminderPreferenceStore,
+                                reminderCoordinator =
+                                    reminderCoordinator,
+                                userExperiencePreferenceStore =
+                                    userExperiencePreferenceStore,
                                 clock = clock,
                                 zoneProvider =
                                     zoneProvider,
@@ -674,8 +630,7 @@ private fun CarePackNavigation(
                     )
 
                 TodayRoute(
-                    viewModel =
-                        todayViewModel,
+                    viewModel = viewModel,
                     onOpenCarePlan = {
                         navController.navigatePrimary(
                             Routes.CarePlan,
@@ -690,7 +645,8 @@ private fun CarePackNavigation(
                             occurrenceId ->
                         navController.navigate(
                             Routes.occurrenceDetail(
-                                occurrenceId,
+                                occurrenceId =
+                                    occurrenceId,
                             ),
                         )
                     },
@@ -700,7 +656,7 @@ private fun CarePackNavigation(
             composable(
                 Routes.CarePlan,
             ) {
-                val carePlanViewModel:
+                val viewModel:
                         CarePlanViewModel =
                     viewModel(
                         factory =
@@ -711,13 +667,13 @@ private fun CarePackNavigation(
                     )
 
                 CarePlanRoute(
-                    viewModel =
-                        carePlanViewModel,
+                    viewModel = viewModel,
                     onAddMedication = {
                             recipientId ->
                         navController.navigate(
                             Routes.addMedication(
-                                recipientId,
+                                recipientId =
+                                    recipientId,
                             ),
                         )
                     },
@@ -725,7 +681,8 @@ private fun CarePackNavigation(
                             medicationId ->
                         navController.navigate(
                             Routes.addSchedule(
-                                medicationId,
+                                medicationId =
+                                    medicationId,
                             ),
                         )
                     },
@@ -733,7 +690,8 @@ private fun CarePackNavigation(
                             medicationId ->
                         navController.navigate(
                             Routes.editMedicationText(
-                                medicationId,
+                                medicationId =
+                                    medicationId,
                             ),
                         )
                     },
@@ -741,7 +699,8 @@ private fun CarePackNavigation(
                             scheduleSeriesId ->
                         navController.navigate(
                             Routes.editSchedule(
-                                scheduleSeriesId,
+                                scheduleSeriesId =
+                                    scheduleSeriesId,
                             ),
                         )
                     },
@@ -751,7 +710,7 @@ private fun CarePackNavigation(
             composable(
                 Routes.History,
             ) {
-                val todayViewModel:
+                val viewModel:
                         TodayViewModel =
                     viewModel(
                         factory =
@@ -764,6 +723,10 @@ private fun CarePackNavigation(
                                     carePlanService,
                                 reminderPreferenceStore =
                                     reminderPreferenceStore,
+                                reminderCoordinator =
+                                    reminderCoordinator,
+                                userExperiencePreferenceStore =
+                                    userExperiencePreferenceStore,
                                 clock = clock,
                                 zoneProvider =
                                     zoneProvider,
@@ -771,7 +734,7 @@ private fun CarePackNavigation(
                     )
 
                 val state by
-                todayViewModel
+                viewModel
                     .state
                     .collectAsStateWithLifecycle()
 
@@ -786,11 +749,10 @@ private fun CarePackNavigation(
                             Routes.Today,
                         )
                     },
-                    onHistorySelected = {
-                        todayViewModel.showHistory()
-                    },
+                    onHistorySelected =
+                        viewModel::showHistory,
                     onRetry =
-                        todayViewModel::retry,
+                        viewModel::retry,
                     onOpenCarePlan = {
                         navController.navigatePrimary(
                             Routes.CarePlan,
@@ -805,17 +767,51 @@ private fun CarePackNavigation(
                             occurrenceId ->
                         navController.navigate(
                             Routes.occurrenceDetail(
-                                occurrenceId,
+                                occurrenceId =
+                                    occurrenceId,
                             ),
                         )
                     },
+                    onGiven = {
+                            occurrenceId ->
+                        viewModel.setReport(
+                            occurrenceId =
+                                occurrenceId,
+                            state =
+                                CaregiverReportState.GIVEN,
+                        )
+                    },
+                    onNotGiven = {
+                            occurrenceId ->
+                        viewModel.setReport(
+                            occurrenceId =
+                                occurrenceId,
+                            state =
+                                CaregiverReportState.NOT_GIVEN,
+                        )
+                    },
+                    onUnknown = {
+                            occurrenceId ->
+                        viewModel.setReport(
+                            occurrenceId =
+                                occurrenceId,
+                            state =
+                                CaregiverReportState.UNKNOWN,
+                        )
+                    },
+                    onRemindLater =
+                        viewModel::remindLater,
+                    onUndo =
+                        viewModel::undoReportChange,
+                    onSnackbarConsumed =
+                        viewModel::consumeSnackbar,
                 )
             }
 
             composable(
                 Routes.Settings,
             ) {
-                val settingsViewModel:
+                val viewModel:
                         SettingsViewModel =
                     viewModel(
                         factory =
@@ -830,8 +826,7 @@ private fun CarePackNavigation(
                     )
 
                 SettingsRoute(
-                    viewModel =
-                        settingsViewModel,
+                    viewModel = viewModel,
                     onBack = {
                         navController.navigatePrimary(
                             Routes.Today,
@@ -863,7 +858,7 @@ private fun CarePackNavigation(
             composable(
                 Routes.ReminderSettings,
             ) {
-                val reminderViewModel:
+                val viewModel:
                         ReminderSettingsViewModel =
                     viewModel(
                         factory =
@@ -878,8 +873,7 @@ private fun CarePackNavigation(
                     )
 
                 ReminderSettingsRoute(
-                    viewModel =
-                        reminderViewModel,
+                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -903,10 +897,8 @@ private fun CarePackNavigation(
                         .toLocalDate()
 
                 TodayReportRoute(
-                    date =
-                        reportDate,
-                    formatter =
-                        todayReportFormatter,
+                    date = reportDate,
+                    formatter = todayReportFormatter,
                     privacyPreferenceStore =
                         privacyPreferenceStore,
                     textShareGateway =
@@ -951,28 +943,24 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.AddMedicationPattern,
+                route = Routes.AddMedicationPattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.RecipientIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val recipientId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.RecipientIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.RecipientIdArgument,
+                        ),
                     )
 
-                val medicationViewModel:
+                val viewModel:
                         MedicationScheduleViewModel =
                     viewModel(
                         factory =
@@ -995,8 +983,7 @@ private fun CarePackNavigation(
                     )
 
                 MedicationScheduleRoute(
-                    viewModel =
-                        medicationViewModel,
+                    viewModel = viewModel,
                     onCompleted = {
                         navController.popBackStack()
                     },
@@ -1004,28 +991,24 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.AddSchedulePattern,
+                route = Routes.AddSchedulePattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.MedicationIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val medicationId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.MedicationIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.MedicationIdArgument,
+                        ),
                     )
 
-                val scheduleViewModel:
+                val viewModel:
                         MedicationScheduleViewModel =
                     viewModel(
                         factory =
@@ -1046,8 +1029,7 @@ private fun CarePackNavigation(
                     )
 
                 MedicationScheduleRoute(
-                    viewModel =
-                        scheduleViewModel,
+                    viewModel = viewModel,
                     onCompleted = {
                         navController.popBackStack()
                     },
@@ -1055,28 +1037,24 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.EditMedicationTextPattern,
+                route = Routes.EditMedicationTextPattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.MedicationIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val medicationId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.MedicationIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.MedicationIdArgument,
+                        ),
                     )
 
-                val editViewModel:
+                val viewModel:
                         MedicationTextEditViewModel =
                     viewModel(
                         factory =
@@ -1090,8 +1068,7 @@ private fun CarePackNavigation(
                     )
 
                 MedicationTextEditRoute(
-                    viewModel =
-                        editViewModel,
+                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -1102,28 +1079,24 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.EditSchedulePattern,
+                route = Routes.EditSchedulePattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.ScheduleSeriesIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val scheduleSeriesId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.ScheduleSeriesIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.ScheduleSeriesIdArgument,
+                        ),
                     )
 
-                val scheduleEditViewModel:
+                val viewModel:
                         ScheduleEditViewModel =
                     viewModel(
                         factory =
@@ -1141,8 +1114,7 @@ private fun CarePackNavigation(
                     )
 
                 ScheduleEditRoute(
-                    viewModel =
-                        scheduleEditViewModel,
+                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -1153,28 +1125,24 @@ private fun CarePackNavigation(
             }
 
             composable(
-                route =
-                    Routes.OccurrenceDetailPattern,
+                route = Routes.OccurrenceDetailPattern,
                 arguments =
                     listOf(
                         navArgument(
                             Routes.OccurrenceIdArgument,
                         ) {
-                            type =
-                                NavType.StringType
+                            type = NavType.StringType
                         },
                     ),
-            ) { backStackEntry ->
+            ) { entry ->
                 val occurrenceId =
                     checkNotNull(
-                        backStackEntry
-                            .arguments
-                            ?.getString(
-                                Routes.OccurrenceIdArgument,
-                            ),
+                        entry.arguments?.getString(
+                            Routes.OccurrenceIdArgument,
+                        ),
                     )
 
-                val detailViewModel:
+                val viewModel:
                         OccurrenceDetailViewModel =
                     viewModel(
                         factory =
@@ -1186,13 +1154,14 @@ private fun CarePackNavigation(
                                         todayQueryService,
                                     caregiverReportService =
                                         caregiverReportService,
+                                    reminderCoordinator =
+                                        reminderCoordinator,
                                     clock = clock,
                                 ),
                     )
 
                 OccurrenceDetailRoute(
-                    viewModel =
-                        detailViewModel,
+                    viewModel = viewModel,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -1264,11 +1233,12 @@ private fun NavHostController.navigatePrimary(
 
 private fun todayViewModelFactory(
     todayQueryService: TodayQueryService,
-    caregiverReportService:
-    CaregiverReportService,
+    caregiverReportService: CaregiverReportService,
     carePlanService: CarePlanService,
-    reminderPreferenceStore:
-    ReminderPreferenceStore,
+    reminderPreferenceStore: ReminderPreferenceStore,
+    reminderCoordinator: ReminderCoordinator,
+    userExperiencePreferenceStore:
+    UserExperiencePreferenceStore,
     clock: Clock,
     zoneProvider: ZoneProvider,
 ): ViewModelProvider.Factory =
@@ -1281,6 +1251,10 @@ private fun todayViewModelFactory(
             carePlanService,
         reminderPreferenceStore =
             reminderPreferenceStore,
+        reminderCoordinator =
+            reminderCoordinator,
+        userExperiencePreferenceStore =
+            userExperiencePreferenceStore,
         clock = clock,
         zoneProvider =
             zoneProvider,

@@ -61,6 +61,8 @@ class OccurrenceCandidateResolver {
         return minutesFor(
             schedulePattern = definition.schedulePattern,
             fallbackMinuteOfDay = definition.minuteOfDay,
+            anchorDate = anchorDate,
+            startDate = definition.startDate,
         )
             .mapNotNull { minuteOfDay ->
                 candidateForMinute(
@@ -123,26 +125,49 @@ class OccurrenceCandidateResolver {
     private fun minutesFor(
         schedulePattern: SchedulePattern,
         fallbackMinuteOfDay: Int,
-    ): List<Int> =
-        when (schedulePattern) {
+        anchorDate: LocalDate,
+        startDate: LocalDate?,
+    ): List<Int> {
+        val minutes =
+            when (schedulePattern) {
+                is FixedTimeSchedule ->
+                    schedulePattern
+                        .representativeMinutesOfDay
+                        .ifEmpty {
+                            listOf(
+                                fallbackMinuteOfDay,
+                            )
+                        }
+
+                is IntervalSchedule ->
+                    schedulePattern
+                        .representativeMinutesOfDay
+            }
+                .filter {
+                    it in 0 until MINUTES_PER_DAY
+                }
+                .distinct()
+                .sorted()
+
+        return when (schedulePattern) {
             is FixedTimeSchedule ->
-                schedulePattern
-                    .representativeMinutesOfDay
-                    .ifEmpty {
-                        listOf(
-                            fallbackMinuteOfDay,
-                        )
-                    }
+                minutes
 
             is IntervalSchedule ->
-                schedulePattern
-                    .representativeMinutesOfDay
+                if (
+                    startDate != null &&
+                    anchorDate == startDate
+                ) {
+                    minutes.filter {
+                        it >=
+                                schedulePattern
+                                    .anchorMinuteOfDay
+                    }
+                } else {
+                    minutes
+                }
         }
-            .filter {
-                it in 0 until MINUTES_PER_DAY
-            }
-            .distinct()
-            .sorted()
+    }
 
     private fun isScheduledWeekday(
         weekdayMask: Int,

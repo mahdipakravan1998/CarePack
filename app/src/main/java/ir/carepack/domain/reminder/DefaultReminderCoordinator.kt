@@ -7,6 +7,7 @@ import ir.carepack.reminder.notification.NotificationGateway
 import ir.carepack.reminder.permission.ExactAlarmCapabilityGateway
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import java.time.Clock
+import java.time.Instant
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -17,6 +18,8 @@ class DefaultReminderCoordinator(
     ReminderScheduleSource,
     private val preferenceStore:
     ReminderPreferenceStore,
+    private val snoozedReminderStore:
+    SnoozedReminderStore,
     private val notificationPermissionGateway:
     NotificationPermissionGateway,
     private val exactAlarmCapabilityGateway:
@@ -26,6 +29,9 @@ class DefaultReminderCoordinator(
     private val notificationGateway:
     NotificationGateway,
     private val clock: Clock,
+    private val diagnosticSink:
+    ReminderDiagnosticSink =
+        NoOpReminderDiagnosticSink,
 ) : ReminderCoordinator {
 
     private val reconciliationMutex =
@@ -67,9 +73,59 @@ class DefaultReminderCoordinator(
         }
     }
 
+    override suspend fun remindLater(
+        occurrenceId: String,
+        delayMinutes: Long,
+    ): RemindLaterOutcome {
+        require(occurrenceId.isNotBlank())
+
+        return reconciliationMutex.withLock {
+            remindLaterLocked(
+                occurrenceId =
+                    occurrenceId,
+                delayMinutes =
+                    delayMinutes,
+            )
+        }
+    }
+
+    override suspend fun cancelReminderDelay(
+        occurrenceId: String,
+    ) {
+        require(occurrenceId.isNotBlank())
+
+        reconciliationMutex.withLock {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .USER_ACTION_HANDLED,
+                occurrenceId =
+                    occurrenceId,
+                outcome =
+                    "cancel_remind_later",
+            )
+
+            snoozedReminderStore.delete(
+                occurrenceId =
+                    occurrenceId,
+            )
+
+            runPlatformOperation {
+                alarmGateway.cancel(
+                    alarmKey =
+                        AlarmKey
+                            .forDelayedOccurrence(
+                                occurrenceId =
+                                    occurrenceId,
+                            ),
+                )
+            }
+        }
+    }
+
     override suspend fun cancelAllOwnedReminderState() {
         reconciliationMutex.withLock {
-            val alarmKeys =
+            val scheduleAlarmKeys =
                 scheduleSource
                     .getAllScheduleSeriesIds()
                     .map(
@@ -77,27 +133,66 @@ class DefaultReminderCoordinator(
                     )
                     .toSet()
 
+            val delayedAlarmKeys =
+                snoozedReminderStore
+                    .reminders
+                    .first()
+                    .map {
+                        it.alarmKey
+                    }
+                    .toSet()
+
             runPlatformOperation {
                 alarmGateway.cancelAll(
-                    alarmKeys = alarmKeys,
+                    alarmKeys =
+                        scheduleAlarmKeys +
+                                delayedAlarmKeys,
                 )
             }
 
             runPlatformOperation {
                 notificationGateway.cancelAll()
             }
+
+            snoozedReminderStore.clear()
         }
     }
 
     private suspend fun handleAlarmFiredLocked(
         occurrenceId: String,
     ): AlarmFireResult {
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .RECEIVER_FIRED,
+            occurrenceId =
+                occurrenceId,
+        )
+
         val preferenceState =
             preferenceStore
                 .state
                 .first()
 
         if (!preferenceState.remindersEnabled) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .REMINDERS_DISABLED,
+                occurrenceId =
+                    occurrenceId,
+            )
+
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_SKIPPED,
+                occurrenceId =
+                    occurrenceId,
+                outcome =
+                    "reminders_disabled",
+            )
+
             return ignoredAlarmFire(
                 occurrenceId =
                     occurrenceId,
@@ -107,10 +202,32 @@ class DefaultReminderCoordinator(
             )
         }
 
-        if (
-            !notificationPermissionGateway
+        val notificationPermissionGranted =
+            notificationPermissionGateway
                 .isPermissionGranted()
-        ) {
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .NOTIFICATION_PERMISSION_CHECKED,
+            occurrenceId =
+                occurrenceId,
+            outcome =
+                notificationPermissionGranted
+                    .toString(),
+        )
+
+        if (!notificationPermissionGranted) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_SKIPPED,
+                occurrenceId =
+                    occurrenceId,
+                outcome =
+                    "notification_permission_denied",
+            )
+
             return ignoredAlarmFire(
                 occurrenceId =
                     occurrenceId,
@@ -127,7 +244,33 @@ class DefaultReminderCoordinator(
                         occurrenceId,
                 )
 
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .FUTURE_OCCURRENCE_CHECKED,
+            occurrenceId =
+                occurrenceId,
+            outcome =
+                (target != null)
+                    .toString(),
+        )
+
         if (target == null) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_SKIPPED,
+                occurrenceId =
+                    occurrenceId,
+                outcome =
+                    "occurrence_not_eligible",
+            )
+
+            snoozedReminderStore.delete(
+                occurrenceId =
+                    occurrenceId,
+            )
+
             return ignoredAlarmFire(
                 occurrenceId =
                     occurrenceId,
@@ -141,6 +284,16 @@ class DefaultReminderCoordinator(
             clock.instant()
 
         if (target.scheduledAt > now) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_SKIPPED,
+                occurrenceId =
+                    occurrenceId,
+                outcome =
+                    "alarm_fired_early",
+            )
+
             return ignoredAlarmFire(
                 occurrenceId =
                     occurrenceId,
@@ -149,6 +302,19 @@ class DefaultReminderCoordinator(
                         .ALARM_FIRED_EARLY,
             )
         }
+
+        snoozedReminderStore.delete(
+            occurrenceId =
+                occurrenceId,
+        )
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .NOTIFICATION_POST_ATTEMPTED,
+            occurrenceId =
+                target.occurrenceId,
+        )
 
         val notificationPosted =
             runPlatformOperation {
@@ -174,6 +340,26 @@ class DefaultReminderCoordinator(
                         .ALARM_FIRED,
             )
 
+        if (notificationPosted) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_POSTED,
+                occurrenceId =
+                    target.occurrenceId,
+            )
+        } else {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_FAILED,
+                occurrenceId =
+                    target.occurrenceId,
+                outcome =
+                    "notification_gateway_failed",
+            )
+        }
+
         return if (notificationPosted) {
             AlarmFireResult
                 .NotificationPosted(
@@ -189,6 +375,163 @@ class DefaultReminderCoordinator(
                         occurrenceId,
                     reconciliation =
                         reconciliation,
+                )
+        }
+    }
+
+    private suspend fun remindLaterLocked(
+        occurrenceId: String,
+        delayMinutes: Long,
+    ): RemindLaterOutcome {
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .USER_ACTION_HANDLED,
+            occurrenceId =
+                occurrenceId,
+            outcome =
+                "remind_later",
+        )
+
+        if (delayMinutes <= 0L) {
+            return RemindLaterOutcome
+                .Ignored(
+                    reason =
+                        RemindLaterIgnoreReason
+                            .INVALID_DELAY,
+                )
+        }
+
+        val target =
+            scheduleSource
+                .getEligibleOccurrence(
+                    occurrenceId =
+                        occurrenceId,
+                ) ?: return RemindLaterOutcome
+                .Ignored(
+                    reason =
+                        RemindLaterIgnoreReason
+                            .OCCURRENCE_NOT_ELIGIBLE,
+                )
+
+        val now =
+            clock.instant()
+
+        val decision =
+            SnoozedReminderPolicy.create(
+                occurrenceId =
+                    occurrenceId,
+                now = now,
+                remindAt =
+                    now.plusSeconds(
+                        delayMinutes *
+                                SECONDS_PER_MINUTE,
+                    ),
+                occurrenceAlreadyReported =
+                    false,
+                occurrenceActive =
+                    true,
+            )
+
+        val snoozedReminder =
+            when (decision) {
+                is SnoozedReminderDecision.Ignore -> {
+                    return RemindLaterOutcome
+                        .Ignored(
+                            reason =
+                                decision.reason,
+                        )
+                }
+
+                is SnoozedReminderDecision.Schedule -> {
+                    decision.snoozedReminder
+                }
+            }
+
+        snoozedReminderStore.upsert(
+            reminder =
+                snoozedReminder,
+        )
+
+        val canScheduleExactAlarms =
+            exactAlarmCapabilityGateway
+                .canScheduleExactAlarms()
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .EXACT_ALARM_CAPABILITY_CHECKED,
+            occurrenceId =
+                occurrenceId,
+            outcome =
+                canScheduleExactAlarms
+                    .toString(),
+        )
+
+        val mode =
+            if (canScheduleExactAlarms) {
+                AlarmDeliveryMode.EXACT
+            } else {
+                recordDiagnostic(
+                    type =
+                        ReminderDiagnosticEventType
+                            .EXACT_ALARM_UNAVAILABLE,
+                    occurrenceId =
+                        occurrenceId,
+                )
+
+                recordDiagnostic(
+                    type =
+                        ReminderDiagnosticEventType
+                            .APPROXIMATE_FALLBACK_SELECTED,
+                    occurrenceId =
+                        occurrenceId,
+                )
+
+                AlarmDeliveryMode.APPROXIMATE
+            }
+
+        val scheduledMode =
+            scheduleWithFallback(
+                target =
+                    target.copy(
+                        alarmKey =
+                            snoozedReminder
+                                .alarmKey,
+                        scheduledAt =
+                            snoozedReminder
+                                .remindAt,
+                    ),
+                preferredMode =
+                    mode,
+            )
+
+        return if (scheduledMode == null) {
+            snoozedReminderStore.delete(
+                occurrenceId =
+                    occurrenceId,
+            )
+
+            RemindLaterOutcome
+                .SchedulingFailed
+        } else {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .SNOOZE_SCHEDULED,
+                occurrenceId =
+                    occurrenceId,
+                alarmKey =
+                    snoozedReminder.alarmKey,
+                deliveryMode =
+                    scheduledMode
+                        .toReminderDeliveryMode(),
+            )
+
+            RemindLaterOutcome
+                .Scheduled(
+                    snoozedReminder =
+                        snoozedReminder,
                 )
         }
     }
@@ -225,13 +568,29 @@ class DefaultReminderCoordinator(
                     preferenceState,
             )
 
-        val allAlarmKeys =
+        val scheduleAlarmKeys =
             scheduleSource
                 .getAllScheduleSeriesIds()
                 .map(
                     AlarmKey::forScheduleSeries,
                 )
                 .toSet()
+
+        val storedDelayedReminders =
+            snoozedReminderStore
+                .reminders
+                .first()
+
+        val delayedAlarmKeys =
+            storedDelayedReminders
+                .map {
+                    it.alarmKey
+                }
+                .toSet()
+
+        val allAlarmKeys =
+            scheduleAlarmKeys +
+                    delayedAlarmKeys
 
         if (
             initialStatus.availability ==
@@ -243,6 +602,19 @@ class DefaultReminderCoordinator(
             ReminderAvailability
                 .NO_ACTIVE_SCHEDULE
         ) {
+            if (
+                initialStatus.availability ==
+                ReminderAvailability.DISABLED
+            ) {
+                recordDiagnostic(
+                    type =
+                        ReminderDiagnosticEventType
+                            .REMINDERS_DISABLED,
+                    availability =
+                        initialStatus.availability,
+                )
+            }
+
             val cancellationResult =
                 cancelAlarmKeys(
                     alarmKeys =
@@ -266,11 +638,22 @@ class DefaultReminderCoordinator(
         val now =
             clock.instant()
 
-        val targets =
+        val normalTargets =
             scheduleSource
                 .getNextEligibleTargets(
                     now = now,
                 )
+
+        val delayedTargets =
+            resolveDelayedTargets(
+                reminders =
+                    storedDelayedReminders,
+                now = now,
+            )
+
+        val targets =
+            normalTargets +
+                    delayedTargets
 
         val targetKeys =
             targets
@@ -299,13 +682,47 @@ class DefaultReminderCoordinator(
             0
 
         targets.forEach { target ->
+            val canScheduleExactAlarms =
+                exactAlarmCapabilityGateway
+                    .canScheduleExactAlarms()
+
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .EXACT_ALARM_CAPABILITY_CHECKED,
+                occurrenceId =
+                    target.occurrenceId,
+                alarmKey =
+                    target.alarmKey,
+                outcome =
+                    canScheduleExactAlarms
+                        .toString(),
+            )
+
             val preferredMode =
-                if (
-                    exactAlarmCapabilityGateway
-                        .canScheduleExactAlarms()
-                ) {
+                if (canScheduleExactAlarms) {
                     AlarmDeliveryMode.EXACT
                 } else {
+                    recordDiagnostic(
+                        type =
+                            ReminderDiagnosticEventType
+                                .EXACT_ALARM_UNAVAILABLE,
+                        occurrenceId =
+                            target.occurrenceId,
+                        alarmKey =
+                            target.alarmKey,
+                    )
+
+                    recordDiagnostic(
+                        type =
+                            ReminderDiagnosticEventType
+                                .APPROXIMATE_FALLBACK_SELECTED,
+                        occurrenceId =
+                            target.occurrenceId,
+                        alarmKey =
+                            target.alarmKey,
+                    )
+
                     AlarmDeliveryMode
                         .APPROXIMATE
                 }
@@ -388,6 +805,41 @@ class DefaultReminderCoordinator(
         )
     }
 
+    private suspend fun resolveDelayedTargets(
+        reminders: List<SnoozedReminder>,
+        now: Instant,
+    ): List<ReminderTarget> {
+        return reminders.mapNotNull { reminder ->
+            val target =
+                scheduleSource
+                    .getEligibleOccurrence(
+                        occurrenceId =
+                            reminder.occurrenceId,
+                    )
+
+            if (target == null) {
+                snoozedReminderStore.delete(
+                    occurrenceId =
+                        reminder.occurrenceId,
+                )
+
+                null
+            } else {
+                target.copy(
+                    alarmKey =
+                        reminder.alarmKey,
+                    scheduledAt =
+                        maxOfInstant(
+                            first =
+                                reminder.remindAt,
+                            second =
+                                now,
+                        ),
+                )
+            }
+        }
+    }
+
     private suspend fun buildStatus(
         preferenceState:
         ReminderPreferenceState,
@@ -396,9 +848,27 @@ class DefaultReminderCoordinator(
             notificationPermissionGateway
                 .isPermissionGranted()
 
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .NOTIFICATION_PERMISSION_CHECKED,
+            outcome =
+                permissionGranted
+                    .toString(),
+        )
+
         val hasActiveSchedule =
             scheduleSource
                 .hasActiveSchedule()
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .FUTURE_OCCURRENCE_CHECKED,
+            outcome =
+                hasActiveSchedule
+                    .toString(),
+        )
 
         val exactCapabilityGranted =
             if (
@@ -409,6 +879,15 @@ class DefaultReminderCoordinator(
             ) {
                 exactAlarmCapabilityGateway
                     .canScheduleExactAlarms()
+                    .also { granted ->
+                        recordDiagnostic(
+                            type =
+                                ReminderDiagnosticEventType
+                                    .EXACT_ALARM_CAPABILITY_CHECKED,
+                            outcome =
+                                granted.toString(),
+                        )
+                    }
             } else {
                 false
             }
@@ -462,6 +941,19 @@ class DefaultReminderCoordinator(
         preferredMode:
         AlarmDeliveryMode,
     ): AlarmDeliveryMode? {
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .ALARM_REGISTRATION_ATTEMPTED,
+            occurrenceId =
+                target.occurrenceId,
+            alarmKey =
+                target.alarmKey,
+            deliveryMode =
+                preferredMode
+                    .toReminderDeliveryMode(),
+        )
+
         val preferredSucceeded =
             runPlatformOperation {
                 alarmGateway.schedule(
@@ -480,8 +972,34 @@ class DefaultReminderCoordinator(
             }
 
         if (preferredSucceeded) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTERED,
+                occurrenceId =
+                    target.occurrenceId,
+                alarmKey =
+                    target.alarmKey,
+                deliveryMode =
+                    preferredMode
+                        .toReminderDeliveryMode(),
+            )
+
             return preferredMode
         }
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .ALARM_REGISTRATION_FAILED,
+            occurrenceId =
+                target.occurrenceId,
+            alarmKey =
+                target.alarmKey,
+            deliveryMode =
+                preferredMode
+                    .toReminderDeliveryMode(),
+        )
 
         if (
             preferredMode !=
@@ -489,6 +1007,28 @@ class DefaultReminderCoordinator(
         ) {
             return null
         }
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .APPROXIMATE_FALLBACK_SELECTED,
+            occurrenceId =
+                target.occurrenceId,
+            alarmKey =
+                target.alarmKey,
+        )
+
+        recordDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .ALARM_REGISTRATION_ATTEMPTED,
+            occurrenceId =
+                target.occurrenceId,
+            alarmKey =
+                target.alarmKey,
+            deliveryMode =
+                ReminderDeliveryMode.APPROXIMATE,
+        )
 
         val fallbackSucceeded =
             runPlatformOperation {
@@ -509,8 +1049,32 @@ class DefaultReminderCoordinator(
             }
 
         return if (fallbackSucceeded) {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTERED,
+                occurrenceId =
+                    target.occurrenceId,
+                alarmKey =
+                    target.alarmKey,
+                deliveryMode =
+                    ReminderDeliveryMode.APPROXIMATE,
+            )
+
             AlarmDeliveryMode.APPROXIMATE
         } else {
+            recordDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTRATION_FAILED,
+                occurrenceId =
+                    target.occurrenceId,
+                alarmKey =
+                    target.alarmKey,
+                deliveryMode =
+                    ReminderDeliveryMode.APPROXIMATE,
+            )
+
             null
         }
     }
@@ -604,8 +1168,53 @@ class DefaultReminderCoordinator(
         }
     }
 
+    private fun recordDiagnostic(
+        type: ReminderDiagnosticEventType,
+        occurrenceId: String? = null,
+        alarmKey: AlarmKey? = null,
+        availability: ReminderAvailability? = null,
+        deliveryMode: ReminderDeliveryMode? = null,
+        outcome: String? = null,
+    ) {
+        diagnosticSink.recordReminderDiagnostic(
+            type = type,
+            clock = clock,
+            occurrenceId = occurrenceId,
+            alarmKey = alarmKey,
+            availability = availability,
+            deliveryMode = deliveryMode,
+            outcome = outcome,
+        )
+    }
+
+    private fun AlarmDeliveryMode.toReminderDeliveryMode():
+            ReminderDeliveryMode =
+        when (this) {
+            AlarmDeliveryMode.EXACT ->
+                ReminderDeliveryMode.EXACT
+
+            AlarmDeliveryMode.APPROXIMATE ->
+                ReminderDeliveryMode.APPROXIMATE
+        }
+
+    private fun maxOfInstant(
+        first: Instant,
+        second: Instant,
+    ): Instant {
+        return if (first >= second) {
+            first
+        } else {
+            second
+        }
+    }
+
     private data class AlarmCancellationResult(
         val successfulCount: Int,
         val failedCount: Int,
     )
+
+    private companion object {
+        const val SECONDS_PER_MINUTE =
+            60L
+    }
 }

@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.MainActivity
+import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReminderNotification
 import ir.carepack.reminder.navigation.NotificationNavigationValidator
 import ir.carepack.reminder.notification.AndroidNotificationGateway
@@ -25,6 +26,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -83,14 +85,12 @@ class ReminderNotificationContractTest {
 
         assertEquals(
             MainActivity::class.java.name,
-            intent.component
-                ?.className,
+            intent.component?.className,
         )
 
         assertEquals(
             context.packageName,
-            intent.component
-                ?.packageName,
+            intent.component?.packageName,
         )
 
         assertEquals(
@@ -177,6 +177,45 @@ class ReminderNotificationContractTest {
     }
 
     @Test
+    fun requestCodesAreStableAndDistinctForSameOccurrence() {
+        val occurrenceId =
+            "occurrence-request-code"
+
+        assertEquals(
+            ReminderNotificationContract
+                .contentRequestCode(
+                    occurrenceId,
+                ),
+            ReminderNotificationContract
+                .contentRequestCode(
+                    occurrenceId,
+                ),
+        )
+
+        assertEquals(
+            ReminderNotificationContract
+                .fullScreenRequestCode(
+                    occurrenceId,
+                ),
+            ReminderNotificationContract
+                .fullScreenRequestCode(
+                    occurrenceId,
+                ),
+        )
+
+        assertNotEquals(
+            ReminderNotificationContract
+                .contentRequestCode(
+                    occurrenceId,
+                ),
+            ReminderNotificationContract
+                .fullScreenRequestCode(
+                    occurrenceId,
+                ),
+        )
+    }
+
+    @Test
     fun navigationValidator_acceptsOnlyPersistedOccurrence_withoutWritingReport() =
         runBlocking {
             val fixture =
@@ -254,17 +293,173 @@ class ReminderNotificationContractTest {
 
                 assertEquals(
                     0,
-                    fixture.database
+                    fixture
+                        .database
                         .reportingDao()
                         .countReports(),
                 )
 
                 assertNull(
-                    fixture.database
+                    fixture
+                        .database
                         .reportingDao()
                         .getReport(
                             occurrenceId,
                         ),
+                )
+            } finally {
+                fixture.close()
+            }
+        }
+
+    @Test
+    fun notificationCancellation_hasNoDeleteIntentAndDoesNotWriteReport() =
+        runBlocking {
+            assumeTrue(
+                isNotificationPermissionGranted(),
+            )
+
+            assumeTrue(
+                notificationManager
+                    .areNotificationsEnabled(),
+            )
+
+            val fixture =
+                CarePlanRoomTestFixture.create(
+                    initialInstant =
+                        Instant.parse(
+                            "2026-06-24T06:00:00Z",
+                        ),
+                    idPrefix =
+                        "notification-dismissal-contract",
+                )
+
+            try {
+                val plan =
+                    fixture.createPlan(
+                        medicationName =
+                            "داروی آزمون حذف اعلان",
+                        instruction =
+                            "دستور محرمانه حذف اعلان",
+                        weekdays =
+                            setOf(
+                                DayOfWeek.WEDNESDAY,
+                            ),
+                        minutesOfDay =
+                            listOf(
+                                12 * 60,
+                            ),
+                        startDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                        endDate =
+                            LocalDate.parse(
+                                "2026-06-24",
+                            ),
+                    )
+
+                val occurrenceId =
+                    plan.occurrenceIds.single()
+
+                assertEquals(
+                    0,
+                    fixture
+                        .database
+                        .reportingDao()
+                        .countReportsForOccurrence(
+                            occurrenceId,
+                        ),
+                )
+
+                assertNull(
+                    fixture
+                        .database
+                        .reportingDao()
+                        .getReport(
+                            occurrenceId,
+                        ),
+                )
+
+                val gateway =
+                    AndroidNotificationGateway(
+                        context = context,
+                    )
+
+                gateway.post(
+                    notification =
+                        ReminderNotification(
+                            occurrenceId =
+                                occurrenceId,
+                            medicationName =
+                                "داروی آزمون حذف اعلان",
+                            localTime =
+                                LocalTime.of(
+                                    12,
+                                    0,
+                                ),
+                            scheduledAt =
+                                Instant.parse(
+                                    "2026-06-24T12:00:00Z",
+                                ),
+                        ),
+                )
+
+                val notification =
+                    waitForPostedNotification()
+
+                assertNull(
+                    notification.deleteIntent,
+                )
+
+                notificationManager.cancelAll()
+
+                waitForNotificationsToClear()
+
+                val report =
+                    fixture
+                        .database
+                        .reportingDao()
+                        .getReport(
+                            occurrenceId,
+                        )
+
+                assertNull(
+                    report,
+                )
+
+                assertFalse(
+                    listOf(
+                        CaregiverReportState
+                            .GIVEN
+                            .name,
+                        CaregiverReportState
+                            .NOT_GIVEN
+                            .name,
+                        CaregiverReportState
+                            .UNKNOWN
+                            .name,
+                    ).contains(
+                        report?.state,
+                    ),
+                )
+
+                assertEquals(
+                    0,
+                    fixture
+                        .database
+                        .reportingDao()
+                        .countReportsForOccurrence(
+                            occurrenceId,
+                        ),
+                )
+
+                assertEquals(
+                    0,
+                    fixture
+                        .database
+                        .reportingDao()
+                        .countReports(),
                 )
             } finally {
                 fixture.close()
@@ -284,11 +479,17 @@ class ReminderNotificationContractTest {
                         .CHANNEL_ID,
                 )
 
-        assertNotNull(channel)
+        assertNotNull(
+            channel,
+        )
 
         assertFalse(
             channel?.lockscreenVisibility ==
                     Notification.VISIBILITY_PUBLIC,
+        )
+
+        assertTrue(
+            channel?.shouldVibrate() == true,
         )
     }
 
@@ -347,7 +548,9 @@ class ReminderNotificationContractTest {
         val publicVersion =
             notification.publicVersion
 
-        assertNotNull(publicVersion)
+        assertNotNull(
+            publicVersion,
+        )
 
         assertEquals(
             Notification.VISIBILITY_PUBLIC,
@@ -454,17 +657,42 @@ class ReminderNotificationContractTest {
         )
     }
 
+    private fun waitForNotificationsToClear() {
+        val deadline =
+            SystemClock.elapsedRealtime() +
+                    NOTIFICATION_TIMEOUT_MILLIS
+
+        while (
+            SystemClock.elapsedRealtime() <
+            deadline
+        ) {
+            if (
+                notificationManager
+                    .activeNotifications
+                    .isEmpty()
+            ) {
+                return
+            }
+
+            SystemClock.sleep(
+                POLL_INTERVAL_MILLIS,
+            )
+        }
+
+        error(
+            "The reminder notification was not removed.",
+        )
+    }
+
     private fun isNotificationPermissionGranted():
             Boolean {
         return Build.VERSION.SDK_INT <
                 Build.VERSION_CODES.TIRAMISU ||
                 ContextCompat.checkSelfPermission(
                     context,
-                    Manifest.permission
-                        .POST_NOTIFICATIONS,
+                    Manifest.permission.POST_NOTIFICATIONS,
                 ) ==
-                PackageManager
-                    .PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED
     }
 
     private companion object {

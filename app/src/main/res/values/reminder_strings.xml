@@ -2,9 +2,27 @@
 <resources>
     <string name="reminder_settings_title">تنظیمات یادآورها</string>
     <string name="open_reminder_settings">تنظیمات یادآورها</string>
+    <string name="reminder_settings_intro">قبل از تکیه‌کردن به یادآورها، اجازه اعلان، دسترسی یادآور دقیق و محدودیت‌های باتری دستگاه را بررسی کنید. کرپک تحویل یادآور را تضمین نمی‌کند.</string>
 
     <string name="reminders_enabled_label">یادآورها</string>
     <string name="reminders_enabled_description">یادآورها اختیاری هستند و خاموش‌بودن آن‌ها ثبت، سابقه و مدیریت برنامه را محدود نمی‌کند.</string>
+
+    <string name="reminder_readiness_title">آمادگی یادآورها</string>
+    <string name="reminder_readiness_loading">در حال بررسی وضعیت یادآورها…</string>
+    <string name="reminder_readiness_ready">وضعیت فعلی برای تلاش جهت نمایش یادآور آماده است.</string>
+    <string name="reminder_readiness_disabled">یادآورها خاموش هستند.</string>
+    <string name="reminder_readiness_no_schedule">هنوز برنامه فعالی برای یادآوری وجود ندارد.</string>
+    <string name="reminder_readiness_notification_required">اجازه اعلان برای نمایش یادآورها فعال نیست.</string>
+    <string name="reminder_readiness_exact_recommended">دسترسی یادآور دقیق‌تر پیشنهاد می‌شود.</string>
+    <string name="reminder_readiness_approximate">یادآورها با حالت تقریبی ادامه می‌دهند و ممکن است دیرتر نمایش داده شوند.</string>
+    <string name="reminder_readiness_battery">راهنمای باتری برای کاهش تأخیر پیشنهاد می‌شود.</string>
+    <string name="reminder_readiness_oem">راهنمای مخصوص سازنده گوشی پیشنهاد می‌شود.</string>
+
+    <string name="first_setup_reminder_guidance_title">قبل از اولین یادآور واقعی</string>
+    <string name="first_setup_reminder_guidance_body">یادآورها محلی هستند و ممکن است به‌دلیل اندروید، حالت کم‌مصرف، بهینه‌سازی باتری یا محدودیت‌های سازنده دیر برسند، محدود شوند یا نمایش داده نشوند. بررسی اجازه اعلان، دسترسی یادآور دقیق، تنظیمات باتری و راهنمای مخصوص گوشی می‌تواند قابلیت اطمینان را بهتر کند، اما کرپک تحویل یادآور را تضمین نمی‌کند. حتی اگر این دسترسی‌ها رد شوند، برنامه همچنان برای ثبت دارو، برنامه و گزارش قابل استفاده است.</string>
+    <string name="first_setup_reminder_guidance_settings_path">بعداً از تنظیمات کرپک، بخش تنظیمات یادآورها، می‌توانید اجازه اعلان، یادآور دقیق‌تر، باتری و راهنمای گوشی را بررسی کنید.</string>
+    <string name="first_setup_reminder_guidance_continue">متوجه شدم؛ ادامه می‌دهم</string>
+    <string name="first_setup_readiness_title">اقدام‌های مستقیم برای بهتر شدن یادآورها</string>
 
     <string name="notification_permission_status_label">وضعیت اجازه اعلان</string>
     <string name="notification_permission_not_required">در این نسخه اندروید، اجازه جداگانه‌ای لازم نیست.</string>
@@ -20,9 +38,13 @@
 
     <string name="request_notification_permission">بررسی اجازه اعلان</string>
     <string name="open_notification_settings">باز کردن تنظیمات اعلان</string>
-    <string name="request_exact_alarm_access">درخواست یادآور دقیق</string>
+    <string name="request_exact_alarm_access">درخواست یادآور دقیق‌تر</string>
     <string name="open_device_settings">باز کردن تنظیمات دستگاه</string>
+    <string name="open_battery_settings">باز کردن تنظیمات باتری</string>
     <string name="continue_action">ادامه</string>
+    <string name="continue_without_permissions">ادامه بدون تغییر دسترسی‌ها</string>
+    <string name="continue_with_approximate_reminders">ادامه با یادآور تقریبی</string>
+    <string name="view_oem_guidance">دیدن راهنمای گوشی</string>
 
     <string name="notification_permission_rationale_title">اجازه نمایش یادآور</string>
     <string name="notification_permission_rationale_body">برای نمایش یادآورهای محلی، اندروید باید اجازه اعلان داشته باشد. ردکردن این اجازه، صفحه امروز، سابقه، ویرایش و ثبت گزارش را غیرفعال نمی‌کند.</string>
@@ -30,7 +52,18 @@
     <string name="exact_alarm_rationale_title">یادآور دقیق‌تر</string>
     <string name="exact_alarm_rationale_body">اندروید برای زمان‌بندی دقیق‌تر ممکن است دسترسی ویژه بخواهد. بدون این دسترسی، کرپک از زمان‌بندی تقریبی استفاده می‌کند و نمایش اعلان ممکن است با تأخیر انجام شود.</string>
 
-    <string name="reminder_delivery_limitations">نمایش اعلان تضمین‌شده نیست. حالت تقریبی ممکن است به‌دلیل حالت کم‌مصرف دستگاه یا محدودیت‌های سازنده با تأخیر انجام شود. اعلان و بازکردن آن هیچ گزارشی برای نوبت ثبت نمی‌کند.</string>
+    <string name="battery_guidance_title">باتری و اجرای پس‌زمینه</string>
+    <string name="battery_guidance_body">بعضی گوشی‌ها برای کاهش مصرف باتری، اعلان‌ها و یادآورهای برنامه‌های بسته‌شده را محدود می‌کنند. برای نتیجه بهتر، محدودیت باتری کرپک را بررسی کنید. کرپک نمی‌تواند این تنظیمات محافظت‌شده را خودش تغییر دهد.</string>
+    <string name="battery_optimization_ignored">اندروید گزارش می‌دهد که بهینه‌سازی باتری برای کرپک نادیده گرفته شده است.</string>
+    <string name="battery_optimization_not_ignored">اندروید گزارش می‌دهد که کرپک هنوز زیر بهینه‌سازی باتری است؛ این حالت ممکن است یادآورها را با تأخیر نمایش دهد.</string>
+    <string name="battery_optimization_unknown">وضعیت بهینه‌سازی باتری در این دستگاه قابل تشخیص نیست.</string>
+
+    <string name="oem_guidance_title">راهنمای گوشی‌های رایج</string>
+    <string name="generic_oem_guidance_body">حالت کم‌مصرف، بهینه‌سازی باتری، تنظیمات اعلان و محدودیت‌های سازنده ممکن است یادآورها را با تأخیر نمایش دهند یا محدود کنند.</string>
+    <string name="xiaomi_guidance_body">در گوشی‌های شیائومی، اگر یادآور نمایش داده نشد، Auto-start را برای کرپک فعال کنید و محدودیت باتری برنامه را کاهش دهید.</string>
+    <string name="samsung_guidance_body">در گوشی‌های سامسونگ، اگر یادآور با تأخیر نمایش داده شد، وضعیت Battery optimization، Sleeping apps و دسته اعلان‌های کرپک را بررسی کنید.</string>
+
+    <string name="reminder_delivery_limitations">نمایش اعلان تضمین‌شده نیست. حالت تقریبی ممکن است به‌دلیل حالت کم‌مصرف دستگاه یا محدودیت‌های سازنده با تأخیر انجام شود. اعلان، بازکردن اعلان و زنگ‌خوردن گوشی هیچ گزارشی برای نوبت ثبت نمی‌کند.</string>
 
     <string name="today_notification_unavailable_title">یادآورها فعلاً در دسترس نیستند</string>
     <string name="today_notification_unavailable_body">اجازه اعلان فعال نیست. ثبت و مرور نوبت‌ها بدون یادآور ادامه دارد.</string>
@@ -43,9 +76,14 @@
     <string name="dismiss_for_later">بعداً</string>
 
     <string name="reminder_notification_channel_name">یادآورهای نوبت دارو</string>
-    <string name="reminder_notification_channel_description">اعلان‌های محلی برای بررسی نوبت‌های ثبت‌شده</string>
+    <string name="reminder_notification_channel_description">اعلان‌های محلی برای بررسی نوبت‌های ثبت‌شده؛ صدا و لرزش را می‌توانید از تنظیمات اعلان اندروید تغییر دهید.</string>
     <string name="reminder_notification_title">زمان بررسی یک نوبت دارو</string>
     <string name="reminder_notification_body">%1$s، ساعت %2$s</string>
     <string name="reminder_notification_public_title">زمان بررسی یک نوبت دارو</string>
     <string name="reminder_notification_public_body">برای دیدن جزئیات، قفل دستگاه را باز کنید.</string>
+
+    <string name="remind_later">بعداً یادآوری کن</string>
+    <string name="remind_later_done">یادآوری دوباره ثبت شد.</string>
+    <string name="remind_later_unavailable">برای این نوبت امکان یادآوری دوباره وجود ندارد.</string>
+    <string name="remind_later_failed">ثبت یادآوری دوباره انجام نشد.</string>
 </resources>

@@ -1,6 +1,7 @@
 package ir.carepack.app
 
 import android.content.Context
+import ir.carepack.BuildConfig
 import androidx.room.Room
 import ir.carepack.core.id.IdSource
 import ir.carepack.core.id.UuidIdSource
@@ -10,6 +11,7 @@ import ir.carepack.data.local.CarePackDatabase
 import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
+import ir.carepack.data.preferences.DataStoreSnoozedReminderStore
 import ir.carepack.data.preferences.DataStoreUserExperiencePreferenceStore
 import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
@@ -21,9 +23,11 @@ import ir.carepack.domain.occurrence.OccurrenceGenerator
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.reminder.DefaultReminderCoordinator
 import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderDiagnosticSink
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderScheduleSource
 import ir.carepack.domain.reminder.RoomReminderScheduleSource
+import ir.carepack.domain.reminder.SnoozedReminderStore
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.RoomCaregiverReportService
 import ir.carepack.domain.report.RoomTodayReportFormatter
@@ -32,6 +36,7 @@ import ir.carepack.domain.today.RoomTodayQueryService
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.reminder.alarm.AlarmGateway
 import ir.carepack.reminder.alarm.AndroidAlarmGateway
+import ir.carepack.reminder.diagnostic.LogcatReminderDiagnosticSink
 import ir.carepack.reminder.navigation.NotificationNavigationValidator
 import ir.carepack.reminder.notification.AndroidNotificationGateway
 import ir.carepack.reminder.notification.NotificationGateway
@@ -63,6 +68,13 @@ class AppContainer(
 
     private val idSource: IdSource =
         UuidIdSource()
+
+    val reminderDiagnosticSink:
+            ReminderDiagnosticSink =
+        LogcatReminderDiagnosticSink(
+            enabled =
+                BuildConfig.DEBUG,
+        )
 
     val database: CarePackDatabase =
         Room.databaseBuilder(
@@ -100,6 +112,13 @@ class AppContainer(
                 applicationContext,
         )
 
+    val snoozedReminderStore:
+            SnoozedReminderStore =
+        DataStoreSnoozedReminderStore(
+            context =
+                applicationContext,
+        )
+
     val notificationPermissionGateway:
             NotificationPermissionGateway =
         AndroidNotificationPermissionGateway(
@@ -118,6 +137,9 @@ class AppContainer(
         AndroidAlarmGateway(
             context =
                 applicationContext,
+            clock = clock,
+            diagnosticSink =
+                reminderDiagnosticSink,
         )
 
     val notificationGateway:
@@ -125,6 +147,9 @@ class AppContainer(
         AndroidNotificationGateway(
             context =
                 applicationContext,
+            clock = clock,
+            diagnosticSink =
+                reminderDiagnosticSink,
         )
 
     val occurrenceGenerator:
@@ -149,6 +174,8 @@ class AppContainer(
                 reminderScheduleSource,
             preferenceStore =
                 reminderPreferenceStore,
+            snoozedReminderStore =
+                snoozedReminderStore,
             notificationPermissionGateway =
                 notificationPermissionGateway,
             exactAlarmCapabilityGateway =
@@ -158,6 +185,8 @@ class AppContainer(
             notificationGateway =
                 notificationGateway,
             clock = clock,
+            diagnosticSink =
+                reminderDiagnosticSink,
         )
 
     private val roomCarePlanService:

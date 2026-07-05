@@ -1,19 +1,19 @@
 package ir.carepack.feature.reminder
 
-import ir.carepack.domain.reminder.AlarmFireResult
+import ir.carepack.domain.reminder.ExactAlarmReadiness
+import ir.carepack.domain.reminder.ManufacturerGuidanceType
+import ir.carepack.domain.reminder.NotificationPermissionReadiness
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
-import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceState
-import ir.carepack.domain.reminder.ReminderPreferenceStore
-import ir.carepack.domain.reminder.ReminderReconciliationResult
+import ir.carepack.domain.reminder.ReminderReadinessStatus
 import ir.carepack.domain.reminder.ReminderStatus
-import ir.carepack.domain.reminder.TimezoneObservation
+import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.testing.FakeReminderCoordinator
+import ir.carepack.testing.InMemoryReminderPreferenceStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
@@ -48,22 +48,16 @@ class ReminderSettingsViewModelTest {
     fun initialLoad_doesNotShowPermissionOrExactRationale() =
         runTest(dispatcher) {
             val preferenceStore =
-                ViewModelReminderPreferenceStore(
-                    remindersEnabled =
-                        false,
-                )
+                InMemoryReminderPreferenceStore()
 
             val coordinator =
-                ViewModelReminderCoordinator(
-                    currentStatus =
+                FakeReminderCoordinator(
+                    status =
                         status(
                             enabled = false,
-                            permissionGranted =
-                                false,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
+                            permissionGranted = false,
+                            hasActiveSchedule = true,
+                            exactCapability = false,
                             availability =
                                 ReminderAvailability
                                     .DISABLED,
@@ -71,18 +65,13 @@ class ReminderSettingsViewModelTest {
                 )
 
             val viewModel =
-                ReminderSettingsViewModel(
+                viewModel(
                     preferenceStore =
                         preferenceStore,
-                    reminderCoordinator =
+                    coordinator =
                         coordinator,
-                    notificationPermissionGateway =
-                        ViewModelNotificationPermissionGateway(
-                            permissionGranted =
-                                false,
-                            runtimePermissionRequired =
-                                true,
-                        ),
+                    permissionGranted = false,
+                    runtimePermissionRequired = true,
                 )
 
             advanceUntilIdle()
@@ -107,41 +96,32 @@ class ReminderSettingsViewModelTest {
                     .value
                     .remindersEnabled,
             )
+
+            assertEquals(
+                ReminderReadinessStatus
+                    .REMINDERS_DISABLED,
+                viewModel
+                    .state
+                    .value
+                    .readiness
+                    ?.status,
+            )
         }
 
     @Test
     fun enablingRemindersWithDeniedPermission_showsContextualRationale() =
         runTest(dispatcher) {
             val preferenceStore =
-                ViewModelReminderPreferenceStore(
-                    remindersEnabled =
-                        false,
-                )
+                InMemoryReminderPreferenceStore()
 
             val coordinator =
-                ViewModelReminderCoordinator(
-                    currentStatus =
-                        status(
-                            enabled = false,
-                            permissionGranted =
-                                false,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
-                            availability =
-                                ReminderAvailability
-                                    .DISABLED,
-                        ),
-                    reconciledStatus =
+                FakeReminderCoordinator(
+                    status =
                         status(
                             enabled = true,
-                            permissionGranted =
-                                false,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
+                            permissionGranted = false,
+                            hasActiveSchedule = true,
+                            exactCapability = false,
                             availability =
                                 ReminderAvailability
                                     .NOTIFICATION_PERMISSION_REQUIRED,
@@ -149,18 +129,13 @@ class ReminderSettingsViewModelTest {
                 )
 
             val viewModel =
-                ReminderSettingsViewModel(
+                viewModel(
                     preferenceStore =
                         preferenceStore,
-                    reminderCoordinator =
+                    coordinator =
                         coordinator,
-                    notificationPermissionGateway =
-                        ViewModelNotificationPermissionGateway(
-                            permissionGranted =
-                                false,
-                            runtimePermissionRequired =
-                                true,
-                        ),
+                    permissionGranted = false,
+                    runtimePermissionRequired = true,
                 )
 
             advanceUntilIdle()
@@ -186,8 +161,7 @@ class ReminderSettingsViewModelTest {
             )
 
             assertEquals(
-                NotificationPermissionUiState
-                    .DENIED,
+                NotificationPermissionUiState.DENIED,
                 viewModel
                     .state
                     .value
@@ -195,12 +169,12 @@ class ReminderSettingsViewModelTest {
             )
 
             assertEquals(
-                ReminderAvailability
-                    .NOTIFICATION_PERMISSION_REQUIRED,
+                NotificationPermissionReadiness.DENIED,
                 viewModel
                     .state
                     .value
-                    .availability,
+                    .readiness
+                    ?.notificationPermission,
             )
 
             assertEquals(
@@ -209,7 +183,7 @@ class ReminderSettingsViewModelTest {
                         .REMINDER_PREFERENCE_CHANGED,
                 ),
                 coordinator
-                    .reconciliationReasons,
+                    .reconcileReasons,
             )
         }
 
@@ -217,22 +191,20 @@ class ReminderSettingsViewModelTest {
     fun exactRationale_isAvailableOnlyWithPermissionAndRealSchedule() =
         runTest(dispatcher) {
             val preferenceStore =
-                ViewModelReminderPreferenceStore(
-                    remindersEnabled =
-                        true,
+                InMemoryReminderPreferenceStore(
+                    ReminderPreferenceState(
+                        remindersEnabled = true,
+                    ),
                 )
 
             val coordinator =
-                ViewModelReminderCoordinator(
-                    currentStatus =
+                FakeReminderCoordinator(
+                    status =
                         status(
                             enabled = true,
-                            permissionGranted =
-                                true,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
+                            permissionGranted = true,
+                            hasActiveSchedule = true,
+                            exactCapability = false,
                             availability =
                                 ReminderAvailability
                                     .APPROXIMATE,
@@ -240,18 +212,13 @@ class ReminderSettingsViewModelTest {
                 )
 
             val viewModel =
-                ReminderSettingsViewModel(
+                viewModel(
                     preferenceStore =
                         preferenceStore,
-                    reminderCoordinator =
+                    coordinator =
                         coordinator,
-                    notificationPermissionGateway =
-                        ViewModelNotificationPermissionGateway(
-                            permissionGranted =
-                                true,
-                            runtimePermissionRequired =
-                                true,
-                        ),
+                    permissionGranted = true,
+                    runtimePermissionRequired = true,
                 )
 
             advanceUntilIdle()
@@ -267,285 +234,302 @@ class ReminderSettingsViewModelTest {
                     .showExactAlarmRationale,
             )
 
-            viewModel.dismissExactAlarmExplanation()
-
-            advanceUntilIdle()
-
-            assertFalse(
+            assertEquals(
+                ExactAlarmReadiness.UNAVAILABLE,
                 viewModel
                     .state
                     .value
-                    .showExactAlarmRationale,
+                    .readiness
+                    ?.exactAlarm,
             )
         }
 
     @Test
-    fun exactRationale_isNotShownWithoutActiveSchedule() =
+    fun returningFromExactAlarmSettings_reconcilesPlatformState() =
         runTest(dispatcher) {
             val preferenceStore =
-                ViewModelReminderPreferenceStore(
-                    remindersEnabled =
-                        true,
+                InMemoryReminderPreferenceStore(
+                    ReminderPreferenceState(
+                        remindersEnabled = true,
+                    ),
                 )
 
             val coordinator =
-                ViewModelReminderCoordinator(
-                    currentStatus =
+                FakeReminderCoordinator(
+                    status =
                         status(
                             enabled = true,
-                            permissionGranted =
-                                true,
-                            hasActiveSchedule =
-                                false,
-                            exactCapability =
-                                false,
+                            permissionGranted = true,
+                            hasActiveSchedule = true,
+                            exactCapability = true,
                             availability =
-                                ReminderAvailability
-                                    .NO_ACTIVE_SCHEDULE,
+                                ReminderAvailability.EXACT,
                         ),
                 )
 
             val viewModel =
-                ReminderSettingsViewModel(
+                viewModel(
                     preferenceStore =
                         preferenceStore,
-                    reminderCoordinator =
+                    coordinator =
                         coordinator,
-                    notificationPermissionGateway =
-                        ViewModelNotificationPermissionGateway(
-                            permissionGranted =
-                                true,
-                            runtimePermissionRequired =
-                                true,
-                        ),
+                    permissionGranted = true,
+                    runtimePermissionRequired = true,
                 )
 
             advanceUntilIdle()
 
-            viewModel.showExactAlarmExplanation()
+            viewModel.onExactAlarmSettingsReturned()
 
             advanceUntilIdle()
 
-            assertFalse(
-                viewModel
-                    .state
-                    .value
-                    .showExactAlarmRationale,
+            assertTrue(
+                coordinator
+                    .reconcileReasons
+                    .contains(
+                        ReconciliationReason
+                            .EXACT_ALARM_CAPABILITY_CHANGED,
+                    ),
             )
         }
 
     @Test
-    fun permissionCompletion_reconcilesAndRefreshesGrantedState() =
+    fun batteryOptimizationNotIgnored_isReflectedInReadiness() =
         runTest(dispatcher) {
             val preferenceStore =
-                ViewModelReminderPreferenceStore(
-                    remindersEnabled =
-                        true,
-                )
-
-            val permissionGateway =
-                ViewModelNotificationPermissionGateway(
-                    permissionGranted =
-                        false,
-                    runtimePermissionRequired =
-                        true,
+                InMemoryReminderPreferenceStore(
+                    ReminderPreferenceState(
+                        remindersEnabled = true,
+                    ),
                 )
 
             val coordinator =
-                ViewModelReminderCoordinator(
-                    currentStatus =
+                FakeReminderCoordinator(
+                    status =
                         status(
                             enabled = true,
-                            permissionGranted =
-                                false,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
+                            permissionGranted = true,
+                            hasActiveSchedule = true,
+                            exactCapability = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                        ),
+                )
+
+            val viewModel =
+                viewModel(
+                    preferenceStore =
+                        preferenceStore,
+                    coordinator =
+                        coordinator,
+                    permissionGranted = true,
+                    runtimePermissionRequired = true,
+                    batteryOptimizationState =
+                        BatteryOptimizationState
+                            .NOT_IGNORED,
+                    manufacturer = "Google",
+                )
+
+            advanceUntilIdle()
+
+            assertEquals(
+                ReminderReadinessStatus
+                    .BATTERY_GUIDANCE_RECOMMENDED,
+                viewModel
+                    .state
+                    .value
+                    .readiness
+                    ?.status,
+            )
+
+            assertEquals(
+                BatteryOptimizationState
+                    .NOT_IGNORED,
+                viewModel
+                    .state
+                    .value
+                    .readiness
+                    ?.batteryOptimizationState,
+            )
+        }
+
+    @Test
+    fun xiaomiManufacturer_isReflectedInReadinessGuidance() =
+        runTest(dispatcher) {
+            val preferenceStore =
+                InMemoryReminderPreferenceStore(
+                    ReminderPreferenceState(
+                        remindersEnabled = true,
+                    ),
+                )
+
+            val coordinator =
+                FakeReminderCoordinator(
+                    status =
+                        status(
+                            enabled = true,
+                            permissionGranted = true,
+                            hasActiveSchedule = true,
+                            exactCapability = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                        ),
+                )
+
+            val viewModel =
+                viewModel(
+                    preferenceStore =
+                        preferenceStore,
+                    coordinator =
+                        coordinator,
+                    permissionGranted = true,
+                    runtimePermissionRequired = true,
+                    batteryOptimizationState =
+                        BatteryOptimizationState
+                            .IGNORED,
+                    manufacturer = "XIAOMI",
+                )
+
+            advanceUntilIdle()
+
+            assertEquals(
+                ManufacturerGuidanceType.XIAOMI,
+                viewModel
+                    .state
+                    .value
+                    .readiness
+                    ?.manufacturerGuidance
+                    ?.type,
+            )
+
+            assertEquals(
+                ReminderReadinessStatus
+                    .OEM_GUIDANCE_RECOMMENDED,
+                viewModel
+                    .state
+                    .value
+                    .readiness
+                    ?.status,
+            )
+        }
+
+    @Test
+    fun continueAnywayDismissesPermissionAndExactRationales() =
+        runTest(dispatcher) {
+            val preferenceStore =
+                InMemoryReminderPreferenceStore(
+                    ReminderPreferenceState(
+                        remindersEnabled = true,
+                    ),
+                )
+
+            val coordinator =
+                FakeReminderCoordinator(
+                    status =
+                        status(
+                            enabled = true,
+                            permissionGranted = false,
+                            hasActiveSchedule = true,
+                            exactCapability = false,
                             availability =
                                 ReminderAvailability
                                     .NOTIFICATION_PERMISSION_REQUIRED,
                         ),
-                    reconciledStatus =
-                        status(
-                            enabled = true,
-                            permissionGranted =
-                                true,
-                            hasActiveSchedule =
-                                true,
-                            exactCapability =
-                                false,
-                            availability =
-                                ReminderAvailability
-                                    .APPROXIMATE,
-                        ),
                 )
 
             val viewModel =
-                ReminderSettingsViewModel(
+                viewModel(
                     preferenceStore =
                         preferenceStore,
-                    reminderCoordinator =
+                    coordinator =
                         coordinator,
-                    notificationPermissionGateway =
-                        permissionGateway,
+                    permissionGranted = false,
+                    runtimePermissionRequired = true,
                 )
 
             advanceUntilIdle()
 
-            permissionGateway
-                .permissionGranted =
-                true
-
-            viewModel
-                .onNotificationPermissionRequestCompleted()
+            viewModel.showNotificationPermissionExplanation()
+            viewModel.continueWithoutPermissionChanges()
 
             advanceUntilIdle()
 
-            assertEquals(
-                ReminderAvailability
-                    .APPROXIMATE,
+            assertFalse(
                 viewModel
                     .state
                     .value
-                    .availability,
+                    .showNotificationRationale,
             )
 
-            assertEquals(
-                ReconciliationReason
-                    .NOTIFICATION_PERMISSION_CHANGED,
-                coordinator
-                    .reconciliationReasons
-                    .last(),
+            assertFalse(
+                viewModel
+                    .state
+                    .value
+                    .showExactAlarmRationale,
             )
         }
+
+    private fun viewModel(
+        preferenceStore: InMemoryReminderPreferenceStore,
+        coordinator: FakeReminderCoordinator,
+        permissionGranted: Boolean,
+        runtimePermissionRequired: Boolean,
+        batteryOptimizationState:
+        BatteryOptimizationState =
+            BatteryOptimizationState.UNKNOWN,
+        manufacturer: String? =
+            "Google",
+    ): ReminderSettingsViewModel =
+        ReminderSettingsViewModel(
+            preferenceStore =
+                preferenceStore,
+            reminderCoordinator =
+                coordinator,
+            notificationPermissionGateway =
+                FakeNotificationPermissionGateway(
+                    permissionGranted =
+                        permissionGranted,
+                    runtimePermissionRequired =
+                        runtimePermissionRequired,
+                ),
+            batteryOptimizationState = {
+                batteryOptimizationState
+            },
+            manufacturer = {
+                manufacturer
+            },
+        )
 
     private fun status(
         enabled: Boolean,
         permissionGranted: Boolean,
         hasActiveSchedule: Boolean,
         exactCapability: Boolean,
-        availability:
-        ReminderAvailability,
-    ): ReminderStatus {
-        return ReminderStatus(
-            remindersEnabled =
-                enabled,
+        availability: ReminderAvailability,
+    ): ReminderStatus =
+        ReminderStatus(
+            remindersEnabled = enabled,
             notificationPermissionGranted =
                 permissionGranted,
             hasActiveSchedule =
                 hasActiveSchedule,
             exactAlarmCapabilityGranted =
                 exactCapability,
-            availability =
-                availability,
+            availability = availability,
         )
-    }
 }
 
-private class ViewModelReminderPreferenceStore(
-    remindersEnabled: Boolean,
-) : ReminderPreferenceStore {
-
-    private val mutableState =
-        MutableStateFlow(
-            ReminderPreferenceState(
-                remindersEnabled =
-                    remindersEnabled,
-            ),
-        )
-
-    override val state:
-            Flow<ReminderPreferenceState> =
-        mutableState
-
-    override suspend fun setRemindersEnabled(
-        enabled: Boolean,
-    ) {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    remindersEnabled =
-                        enabled,
-                )
-    }
-
-    override suspend fun observeDeviceZone(
-        zoneId: String,
-    ): TimezoneObservation {
-        return TimezoneObservation.Unchanged
-    }
-
-    override suspend fun dismissTimezoneWarning() {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    timezoneWarning = null,
-                )
-    }
-}
-
-private class ViewModelReminderCoordinator(
-    var currentStatus: ReminderStatus,
-    var reconciledStatus:
-    ReminderStatus = currentStatus,
-) : ReminderCoordinator {
-
-    val reconciliationReasons =
-        mutableListOf<ReconciliationReason>()
-
-    override suspend fun currentStatus():
-            ReminderStatus {
-        return currentStatus
-    }
-
-    override suspend fun reconcile(
-        reason: ReconciliationReason,
-    ): ReminderReconciliationResult {
-        reconciliationReasons +=
-            reason
-
-        currentStatus =
-            reconciledStatus
-
-        return ReminderReconciliationResult
-            .Reconciled(
-                reason = reason,
-                status =
-                    reconciledStatus,
-                scheduledCount = 0,
-                cancelledCount = 0,
-            )
-    }
-
-    override suspend fun handleAlarmFired(
-        occurrenceId: String,
-    ): AlarmFireResult {
-        error(
-            "Alarm fire is not used by this test.",
-        )
-    }
-
-    override suspend fun cancelAllOwnedReminderState() {
-        Unit
-    }
-}
-
-private class ViewModelNotificationPermissionGateway(
-    var permissionGranted: Boolean,
+private class FakeNotificationPermissionGateway(
+    private val permissionGranted: Boolean,
     private val runtimePermissionRequired:
     Boolean,
 ) : NotificationPermissionGateway {
 
     override fun isPermissionGranted():
-            Boolean {
-        return permissionGranted
-    }
+            Boolean =
+        permissionGranted
 
     override fun requiresRuntimePermission():
-            Boolean {
-        return runtimePermissionRequired
-    }
+            Boolean =
+        runtimePermissionRequired
 }

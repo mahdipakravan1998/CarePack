@@ -5,13 +5,23 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
+import android.os.Build
 import androidx.core.app.NotificationCompat
 import ir.carepack.R
+import ir.carepack.domain.reminder.NoOpReminderDiagnosticSink
+import ir.carepack.domain.reminder.ReminderDiagnosticEventType
+import ir.carepack.domain.reminder.ReminderDiagnosticSink
 import ir.carepack.domain.reminder.ReminderNotification
+import ir.carepack.domain.reminder.recordReminderDiagnostic
+import java.time.Clock
 import java.util.Locale
 
 class AndroidNotificationGateway(
     context: Context,
+    private val clock: Clock = Clock.systemUTC(),
+    private val diagnosticSink:
+    ReminderDiagnosticSink =
+        NoOpReminderDiagnosticSink,
 ) : NotificationGateway {
 
     private val applicationContext =
@@ -32,76 +42,130 @@ class AndroidNotificationGateway(
     override fun post(
         notification: ReminderNotification,
     ) {
-        val publicNotification =
-            buildPublicNotification()
+        diagnosticSink.recordReminderDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .NOTIFICATION_POST_ATTEMPTED,
+            clock = clock,
+            occurrenceId =
+                notification.occurrenceId,
+        )
 
-        val fullNotification =
-            NotificationCompat.Builder(
-                applicationContext,
-                ReminderNotificationContract
-                    .CHANNEL_ID,
-            )
-                .setSmallIcon(
-                    R.drawable
-                        .ic_notification_reminder,
+        try {
+            val publicNotification =
+                buildPublicNotification()
+
+            val builder =
+                NotificationCompat.Builder(
+                    applicationContext,
+                    ReminderNotificationContract
+                        .CHANNEL_ID,
                 )
-                .setContentTitle(
-                    applicationContext.getString(
-                        R.string
-                            .reminder_notification_title,
-                    ),
-                )
-                .setContentText(
-                    applicationContext.getString(
-                        R.string
-                            .reminder_notification_body,
+                    .setSmallIcon(
+                        R.drawable
+                            .ic_notification_reminder,
+                    )
+                    .setContentTitle(
+                        applicationContext.getString(
+                            R.string
+                                .reminder_notification_title,
+                        ),
+                    )
+                    .setContentText(
+                        applicationContext.getString(
+                            R.string
+                                .reminder_notification_body,
+                            notification
+                                .medicationName,
+                            notification
+                                .localTime
+                                .toDisplayText(),
+                        ),
+                    )
+                    .setCategory(
+                        NotificationCompat
+                            .CATEGORY_ALARM,
+                    )
+                    .setPriority(
+                        NotificationCompat
+                            .PRIORITY_MAX,
+                    )
+                    .setDefaults(
+                        NotificationCompat
+                            .DEFAULT_SOUND or
+                                NotificationCompat
+                                    .DEFAULT_VIBRATE,
+                    )
+                    .setVibrate(
+                        REMINDER_VIBRATION_PATTERN,
+                    )
+                    .setVisibility(
+                        NotificationCompat
+                            .VISIBILITY_PRIVATE,
+                    )
+                    .setPublicVersion(
+                        publicNotification,
+                    )
+                    .setContentIntent(
+                        createContentPendingIntent(
+                            occurrenceId =
+                                notification
+                                    .occurrenceId,
+                        ),
+                    )
+                    .setWhen(
                         notification
-                            .medicationName,
-                        notification
-                            .localTime
-                            .toDisplayText(),
-                    ),
-                )
-                .setCategory(
-                    NotificationCompat
-                        .CATEGORY_REMINDER,
-                )
-                .setPriority(
-                    NotificationCompat
-                        .PRIORITY_HIGH,
-                )
-                .setVisibility(
-                    NotificationCompat
-                        .VISIBILITY_PRIVATE,
-                )
-                .setPublicVersion(
-                    publicNotification,
-                )
-                .setContentIntent(
-                    createContentPendingIntent(
+                            .scheduledAt
+                            .toEpochMilli(),
+                    )
+                    .setShowWhen(true)
+                    .setOnlyAlertOnce(false)
+                    .setAutoCancel(true)
+
+            if (canUseFullScreenIntent()) {
+                builder.setFullScreenIntent(
+                    createFullScreenPendingIntent(
                         occurrenceId =
                             notification
                                 .occurrenceId,
                     ),
+                    true,
                 )
-                .setWhen(
-                    notification
-                        .scheduledAt
-                        .toEpochMilli(),
-                )
-                .setShowWhen(true)
-                .setOnlyAlertOnce(true)
-                .setAutoCancel(true)
-                .build()
+            }
 
-        notificationManager.notify(
-            notificationId(
+            notificationManager.notify(
+                notificationId(
+                    occurrenceId =
+                        notification
+                            .occurrenceId,
+                ),
+                builder.build(),
+            )
+
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_POSTED,
+                clock = clock,
                 occurrenceId =
-                    notification
-                        .occurrenceId,
-            ),
-            fullNotification,
-        )
+                    notification.occurrenceId,
+            )
+        } catch (failure: RuntimeException) {
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .NOTIFICATION_FAILED,
+                clock = clock,
+                occurrenceId =
+                    notification.occurrenceId,
+                outcome =
+                    failure
+                        .javaClass
+                        .simpleName,
+            )
+
+            throw failure
+        }
     }
 
     override fun cancel(
@@ -144,6 +208,9 @@ class AndroidNotificationGateway(
                         .VISIBILITY_PRIVATE
 
                 enableVibration(true)
+
+                vibrationPattern =
+                    REMINDER_VIBRATION_PATTERN
             }
 
         notificationManager
@@ -177,7 +244,7 @@ class AndroidNotificationGateway(
             )
             .setCategory(
                 NotificationCompat
-                    .CATEGORY_REMINDER,
+                    .CATEGORY_ALARM,
             )
             .setVisibility(
                 NotificationCompat
@@ -191,7 +258,11 @@ class AndroidNotificationGateway(
     ): PendingIntent {
         return PendingIntent.getActivity(
             applicationContext,
-            CONTENT_REQUEST_CODE,
+            ReminderNotificationContract
+                .contentRequestCode(
+                    occurrenceId =
+                        occurrenceId,
+                ),
             ReminderNotificationContract
                 .createOpenOccurrenceIntent(
                     context =
@@ -202,6 +273,41 @@ class AndroidNotificationGateway(
             PendingIntent.FLAG_UPDATE_CURRENT or
                     PendingIntent.FLAG_IMMUTABLE,
         )
+    }
+
+    private fun createFullScreenPendingIntent(
+        occurrenceId: String,
+    ): PendingIntent {
+        return PendingIntent.getActivity(
+            applicationContext,
+            ReminderNotificationContract
+                .fullScreenRequestCode(
+                    occurrenceId =
+                        occurrenceId,
+                ),
+            ReminderNotificationContract
+                .createOpenOccurrenceIntent(
+                    context =
+                        applicationContext,
+                    occurrenceId =
+                        occurrenceId,
+                ),
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun canUseFullScreenIntent():
+            Boolean {
+        return if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.UPSIDE_DOWN_CAKE
+        ) {
+            notificationManager
+                .canUseFullScreenIntent()
+        } else {
+            true
+        }
     }
 
     private fun notificationId(
@@ -223,7 +329,12 @@ class AndroidNotificationGateway(
     }
 
     private companion object {
-        const val CONTENT_REQUEST_CODE =
-            0
+        val REMINDER_VIBRATION_PATTERN =
+            longArrayOf(
+                0L,
+                500L,
+                250L,
+                500L,
+            )
     }
 }
