@@ -13,6 +13,9 @@ object ReminderNotificationContract {
     const val ACTION_OPEN_OCCURRENCE =
         "ir.carepack.action.OPEN_REMINDER_OCCURRENCE"
 
+    const val ACTION_OPEN_REMINDER_SETTINGS =
+        "ir.carepack.action.OPEN_REMINDER_SETTINGS"
+
     const val EXTRA_OCCURRENCE_ID =
         "ir.carepack.extra.OCCURRENCE_ID"
 
@@ -24,6 +27,9 @@ object ReminderNotificationContract {
 
     private const val URI_OCCURRENCE_PATH =
         "occurrence"
+
+    private const val URI_SETTINGS_PATH =
+        "settings"
 
     fun createOpenOccurrenceIntent(
         context: Context,
@@ -55,27 +61,50 @@ object ReminderNotificationContract {
         }
     }
 
+    fun createOpenReminderSettingsIntent(
+        context: Context,
+    ): Intent =
+        Intent(
+            context,
+            MainActivity::class.java,
+        ).apply {
+            action =
+                ACTION_OPEN_REMINDER_SETTINGS
+
+            data =
+                Uri.Builder()
+                    .scheme(URI_SCHEME)
+                    .authority(URI_AUTHORITY)
+                    .appendPath(
+                        URI_SETTINGS_PATH,
+                    )
+                    .build()
+
+            flags =
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
     fun contentRequestCode(
         occurrenceId: String,
-    ): Int {
-        return stableRequestCode(
-            occurrenceId =
-                occurrenceId,
+    ): Int =
+        stableRequestCode(
+            occurrenceId = occurrenceId,
             salt =
                 CONTENT_REQUEST_CODE_SALT,
         )
-    }
 
     fun fullScreenRequestCode(
         occurrenceId: String,
-    ): Int {
-        return stableRequestCode(
-            occurrenceId =
-                occurrenceId,
+    ): Int =
+        stableRequestCode(
+            occurrenceId = occurrenceId,
             salt =
                 FULL_SCREEN_REQUEST_CODE_SALT,
         )
-    }
+
+    fun testContentRequestCode(): Int =
+        TEST_CONTENT_REQUEST_CODE
 
     fun extractOccurrenceId(
         intent: Intent?,
@@ -113,10 +142,33 @@ object ReminderNotificationContract {
         }
     }
 
+    fun isOpenReminderSettingsIntent(
+        intent: Intent?,
+    ): Boolean {
+        if (
+            intent?.action !=
+            ACTION_OPEN_REMINDER_SETTINGS
+        ) {
+            return false
+        }
+
+        val uri =
+            intent.data
+
+        return uri?.scheme ==
+                URI_SCHEME &&
+                uri.authority ==
+                URI_AUTHORITY &&
+                uri.pathSegments ==
+                listOf(
+                    URI_SETTINGS_PATH,
+                )
+    }
+
     private fun createOccurrenceUri(
         occurrenceId: String,
-    ): Uri {
-        return Uri.Builder()
+    ): Uri =
+        Uri.Builder()
             .scheme(URI_SCHEME)
             .authority(URI_AUTHORITY)
             .appendPath(
@@ -126,7 +178,6 @@ object ReminderNotificationContract {
                 occurrenceId,
             )
             .build()
-    }
 
     private fun extractOccurrenceId(
         uri: Uri?,
@@ -173,4 +224,7 @@ object ReminderNotificationContract {
 
     private const val FULL_SCREEN_REQUEST_CODE_SALT =
         0x7321
+
+    private const val TEST_CONTENT_REQUEST_CODE =
+        0x5A31
 }

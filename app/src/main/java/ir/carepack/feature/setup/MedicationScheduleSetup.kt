@@ -30,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -88,6 +89,10 @@ import ir.carepack.feature.careplan.withTimeDraft
 import ir.carepack.feature.careplan.withValidationErrors
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.CarePackExperience
+import ir.carepack.ui.experience.LocalCarePackExperience
+import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
@@ -1013,57 +1018,64 @@ fun MedicationScheduleRoute(
             }
     }
 
-    MedicationScheduleScreen(
-        state = state,
-        firstSetupReminderReadiness =
-            readiness,
-        onMedicationNameChanged =
-            viewModel::onMedicationNameChanged,
-        onInstructionChanged =
-            viewModel::onInstructionChanged,
-        onMedicationTypeChanged =
-            viewModel::onMedicationTypeChanged,
-        onDosageTextChanged =
-            viewModel::onDosageTextChanged,
-        onDoseUnitChanged =
-            viewModel::onDoseUnitChanged,
-        onWeekdayToggled =
-            viewModel::onWeekdayToggled,
-        onInputModeSelected =
-            viewModel::onInputModeSelected,
-        onTimeDraftChanged =
-            viewModel::onTimeDraftChanged,
-        onAddTime =
-            viewModel::addTime,
-        onRemoveTime =
-            viewModel::removeTime,
-        onIntervalHoursSelected =
-            viewModel::onIntervalHoursSelected,
-        onIntervalAnchorChanged =
-            viewModel::onIntervalAnchorChanged,
-        onStartDateChanged =
-            viewModel::onStartDateChanged,
-        onEndDateChanged =
-            viewModel::onEndDateChanged,
-        onInitialReminderGuidanceContinue =
-            viewModel::dismissInitialReminderGuidance,
-        onEnableSimpleModeAfterFirstSetup =
-            viewModel::enableSimpleModeAfterFirstSetup,
-        onDeferSimpleModeAfterFirstSetup =
-            viewModel::deferSimpleModeAfterFirstSetup,
-        onOpenReminderSettings =
-            onOpenReminderSettings,
-        onRequestNotificationPermission =
-            requestNotificationPermission,
-        onOpenNotificationSettings =
-            openNotificationSettings,
-        onRequestExactAlarmAccess =
-            requestExactAlarmAccess,
-        onOpenBatterySettings =
-            openBatterySettings,
-        onSave =
-            viewModel::save,
-    )
+    CompositionLocalProvider(
+        LocalCarePackExperience provides
+                CarePackExperience.forMode(
+                    state.seniorMode,
+                ),
+    ) {
+        MedicationScheduleScreen(
+            state = state,
+            firstSetupReminderReadiness =
+                readiness,
+            onMedicationNameChanged =
+                viewModel::onMedicationNameChanged,
+            onInstructionChanged =
+                viewModel::onInstructionChanged,
+            onMedicationTypeChanged =
+                viewModel::onMedicationTypeChanged,
+            onDosageTextChanged =
+                viewModel::onDosageTextChanged,
+            onDoseUnitChanged =
+                viewModel::onDoseUnitChanged,
+            onWeekdayToggled =
+                viewModel::onWeekdayToggled,
+            onInputModeSelected =
+                viewModel::onInputModeSelected,
+            onTimeDraftChanged =
+                viewModel::onTimeDraftChanged,
+            onAddTime =
+                viewModel::addTime,
+            onRemoveTime =
+                viewModel::removeTime,
+            onIntervalHoursSelected =
+                viewModel::onIntervalHoursSelected,
+            onIntervalAnchorChanged =
+                viewModel::onIntervalAnchorChanged,
+            onStartDateChanged =
+                viewModel::onStartDateChanged,
+            onEndDateChanged =
+                viewModel::onEndDateChanged,
+            onInitialReminderGuidanceContinue =
+                viewModel::dismissInitialReminderGuidance,
+            onEnableSimpleModeAfterFirstSetup =
+                viewModel::enableSimpleModeAfterFirstSetup,
+            onDeferSimpleModeAfterFirstSetup =
+                viewModel::deferSimpleModeAfterFirstSetup,
+            onOpenReminderSettings =
+                onOpenReminderSettings,
+            onRequestNotificationPermission =
+                requestNotificationPermission,
+            onOpenNotificationSettings =
+                openNotificationSettings,
+            onRequestExactAlarmAccess =
+                requestExactAlarmAccess,
+            onOpenBatterySettings =
+                openBatterySettings,
+            onSave =
+                viewModel::save,
+        )
+    }
 }
 
 private fun platformFirstSetupReminderReadiness(
@@ -1878,6 +1890,9 @@ private fun MedicationScheduleScreen(
     onOpenBatterySettings: () -> Unit,
     onSave: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             Modifier
@@ -1903,12 +1918,16 @@ private fun MedicationScheduleScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             Text(
@@ -2079,6 +2098,7 @@ private fun MedicationScheduleScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             "save_medication_schedule",
                         ),

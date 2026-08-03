@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="medication_deletion_entry_action">حذف دائمی</string>
+    <string name="medication_deletion_title">حذف دائمی دارو</string>
+    <string name="medication_deletion_loading">در حال بررسی اطلاعات وابسته به دارو…</string>
+    <string name="medication_deletion_preview_failed">اطلاعات لازم برای بررسی حذف بارگذاری نشد. دوباره تلاش کنید.</string>
+    <string name="medication_deletion_not_found">این دارو دیگر در کرپک وجود ندارد.</string>
+    <string name="medication_deletion_warning_title">این حذف قابل بازیابی نیست</string>
+    <string name="medication_deletion_warning_body">با ادامه، خود دارو، همه برنامه‌های مصرف و نسخه‌های آن‌ها، زمان‌ها، همه نوبت‌های گذشته و آینده، گزارش‌های وابسته، یادآورها، یادآوری‌های دوباره و اعلان‌های مربوط به این دارو از همین دستگاه حذف می‌شوند. توقف یا بایگانی برای نگه‌داشتن سابقه مناسب‌تر است.</string>
+    <string name="medication_deletion_impact_title">اطلاعاتی که حذف می‌شوند</string>
+    <string name="medication_deletion_schedule_series_count">برنامه‌های مصرف</string>
+    <string name="medication_deletion_schedule_version_count">نسخه‌های برنامه</string>
+    <string name="medication_deletion_occurrence_count">نوبت‌ها</string>
+    <string name="medication_deletion_report_count">گزارش‌های ثبت‌شده</string>
+    <string name="medication_deletion_external_limit">متنی که قبلاً بیرون از کرپک کپی یا اشتراک‌گذاری شده است، با این عملیات قابل بازگرداندن یا حذف نیست.</string>
+    <string name="medication_deletion_changed">اطلاعات این دارو از زمان پیش‌نمایش تغییر کرده است. اثر حذف به‌روزرسانی شد؛ دوباره آن را بررسی و تأیید کنید.</string>
+    <string name="medication_deletion_failed">حذف کامل نشد و اطلاعات دارو در برنامه باقی مانده است. دوباره تلاش کنید.</string>
+    <string name="medication_deletion_cleanup_failed">اطلاعات دارو حذف شده است، اما پاک‌سازی یادآورها یا تکمیل بازیابی پایان نیافت. برای تکمیل عملیات دوباره تلاش کنید.</string>
+    <string name="medication_deletion_progress">در حال حذف دارو و پاک‌سازی یادآورها…</string>
+    <string name="medication_deletion_acknowledgement">می‌دانم این اطلاعات قابل بازیابی نیستند.</string>
+    <string name="medication_deletion_action">حذف دائمی دارو</string>
+</resources>

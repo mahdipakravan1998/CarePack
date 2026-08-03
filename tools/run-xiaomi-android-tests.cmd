@@ -4,20 +4,23 @@ setlocal EnableExtensions EnableDelayedExpansion
 rem ------------------------------------------------------------
 rem CarePack Xiaomi physical-device instrumented test runner
 rem
-rem Full suite:
+rem Full instrumented suite:
 rem   tools\run-xiaomi-android-tests.cmd
 rem
-rem One non-Compose class:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.ReportingIntegrationTest"
+rem Current CarePack feature-verification suite:
+rem   tools\run-xiaomi-android-tests.cmd --core-workflows
+rem
+rem One class:
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.RangeReportingIntegrationTest"
 rem
 rem One Compose class:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingPrivacyDeletionComposeTest"
-rem
-rem Another Compose class:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingComposeTest"
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.JalaliDatePickerComposeTest"
 rem
 rem One method:
-rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.ReportingComposeTest#detail_exposesAllThreeReportActions"
+rem   tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.RangeReportComposeTest#defaultSevenDayReportCanSwitchToThirtyDays"
+rem
+rem Help:
+rem   tools\run-xiaomi-android-tests.cmd --help
 rem ------------------------------------------------------------
 
 cd /d "%~dp0.."
@@ -33,7 +36,24 @@ set "REPORTING_PRIVACY_DELETION_COMPOSE_CLASS=ir.carepack.ui.ReportingPrivacyDel
 set "REPORTING_COMPOSE_CLASS=ir.carepack.ui.ReportingComposeTest"
 set "CAREPACK_COMPOSE_CLASS=ir.carepack.ui.CarePackComposeTest"
 
-set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%,%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%"
+set "CALENDAR_COMPOSE_CLASS=ir.carepack.ui.CalendarComposeTest"
+set "CARE_RECIPIENT_EDIT_COMPOSE_CLASS=ir.carepack.ui.CareRecipientEditComposeTest"
+set "GLOBAL_SIMPLE_MODE_COMPOSE_CLASS=ir.carepack.ui.GlobalSimpleModeComposeTest"
+set "JALALI_DATE_PICKER_COMPOSE_CLASS=ir.carepack.ui.JalaliDatePickerComposeTest"
+set "MEDICATION_DELETION_COMPOSE_CLASS=ir.carepack.ui.MedicationDeletionComposeTest"
+set "MEDICATION_SCHEDULE_SETUP_COMPOSE_CLASS=ir.carepack.ui.MedicationScheduleSetupComposeTest"
+set "ONBOARDING_COMPOSE_CLASS=ir.carepack.ui.OnboardingComposeTest"
+set "RANGE_REPORT_COMPOSE_CLASS=ir.carepack.ui.RangeReportComposeTest"
+set "REMINDER_COMPOSE_CLASS=ir.carepack.ui.ReminderComposeTest"
+set "REMINDER_NAVIGATION_COMPOSE_CLASS=ir.carepack.ui.ReminderNavigationComposeTest"
+set "SENIOR_MODE_TODAY_COMPOSE_CLASS=ir.carepack.ui.SeniorModeTodayComposeTest"
+set "TODAY_REPORT_ENTRY_COMPOSE_CLASS=ir.carepack.ui.TodayReportEntryComposeTest"
+
+set "ADDITIONAL_COMPOSE_CLASSES=%CALENDAR_COMPOSE_CLASS% %CARE_RECIPIENT_EDIT_COMPOSE_CLASS% %GLOBAL_SIMPLE_MODE_COMPOSE_CLASS% %JALALI_DATE_PICKER_COMPOSE_CLASS% %MEDICATION_DELETION_COMPOSE_CLASS% %MEDICATION_SCHEDULE_SETUP_COMPOSE_CLASS% %ONBOARDING_COMPOSE_CLASS% %RANGE_REPORT_COMPOSE_CLASS% %REMINDER_COMPOSE_CLASS% %REMINDER_NAVIGATION_COMPOSE_CLASS% %SENIOR_MODE_TODAY_COMPOSE_CLASS% %TODAY_REPORT_ENTRY_COMPOSE_CLASS%"
+
+set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%,%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%,%CALENDAR_COMPOSE_CLASS%,%CARE_RECIPIENT_EDIT_COMPOSE_CLASS%,%GLOBAL_SIMPLE_MODE_COMPOSE_CLASS%,%JALALI_DATE_PICKER_COMPOSE_CLASS%,%MEDICATION_DELETION_COMPOSE_CLASS%,%MEDICATION_SCHEDULE_SETUP_COMPOSE_CLASS%,%ONBOARDING_COMPOSE_CLASS%,%RANGE_REPORT_COMPOSE_CLASS%,%REMINDER_COMPOSE_CLASS%,%REMINDER_NAVIGATION_COMPOSE_CLASS%,%SENIOR_MODE_TODAY_COMPOSE_CLASS%,%TODAY_REPORT_ENTRY_COMPOSE_CLASS%"
+
+set "CORE_WORKFLOW_STANDARD_CLASSES=ir.carepack.data.preferences.DataStoreMedicationDeletionMarkerStoreTest ir.carepack.reporting.RangeReportingIntegrationTest ir.carepack.settings.deletion.MedicationDeletionIntegrationTest ir.carepack.reminder.ReminderTestContractTest %CALENDAR_COMPOSE_CLASS% %JALALI_DATE_PICKER_COMPOSE_CLASS% %RANGE_REPORT_COMPOSE_CLASS% %MEDICATION_DELETION_COMPOSE_CLASS% %GLOBAL_SIMPLE_MODE_COMPOSE_CLASS% %REMINDER_NAVIGATION_COMPOSE_CLASS% %TODAY_REPORT_ENTRY_COMPOSE_CLASS% %ONBOARDING_COMPOSE_CLASS% %CARE_RECIPIENT_EDIT_COMPOSE_CLASS% %REMINDER_COMPOSE_CLASS%"
 
 set "TARGET_APK=%CD%\app\build\outputs\apk\debug\app-debug.apk"
 set "TEST_APK=%CD%\app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk"
@@ -49,21 +69,23 @@ set "PERMISSION_SCRIPT=%CD%\tools\grant-xiaomi-ui-permissions.ps1"
 set "INSTRUMENTATION_SCRIPT=%CD%\tools\run-adb-instrumentation.ps1"
 set "VALIDATOR_SCRIPT=%CD%\tools\validate-instrumentation-report.ps1"
 
-set "INSTRUMENTATION_TIMEOUT_SECONDS=180"
+set "INSTRUMENTATION_TIMEOUT_SECONDS=300"
 set "PACKAGE_VISIBILITY_TIMEOUT_SECONDS=20"
 set "XIAOMI_PERMISSION_ATTEMPTS=2"
 
 set "REPORTING_PRIVACY_DELETION_COMPOSE_METHODS=reportPreview_displaysExactTextAndExplicitActionsAtTwoHundredPercentFont privacyScreen_isLocalOnlyAndDoesNotExposeExternalPolicyAction deleteEverything_confirmationProgressAndFailureStatesAreExplicit"
 
-set "REPORTING_COMPOSE_METHODS=noReportAndUnknown_haveDifferentVisibleText detail_exposesAllThreeReportActions cancelledOccurrence_disablesNewReportActions undoSnackbar_callsCurrentUndoToken todayShowsSeparateNoMedicationEmptyState historySectionShowsGroupedRecentHistory"
+set "REPORTING_COMPOSE_METHODS=noReportAndUnknown_haveDifferentVisibleText todayCanShowOccurrencesFromMultipleSchedules detail_exposesAllThreeReportActions cancelledOccurrence_disablesNewReportActions undoSnackbar_callsCurrentUndoToken todayShowsSeparateNoMedicationEmptyState historySectionShowsGroupedRecentHistory"
 
-set "CAREPACK_COMPOSE_METHODS=completedCarePlan_startsAtToday_andRecordsGiven settingsPrivacy_opensLocalPrivacyScreen"
+set "CAREPACK_COMPOSE_METHODS=completedCarePlan_startsAtToday_andRecordsGiven primaryNavigation_exposesTodayCalendarMedicationsAndSettings medicationsNavigation_showsMultipleSchedulesUnderMedication scheduleCardWithStartDateDisplaysJalaliDate scheduleCardWithEndDateDisplaysJalaliDate scheduleCardDoesNotExposeRawGregorianStartOrEndDates multipleScheduleCardsDisplayJalaliStartAndEndDates settingsPrivacy_opensLocalPrivacyScreen settingsShowsApplicationVersion"
 
 echo.
 echo ============================================================
 echo CarePack Xiaomi instrumented tests
 echo ============================================================
 echo.
+
+if /I "%~1"=="--help" goto :show_help
 
 if not exist "%GRADLEW%" (
     echo ERROR: gradlew.bat was not found.
@@ -197,6 +219,17 @@ if errorlevel 1 (
 )
 
 echo.
+echo [4A/9] Verifying that both installed packages remain available...
+
+call :ensure_installed_package_pair
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: The target and test packages could not be made available together.
+    exit /b 1
+)
+
+echo.
 echo [5/9] Clearing stale app data for isolated test run...
 
 call :clear_app_data_for_test_run "%TARGET_PACKAGE%"
@@ -267,9 +300,14 @@ if errorlevel 1 (
 echo.
 echo [8/9] Preparing physical device...
 
-adb shell input keyevent 224 >nul 2>&1
-adb shell wm dismiss-keyguard >nul 2>&1
-adb shell input keyevent 3 >nul 2>&1
+call :prepare_physical_device_surface
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: The phone must be unlocked before instrumented tests can run.
+    echo Unlock the Xiaomi device and run the command again.
+    exit /b 1
+)
 
 adb shell settings put global window_animation_scale 0 >nul 2>&1
 adb shell settings put global transition_animation_scale 0 >nul 2>&1
@@ -290,7 +328,15 @@ adb shell cmd appops set "%TEST_PACKAGE%" RUN_IN_BACKGROUND allow >nul 2>&1
 adb shell cmd appops set "%TEST_PACKAGE%" RUN_ANY_IN_BACKGROUND allow >nul 2>&1
 
 adb shell am force-stop com.miui.securitycenter >nul 2>&1
-adb shell input keyevent 3 >nul 2>&1
+
+call :prepare_physical_device_surface
+
+if errorlevel 1 (
+    echo.
+    echo ERROR: The phone became locked while the device was being prepared.
+    echo Unlock the Xiaomi device and run the command again.
+    exit /b 1
+)
 
 timeout /t 1 /nobreak >nul
 
@@ -317,6 +363,8 @@ if exist "%SELECTED_REPORT_FILE%" (
 echo.
 echo [9/9] Running instrumented tests...
 echo.
+
+if /I "%~1"=="--core-workflows" goto :run_core_workflow_suite
 
 if not "%~1"=="" goto :dispatch_selected_test
 
@@ -419,6 +467,52 @@ for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
 goto :selected_test_passed
 
 
+:run_core_workflow_suite
+
+type nul > "%SELECTED_REPORT_FILE%"
+
+echo Running the current CarePack feature-verification classes.
+echo Each class uses a separate instrumentation session after one build,
+echo one APK installation, and one Xiaomi permission setup.
+echo.
+
+for %%C in (%CORE_WORKFLOW_STANDARD_CLASSES%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%%C" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "%%C"
+
+    if errorlevel 1 goto :selected_test_failed
+
+    call :append_report ^
+        "%%C" ^
+        "%SELECTED_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+echo.
+echo Running CarePackComposeTest methods in isolated sessions...
+echo.
+
+for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "CarePackComposeTest#%%M"
+
+    if errorlevel 1 goto :selected_test_failed
+
+    call :append_report ^
+        "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%SELECTED_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+goto :selected_test_passed
+
+
 :run_full_suite
 
 echo [9A/9] Running non-Compose instrumented tests...
@@ -489,6 +583,25 @@ for %%M in (%CAREPACK_COMPOSE_METHODS%) do (
 
     call :append_report ^
         "%CAREPACK_COMPOSE_CLASS%#%%M" ^
+        "%UI_REPORT_FILE%" ^
+        "%UI_SESSION_REPORT_FILE%"
+)
+
+echo.
+echo [9E/9] Running all additional Compose test classes in isolated sessions...
+echo.
+
+for %%C in (%ADDITIONAL_COMPOSE_CLASSES%) do (
+    call :run_and_validate ^
+        "class" ^
+        "%%C" ^
+        "%UI_SESSION_REPORT_FILE%" ^
+        "%%C"
+
+    if errorlevel 1 goto :ui_tests_failed
+
+    call :append_report ^
+        "%%C" ^
         "%UI_REPORT_FILE%" ^
         "%UI_SESSION_REPORT_FILE%"
 )
@@ -568,14 +681,29 @@ if not "!RUN_VALIDATION_EXIT_CODE!"=="0" (
 exit /b 0
 
 
+:install_apk_with_xiaomi_confirmation
+
+set "APK_TO_INSTALL=%~1"
+set "EXPECTED_INSTALLED_PACKAGE=%~2"
+
+powershell.exe ^
+    -NoLogo ^
+    -NoProfile ^
+    -ExecutionPolicy Bypass ^
+    -File "%PERMISSION_SCRIPT%" ^
+    -Mode InstallApk ^
+    -PackageName "%EXPECTED_INSTALLED_PACKAGE%" ^
+    -ApkPath "%APK_TO_INSTALL%" ^
+    -AndroidUserId "%DEVICE_USER_ID%"
+
+exit /b %ERRORLEVEL%
+
+
 :install_and_verify_target_apk
 
-adb install ^
-    --user "%DEVICE_USER_ID%" ^
-    -r ^
-    -t ^
-    -g ^
-    "%TARGET_APK%"
+call :install_apk_with_xiaomi_confirmation ^
+    "%TARGET_APK%" ^
+    "%TARGET_PACKAGE%"
 
 if errorlevel 1 (
     exit /b 1
@@ -593,11 +721,9 @@ echo Performing one clean reinstall...
 
 adb uninstall "%TARGET_PACKAGE%" >nul 2>&1
 
-adb install ^
-    --user "%DEVICE_USER_ID%" ^
-    -t ^
-    -g ^
-    "%TARGET_APK%"
+call :install_apk_with_xiaomi_confirmation ^
+    "%TARGET_APK%" ^
+    "%TARGET_PACKAGE%"
 
 if errorlevel 1 (
     exit /b 1
@@ -614,11 +740,9 @@ rem A fresh test-package install prevents stale or missing
 rem instrumentation registration after interrupted Gradle runs.
 adb uninstall "%TEST_PACKAGE%" >nul 2>&1
 
-adb install ^
-    --user "%DEVICE_USER_ID%" ^
-    -t ^
-    -g ^
-    "%TEST_APK%"
+call :install_apk_with_xiaomi_confirmation ^
+    "%TEST_APK%" ^
+    "%TEST_PACKAGE%"
 
 if errorlevel 1 (
     exit /b 1
@@ -636,11 +760,9 @@ echo Performing one clean reinstall...
 
 adb uninstall "%TEST_PACKAGE%" >nul 2>&1
 
-adb install ^
-    --user "%DEVICE_USER_ID%" ^
-    -t ^
-    -g ^
-    "%TEST_APK%"
+call :install_apk_with_xiaomi_confirmation ^
+    "%TEST_APK%" ^
+    "%TEST_PACKAGE%"
 
 if errorlevel 1 (
     exit /b 1
@@ -683,6 +805,45 @@ for /L %%I in (1,1,%XIAOMI_PERMISSION_ATTEMPTS%) do (
 exit /b 1
 
 
+:ensure_installed_package_pair
+
+call :ensure_target_package
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TEST_PACKAGE%"
+
+if errorlevel 1 (
+    echo.
+    echo Android test package disappeared after the target package was restored.
+    echo Reinstalling and verifying the Android test APK...
+
+    call :install_and_verify_test_apk
+
+    if errorlevel 1 (
+        exit /b 1
+    )
+
+    call :ensure_target_package
+
+    if errorlevel 1 (
+        exit /b 1
+    )
+)
+
+call :wait_for_package "%TARGET_PACKAGE%"
+
+if errorlevel 1 (
+    exit /b 1
+)
+
+call :wait_for_package "%TEST_PACKAGE%"
+
+exit /b %ERRORLEVEL%
+
+
 :ensure_target_package
 
 call :wait_for_package "%TARGET_PACKAGE%"
@@ -692,7 +853,26 @@ if not errorlevel 1 (
 )
 
 echo.
-echo Target package disappeared before permission setup.
+echo Target package is not currently visible to Android user %DEVICE_USER_ID%.
+echo Trying to restore an existing installation for that user...
+
+adb shell cmd package install-existing ^
+    --user "%DEVICE_USER_ID%" ^
+    "%TARGET_PACKAGE%" >nul 2>&1
+
+adb shell pm enable ^
+    --user "%DEVICE_USER_ID%" ^
+    "%TARGET_PACKAGE%" >nul 2>&1
+
+call :wait_for_package "%TARGET_PACKAGE%"
+
+if not errorlevel 1 (
+    echo Target package was restored for Android user %DEVICE_USER_ID%.
+    exit /b 0
+)
+
+echo.
+echo Existing-package recovery did not restore the target package.
 echo Reinstalling and verifying the target APK...
 
 call :install_and_verify_target_apk
@@ -730,7 +910,11 @@ exit /b 1
 
 set "PACKAGE_TO_CLEAR=%~1"
 
-call :wait_for_package "%PACKAGE_TO_CLEAR%"
+if /I "%PACKAGE_TO_CLEAR%"=="%TARGET_PACKAGE%" (
+    call :ensure_target_package
+) else (
+    call :wait_for_package "%PACKAGE_TO_CLEAR%"
+)
 
 if errorlevel 1 (
     exit /b 1
@@ -781,13 +965,71 @@ adb shell am force-stop "%TARGET_PACKAGE%" >nul 2>&1
 adb shell am force-stop "%TEST_PACKAGE%" >nul 2>&1
 adb shell am force-stop com.miui.securitycenter >nul 2>&1
 
-adb shell input keyevent 224 >nul 2>&1
-adb shell wm dismiss-keyguard >nul 2>&1
-adb shell input keyevent 3 >nul 2>&1
+call :prepare_physical_device_surface
+
+if errorlevel 1 (
+    echo ERROR: Device is locked before instrumentation:
+    echo %RUN_DISPLAY_NAME%
+    exit /b 1
+)
 
 timeout /t 1 /nobreak >nul
 
 exit /b 0
+
+
+:prepare_physical_device_surface
+
+adb shell input keyevent 224 >nul 2>&1
+adb shell wm dismiss-keyguard >nul 2>&1
+
+timeout /t 1 /nobreak >nul
+
+call :device_is_locked
+
+if not errorlevel 1 (
+    rem A swipe is attempted only while Android still reports a keyguard.
+    rem This avoids opening the launcher app drawer on an already-unlocked phone.
+    adb shell input swipe 540 1800 540 300 250 >nul 2>&1
+    adb shell wm dismiss-keyguard >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+call :device_is_locked
+
+if not errorlevel 1 (
+    exit /b 1
+)
+
+rem Do not leave the previously foregrounded third-party application visible.
+rem Starting the HOME intent is more deterministic than a lone HOME key event
+rem during MIUI's unlock transition.
+adb shell input keyevent 3 >nul 2>&1
+adb shell am start ^
+    --user "%DEVICE_USER_ID%" ^
+    -a android.intent.action.MAIN ^
+    -c android.intent.category.HOME >nul 2>&1
+
+timeout /t 1 /nobreak >nul
+
+exit /b 0
+
+
+:device_is_locked
+
+adb shell dumpsys window 2>nul ^
+    | findstr /I ^
+        /C:"mDreamingLockscreen=true" ^
+        /C:"mShowingLockscreen=true" ^
+        /C:"isStatusBarKeyguard=true" ^
+        /C:"mInputRestricted=true" ^
+        /C:"keyguardShowing=true" >nul
+
+if not errorlevel 1 (
+    exit /b 0
+)
+
+exit /b 1
 
 
 :wait_for_instrumentation
@@ -819,6 +1061,32 @@ set "APPEND_SOURCE_FILE=%~3"
 >> "%APPEND_TARGET_FILE%" echo.
 
 type "%APPEND_SOURCE_FILE%" >> "%APPEND_TARGET_FILE%"
+
+exit /b 0
+
+
+:show_help
+
+echo.
+echo Usage:
+echo.
+echo   tools\run-xiaomi-android-tests.cmd
+echo       Runs the complete instrumented suite.
+echo.
+echo   tools\run-xiaomi-android-tests.cmd --core-workflows
+echo       Runs the focused CarePack calendar, reporting, deletion,
+echo       reminder, onboarding, recipient-edit, and Simple Mode suite.
+echo.
+echo   tools\run-xiaomi-android-tests.cmd "fully.qualified.TestClass"
+echo       Runs one test class.
+echo.
+echo   tools\run-xiaomi-android-tests.cmd "fully.qualified.TestClass#methodName"
+echo       Runs one test method.
+echo.
+echo Do not prepend gradlew.bat connectedDebugAndroidTest when using this
+echo runner. The runner builds and installs the APKs once, grants Xiaomi
+echo background-window access, prepares the device, and starts instrumentation.
+echo.
 
 exit /b 0
 

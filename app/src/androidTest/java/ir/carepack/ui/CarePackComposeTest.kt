@@ -142,7 +142,7 @@ class CarePackComposeTest {
     }
 
     @Test
-    fun primaryNavigation_exposesTodayMedicationsHistoryAndSettings() {
+    fun primaryNavigation_exposesTodayCalendarMedicationsAndSettings() {
         runBlocking {
             createNoonPlanAndReturnTodayOccurrenceId()
         }
@@ -168,7 +168,7 @@ class CarePackComposeTest {
 
         composeRule
             .onNodeWithTag(
-                "primary_nav_history",
+                "primary_nav_calendar",
             )
             .assertIsDisplayed()
 
@@ -565,6 +565,9 @@ class CarePackComposeTest {
                         ComposeReminderPreferenceStore(),
                     reminderCoordinator =
                         ComposeReminderCoordinator(),
+                    reminderTestCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedReminderTestCoordinator(),
                     notificationPermissionGateway =
                         ComposeNotificationPermissionGateway(),
                     todayReportFormatter =
@@ -572,6 +575,24 @@ class CarePackComposeTest {
                             database =
                                 fixture.database,
                         ),
+                    dateRangeSummaryService =
+                        ir.carepack.domain.report
+                            .RoomDateRangeSummaryService(
+                                database =
+                                    fixture.database,
+                            ),
+                    rangeReportFormatter =
+                        ir.carepack.domain.report
+                            .RoomRangeReportFormatter(
+                                database =
+                                    fixture.database,
+                                summaryService =
+                                    ir.carepack.domain.report
+                                        .RoomDateRangeSummaryService(
+                                            database =
+                                                fixture.database,
+                                        ),
+                            ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
                     userExperiencePreferenceStore =
@@ -580,6 +601,9 @@ class CarePackComposeTest {
                         RecordingTextShareGateway(),
                     dataDeletionCoordinator =
                         RecordingDataDeletionCoordinator(),
+                    medicationDeletionCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedMedicationDeletionCoordinator(),
                     clock =
                         fixture.clock,
                     zoneProvider =

@@ -25,6 +25,37 @@ class ReminderAlarmReceiver :
             return
         }
 
+        val application =
+            context.applicationContext as?
+                    CarePackApplication
+                ?: return
+
+        when (
+            intent.getStringExtra(
+                EXTRA_ALARM_TYPE,
+            )
+        ) {
+            ALARM_TYPE_TEST -> {
+                handleTestAlarm(
+                    application = application,
+                )
+            }
+
+            ALARM_TYPE_OCCURRENCE,
+            null,
+                -> {
+                handleOccurrenceAlarm(
+                    application = application,
+                    intent = intent,
+                )
+            }
+        }
+    }
+
+    private fun handleOccurrenceAlarm(
+        application: CarePackApplication,
+        intent: Intent,
+    ) {
         val occurrenceId =
             intent
                 .getStringExtra(
@@ -34,11 +65,6 @@ class ReminderAlarmReceiver :
                 ?.takeIf(
                     String::isNotEmpty,
                 )
-                ?: return
-
-        val application =
-            context.applicationContext as?
-                    CarePackApplication
                 ?: return
 
         application
@@ -79,14 +105,46 @@ class ReminderAlarmReceiver :
         }
     }
 
+    private fun handleTestAlarm(
+        application: CarePackApplication,
+    ) {
+        val pendingResult =
+            goAsync()
+
+        CoroutineScope(
+            SupervisorJob() +
+                    Dispatchers.IO,
+        ).launch {
+            try {
+                application
+                    .container
+                    .reminderTestCoordinator
+                    .handleTestAlarmFired()
+            } catch (_: Exception) {
+                Unit
+            } finally {
+                pendingResult.finish()
+            }
+        }
+    }
+
     companion object {
         const val ACTION_FIRE_REMINDER =
             "ir.carepack.action.FIRE_REMINDER"
+
+        const val EXTRA_ALARM_TYPE =
+            "ir.carepack.extra.ALARM_TYPE"
 
         const val EXTRA_OCCURRENCE_ID =
             "ir.carepack.extra.ALARM_OCCURRENCE_ID"
 
         const val EXTRA_SCHEDULE_SERIES_ID =
             "ir.carepack.extra.ALARM_SCHEDULE_SERIES_ID"
+
+        const val ALARM_TYPE_OCCURRENCE =
+            "occurrence"
+
+        const val ALARM_TYPE_TEST =
+            "test"
     }
 }

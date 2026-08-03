@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="primary_nav_calendar">تقویم</string>
+
+    <string name="calendar_title">تقویم</string>
+    <string name="calendar_description">روزهای تقویم را برای دیدن نوبت‌ها و وضعیت‌های ثبت‌شده انتخاب کنید.</string>
+    <string name="calendar_open_range_report">گزارش ۷ و ۳۰ روزه</string>
+    <string name="calendar_history_hint">انتخاب روز یا باز کردن جزئیات، گزارشی ثبت یا تغییر نمی‌دهد.</string>
+    <string name="calendar_previous_month">ماه قبل</string>
+    <string name="calendar_next_month">ماه بعد</string>
+    <string name="calendar_today">امروز</string>
+    <string name="calendar_loading">در حال بارگذاری تقویم…</string>
+    <string name="calendar_error">اطلاعات تقویم بارگذاری نشد. دوباره تلاش کنید.</string>
+    <string name="calendar_day_total_compact">%1$s نوبت</string>
+    <string name="calendar_day_semantics">%1$s؛ مجموع %2$s نوبت؛ %3$s مصرف شد؛ %4$s مصرف نشد؛ %5$s نامشخص؛ %6$s بدون گزارش</string>
+    <string name="calendar_today_description">امروز</string>
+    <string name="calendar_selected_description">انتخاب‌شده</string>
+    <string name="calendar_adjacent_month_description">مربوط به ماه مجاور</string>
+    <string name="calendar_selected_day_title">نوبت‌های %1$s</string>
+    <string name="calendar_selected_day_loading">در حال بارگذاری نوبت‌های این روز…</string>
+    <string name="calendar_empty_day">برای این روز نوبتی وجود ندارد.</string>
+    <string name="calendar_open_occurrence">مشاهده جزئیات نوبت</string>
+    <string name="calendar_report_given">مصرف شد</string>
+    <string name="calendar_report_not_given">مصرف نشد</string>
+    <string name="calendar_report_unknown">نامشخص</string>
+    <string name="calendar_report_no_report">بدون گزارش</string>
+    <string name="calendar_entry_instruction">دستور: %1$s</string>
+    <string name="calendar_entry_medication_type">نوع: %1$s</string>
+    <string name="calendar_entry_dosage">مقدار ثبت‌شده: %1$s</string>
+    <string name="calendar_entry_dose_unit">واحد: %1$s</string>
+
+    <string name="jalali_date_picker_selected_date">تاریخ انتخاب‌شده: %1$s</string>
+    <string name="jalali_date_picker_today">امروز</string>
+    <string name="jalali_date_picker_clear">پاک کردن تاریخ</string>
+    <string name="jalali_date_picker_no_end_date">بدون تاریخ پایان</string>
+    <string name="jalali_date_picker_cancel">انصراف</string>
+    <string name="jalali_date_picker_confirm">تأیید</string>
+    <string name="jalali_date_picker_previous_month">ماه قبل</string>
+    <string name="jalali_date_picker_next_month">ماه بعد</string>
+    <string name="jalali_date_picker_today_description">امروز</string>
+    <string name="jalali_date_picker_selected_description">انتخاب‌شده</string>
+
+    <string name="schedule_open_start_date_picker">انتخاب تاریخ شروع از تقویم</string>
+    <string name="schedule_open_end_date_picker">انتخاب تاریخ پایان از تقویم</string>
+    <string name="schedule_start_date_picker_title">انتخاب تاریخ شروع</string>
+    <string name="schedule_end_date_picker_title">انتخاب تاریخ پایان</string>
+</resources>

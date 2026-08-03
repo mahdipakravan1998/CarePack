@@ -56,6 +56,9 @@ import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -513,6 +516,9 @@ fun OccurrenceDetailScreen(
     onSnackbarConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -537,20 +543,24 @@ fun OccurrenceDetailScreen(
                             rememberScrollState(),
                         )
                         .padding(
-                            horizontal = 20.dp,
-                            vertical = 16.dp,
+                            horizontal =
+                                experience.screenHorizontalPadding,
+                            vertical =
+                                experience.screenVerticalPadding,
                         ),
                 verticalArrangement =
                     Arrangement.spacedBy(
-                        16.dp,
+                        experience.itemSpacing,
                     ),
             ) {
                 TextButton(
                     onClick = onBack,
                     modifier =
-                        Modifier.testTag(
-                            "occurrence_detail_back",
-                        ),
+                        Modifier
+                            .carePackInteractiveControl()
+                            .testTag(
+                                "occurrence_detail_back",
+                            ),
                 ) {
                     Text(
                         text =
@@ -631,7 +641,9 @@ fun OccurrenceDetailScreen(
                                 Alignment.BottomCenter,
                             )
                             .navigationBarsPadding()
-                            .padding(16.dp)
+                            .padding(
+                                experience.compactSpacing,
+                            )
                             .carePackPoliteLiveRegion()
                             .testTag(
                                 "occurrence_detail_snackbar",
@@ -641,9 +653,11 @@ fun OccurrenceDetailScreen(
                             TextButton(
                                 onClick = onUndo,
                                 modifier =
-                                    Modifier.testTag(
-                                        "occurrence_detail_undo",
-                                    ),
+                                    Modifier
+                                        .carePackInteractiveControl()
+                                        .testTag(
+                                            "occurrence_detail_undo",
+                                        ),
                             ) {
                                 Text(
                                     text =
@@ -657,9 +671,11 @@ fun OccurrenceDetailScreen(
                                 onClick =
                                     onSnackbarConsumed,
                                 modifier =
-                                    Modifier.testTag(
-                                        "occurrence_detail_snackbar_dismiss",
-                                    ),
+                                    Modifier
+                                        .carePackInteractiveControl()
+                                        .testTag(
+                                            "occurrence_detail_snackbar_dismiss",
+                                        ),
                             ) {
                                 Text(
                                     text =
@@ -683,6 +699,9 @@ fun OccurrenceDetailScreen(
 
 @Composable
 private fun LoadingContent() {
+    val experience =
+        carePackExperience()
+
     Column(
         modifier =
             Modifier
@@ -695,7 +714,7 @@ private fun LoadingContent() {
             Alignment.CenterHorizontally,
         verticalArrangement =
             Arrangement.spacedBy(
-                12.dp,
+                experience.itemSpacing,
             ),
     ) {
         CircularProgressIndicator()
@@ -718,6 +737,9 @@ private fun OccurrenceDetailContent(
     onUnknown: () -> Unit,
     onRemindLater: () -> Unit = {},
 ) {
+    val experience =
+        carePackExperience()
+
     val canRecord =
         detail.lifecycle ==
                 OccurrenceLifecycle.ACTIVE
@@ -744,11 +766,11 @@ private fun OccurrenceDetailContent(
         Column(
             modifier =
                 Modifier.padding(
-                    20.dp,
+                    experience.screenHorizontalPadding,
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -907,6 +929,7 @@ private fun OccurrenceDetailContent(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .heightIn(
                                     min = 64.dp,
                                 )
@@ -934,6 +957,7 @@ private fun OccurrenceDetailContent(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .heightIn(
                                     min = 64.dp,
                                 )
@@ -967,51 +991,100 @@ private fun OccurrenceDetailContent(
                         Modifier.carePackHeading(),
                 )
 
-                Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
-                            8.dp,
-                        ),
-                ) {
-                    ReportActionButton(
-                        text =
-                            stringResource(
-                                R.string.record_not_given,
-                            ),
-                        selected =
-                            detail.reportState ==
-                                    CaregiverReportState.NOT_GIVEN,
-                        enabled = true,
-                        accessibilityLabel =
-                            "ثبت مصرف نشد برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
-                        testTag =
-                            "report_not_given",
+                if (experience.isSimple) {
+                    Column(
                         modifier =
-                            Modifier.weight(1f),
-                        onClick =
-                            onNotGiven,
-                    )
+                            Modifier.fillMaxWidth(),
+                        verticalArrangement =
+                            Arrangement.spacedBy(
+                                experience.itemSpacing,
+                            ),
+                    ) {
+                        ReportActionButton(
+                            text =
+                                stringResource(
+                                    R.string.record_not_given,
+                                ),
+                            selected =
+                                detail.reportState ==
+                                        CaregiverReportState.NOT_GIVEN,
+                            enabled = true,
+                            accessibilityLabel =
+                                "ثبت مصرف نشد برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
+                            testTag =
+                                "report_not_given",
+                            modifier =
+                                Modifier.fillMaxWidth(),
+                            onClick =
+                                onNotGiven,
+                        )
 
-                    ReportActionButton(
-                        text =
-                            stringResource(
-                                R.string.record_unknown,
-                            ),
-                        selected =
-                            detail.reportState ==
-                                    CaregiverReportState.UNKNOWN,
-                        enabled = true,
-                        accessibilityLabel =
-                            "ثبت نامشخص برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
-                        testTag =
-                            "report_unknown",
+                        ReportActionButton(
+                            text =
+                                stringResource(
+                                    R.string.record_unknown,
+                                ),
+                            selected =
+                                detail.reportState ==
+                                        CaregiverReportState.UNKNOWN,
+                            enabled = true,
+                            accessibilityLabel =
+                                "ثبت نامشخص برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
+                            testTag =
+                                "report_unknown",
+                            modifier =
+                                Modifier.fillMaxWidth(),
+                            onClick =
+                                onUnknown,
+                        )
+                    }
+                } else {
+                    Row(
                         modifier =
-                            Modifier.weight(1f),
-                        onClick =
-                            onUnknown,
-                    )
+                            Modifier.fillMaxWidth(),
+                        horizontalArrangement =
+                            Arrangement.spacedBy(
+                                experience.compactSpacing,
+                            ),
+                    ) {
+                        ReportActionButton(
+                            text =
+                                stringResource(
+                                    R.string.record_not_given,
+                                ),
+                            selected =
+                                detail.reportState ==
+                                        CaregiverReportState.NOT_GIVEN,
+                            enabled = true,
+                            accessibilityLabel =
+                                "ثبت مصرف نشد برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
+                            testTag =
+                                "report_not_given",
+                            modifier =
+                                Modifier.weight(1f),
+                            onClick =
+                                onNotGiven,
+                        )
+
+                        ReportActionButton(
+                            text =
+                                stringResource(
+                                    R.string.record_unknown,
+                                ),
+                            selected =
+                                detail.reportState ==
+                                        CaregiverReportState.UNKNOWN,
+                            enabled = true,
+                            accessibilityLabel =
+                                "ثبت نامشخص برای ${detail.medicationName} در ساعت ${detail.localTime.toDisplayText()}",
+                            testTag =
+                                "report_unknown",
+                            modifier =
+                                Modifier.weight(1f),
+                            onClick =
+                                onUnknown,
+                        )
+                    }
                 }
             }
         }
@@ -1024,6 +1097,9 @@ private fun ReminderEntryPrimaryActions(
     onGiven: () -> Unit,
     onRemindLater: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Card(
         modifier =
             Modifier
@@ -1035,11 +1111,11 @@ private fun ReminderEntryPrimaryActions(
         Column(
             modifier =
                 Modifier.padding(
-                    16.dp,
+                    experience.screenHorizontalPadding,
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    12.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -1071,6 +1147,7 @@ private fun ReminderEntryPrimaryActions(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .heightIn(
                             min = 72.dp,
                         )
@@ -1097,6 +1174,7 @@ private fun ReminderEntryPrimaryActions(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .heightIn(
                             min = 72.dp,
                         )
@@ -1184,6 +1262,7 @@ private fun ReportActionButton(
         enabled = enabled,
         modifier =
             modifier
+                .carePackInteractiveControl()
                 .defaultMinSize(
                     minHeight = 56.dp,
                 )

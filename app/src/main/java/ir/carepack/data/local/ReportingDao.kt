@@ -153,6 +153,98 @@ interface ReportingDao {
         WHERE occurrence.localEpochDay
                 BETWEEN :startEpochDay
                 AND :endEpochDay
+          AND occurrence.lifecycle != 'CANCELLED'
+        ORDER BY
+            occurrence.localEpochDay,
+            occurrence.minuteOfDay,
+            occurrence.id
+        """,
+    )
+    fun observeRange(
+        startEpochDay: Long,
+        endEpochDay: Long,
+    ): Flow<List<ReportingOccurrenceRow>>
+
+    @Query(
+        """
+        SELECT
+            occurrence.id AS occurrenceId,
+            occurrence.localEpochDay
+                AS localEpochDay,
+            occurrence.minuteOfDay
+                AS minuteOfDay,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
+            occurrence.scheduledAtEpochMillis
+                AS scheduledAtEpochMillis,
+            occurrence.medicationNameSnapshot
+                AS medicationNameSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
+            occurrence.lifecycle
+                AS lifecycle,
+            occurrence.cancellationReason
+                AS cancellationReason,
+            report.state
+                AS reportState
+        FROM occurrences AS occurrence
+        LEFT JOIN caregiver_reports AS report
+            ON report.occurrenceId = occurrence.id
+        WHERE occurrence.localEpochDay
+                BETWEEN :startEpochDay
+                AND :endEpochDay
+          AND occurrence.lifecycle != 'CANCELLED'
+        ORDER BY
+            occurrence.localEpochDay,
+            occurrence.minuteOfDay,
+            occurrence.id
+        """,
+    )
+    suspend fun getRange(
+        startEpochDay: Long,
+        endEpochDay: Long,
+    ): List<ReportingOccurrenceRow>
+
+    @Query(
+        """
+        SELECT
+            occurrence.id AS occurrenceId,
+            occurrence.localEpochDay
+                AS localEpochDay,
+            occurrence.minuteOfDay
+                AS minuteOfDay,
+            occurrence.zoneIdSnapshot
+                AS zoneIdSnapshot,
+            occurrence.scheduledAtEpochMillis
+                AS scheduledAtEpochMillis,
+            occurrence.medicationNameSnapshot
+                AS medicationNameSnapshot,
+            occurrence.instructionSnapshot
+                AS instructionSnapshot,
+            occurrence.medicationTypeSnapshot
+                AS medicationTypeSnapshot,
+            occurrence.dosageTextSnapshot
+                AS dosageTextSnapshot,
+            occurrence.doseUnitSnapshot
+                AS doseUnitSnapshot,
+            occurrence.lifecycle
+                AS lifecycle,
+            occurrence.cancellationReason
+                AS cancellationReason,
+            report.state
+                AS reportState
+        FROM occurrences AS occurrence
+        LEFT JOIN caregiver_reports AS report
+            ON report.occurrenceId = occurrence.id
+        WHERE occurrence.localEpochDay
+                BETWEEN :startEpochDay
+                AND :endEpochDay
         ORDER BY
             occurrence.localEpochDay DESC,
             occurrence.scheduledAtEpochMillis,

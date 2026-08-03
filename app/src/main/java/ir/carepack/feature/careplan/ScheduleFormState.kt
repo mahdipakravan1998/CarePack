@@ -198,6 +198,36 @@ internal fun ScheduleFormUiState.withEndDate(
                     CarePlanField.END_DATE,
     )
 
+internal fun ScheduleFormUiState.withStartDate(
+    value: LocalDate?,
+): ScheduleFormUiState =
+    withStartDate(
+        value
+            ?.toJalaliDateText()
+            .orEmpty(),
+    )
+
+internal fun ScheduleFormUiState.withEndDate(
+    value: LocalDate?,
+): ScheduleFormUiState =
+    withEndDate(
+        value
+            ?.toJalaliDateText()
+            .orEmpty(),
+    )
+
+internal fun ScheduleFormUiState.startDateSelection():
+        LocalDate? =
+    parseDateSelection(
+        startDateText,
+    )
+
+internal fun ScheduleFormUiState.endDateSelection():
+        LocalDate? =
+    parseDateSelection(
+        endDateText,
+    )
+
 internal fun ScheduleFormUiState.parseDates():
         ParsedScheduleDates {
     val result =
@@ -212,15 +242,30 @@ internal fun ScheduleFormUiState.parseDates():
     val value =
         result.valueOrNull()
 
+    val dateErrors =
+        result
+            .errorsOrEmpty()
+            .toFieldErrors()
+            .toMutableMap()
+
+    if (
+        value?.startDate != null &&
+        value.endDate != null &&
+        value.startDate.isAfter(
+            value.endDate,
+        )
+    ) {
+        dateErrors[CarePlanField.END_DATE] =
+            "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."
+    }
+
     return ParsedScheduleDates(
         startDate =
             value?.startDate,
         endDate =
             value?.endDate,
         errors =
-            result
-                .errorsOrEmpty()
-                .toFieldErrors(),
+            dateErrors,
     )
 }
 
@@ -445,6 +490,29 @@ private fun String.keepDateDraftCharacters():
         .take(
             MAX_DATE_DRAFT_LENGTH,
         )
+
+private fun parseDateSelection(
+    rawValue: String,
+): LocalDate? {
+    val normalized =
+        rawValue.trim()
+
+    if (normalized.isBlank()) {
+        return null
+    }
+
+    return JalaliPresentationDate
+        .parseNumeric(
+            normalized,
+        )
+        ?.toLocalDate()
+        ?: runCatching {
+            LocalDate.parse(
+                normalized
+                    .normalizePersianDigits(),
+            )
+        }.getOrNull()
+}
 
 private fun String.normalizePersianDigits():
         String =

@@ -59,6 +59,9 @@ value class AlarmKey private constructor(
                 .removePrefix(
                     DELAYED_OCCURRENCE_PREFIX,
                 )
+                .removePrefix(
+                    TEST_REMINDER_PREFIX,
+                )
 
     val stableToken: String
         get() {
@@ -86,6 +89,12 @@ value class AlarmKey private constructor(
 
         private const val DELAYED_OCCURRENCE_PREFIX =
             "delayed-occurrence:"
+
+        private const val TEST_REMINDER_PREFIX =
+            "test-reminder:"
+
+        private const val TEST_REMINDER_ID =
+            "single"
 
         fun forScheduleSeries(
             scheduleSeriesId: String,
@@ -116,6 +125,13 @@ value class AlarmKey private constructor(
                             trimmed,
             )
         }
+
+        fun forTestReminder(): AlarmKey =
+            AlarmKey(
+                value =
+                    TEST_REMINDER_PREFIX +
+                            TEST_REMINDER_ID,
+            )
     }
 }
 

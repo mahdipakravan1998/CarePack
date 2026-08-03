@@ -21,6 +21,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -33,10 +37,19 @@ import ir.carepack.R
 import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.schedule.SchedulePatternRules
+import ir.carepack.feature.calendar.JalaliDatePickerDialog
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.experience.LocalCarePackExperience
 import java.time.DayOfWeek
 import java.time.LocalDate
+
+private enum class ScheduleDatePickerTarget {
+    START,
+    END,
+}
 
 data class ScheduleFormCallbacks(
     val onWeekdayToggled:
@@ -74,6 +87,16 @@ fun ScheduleFormFields(
                 textDirection =
                     TextDirection.Ltr,
             )
+
+    val experience =
+        LocalCarePackExperience.current
+
+    var datePickerTarget by
+    remember {
+        mutableStateOf<ScheduleDatePickerTarget?>(
+            null,
+        )
+    }
 
     Column(
         modifier = modifier,
@@ -296,6 +319,11 @@ fun ScheduleFormFields(
             textStyle =
                 leftToRightTextStyle,
             singleLine = true,
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType =
+                        KeyboardType.Number,
+                ),
             isError =
                 state.errors
                     .containsKey(
@@ -322,6 +350,36 @@ fun ScheduleFormFields(
                     ),
         )
 
+        OutlinedButton(
+            onClick = {
+                datePickerTarget =
+                    ScheduleDatePickerTarget.START
+            },
+            enabled = enabled,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .carePackInteractiveControl()
+                    .testTag(
+                        "start_date_picker_open",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .schedule_open_start_date_picker,
+                    ),
+            )
+        }
+
+        Spacer(
+            modifier =
+                Modifier.height(
+                    experience.compactSpacing,
+                ),
+        )
+
         OutlinedTextField(
             value =
                 state.endDateText,
@@ -340,6 +398,11 @@ fun ScheduleFormFields(
             textStyle =
                 leftToRightTextStyle,
             singleLine = true,
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType =
+                        KeyboardType.Number,
+                ),
             isError =
                 state.errors
                     .containsKey(
@@ -365,6 +428,29 @@ fun ScheduleFormFields(
                         "end_date",
                     ),
         )
+
+        OutlinedButton(
+            onClick = {
+                datePickerTarget =
+                    ScheduleDatePickerTarget.END
+            },
+            enabled = enabled,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .carePackInteractiveControl()
+                    .testTag(
+                        "end_date_picker_open",
+                    ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .schedule_open_end_date_picker,
+                    ),
+            )
+        }
 
         OutlinedTextField(
             value =
@@ -421,6 +507,67 @@ fun ScheduleFormFields(
             previewAnchorDate =
                 previewAnchorDate,
         )
+    }
+
+    when (datePickerTarget) {
+        ScheduleDatePickerTarget.START -> {
+            JalaliDatePickerDialog(
+                title =
+                    stringResource(
+                        R.string
+                            .schedule_start_date_picker_title,
+                    ),
+                selectedDate =
+                    state.startDateSelection(),
+                today = previewAnchorDate,
+                firstDayOfWeek =
+                    firstDayOfWeek,
+                allowClear = true,
+                onDismissRequest = {
+                    datePickerTarget = null
+                },
+                onDateSelected = { date ->
+                    callbacks.onStartDateChanged(
+                        date
+                            ?.toJalaliDateText()
+                            .orEmpty(),
+                    )
+
+                    datePickerTarget = null
+                },
+            )
+        }
+
+        ScheduleDatePickerTarget.END -> {
+            JalaliDatePickerDialog(
+                title =
+                    stringResource(
+                        R.string
+                            .schedule_end_date_picker_title,
+                    ),
+                selectedDate =
+                    state.endDateSelection(),
+                today = previewAnchorDate,
+                firstDayOfWeek =
+                    firstDayOfWeek,
+                allowClear = true,
+                clearAsNoEndDate = true,
+                onDismissRequest = {
+                    datePickerTarget = null
+                },
+                onDateSelected = { date ->
+                    callbacks.onEndDateChanged(
+                        date
+                            ?.toJalaliDateText()
+                            .orEmpty(),
+                    )
+
+                    datePickerTarget = null
+                },
+            )
+        }
+
+        null -> Unit
     }
 }
 
@@ -598,6 +745,7 @@ private fun FixedTimesEditor(
                     top = 8.dp,
                 )
                 .fillMaxWidth()
+                .carePackPrimaryAction()
                 .testTag(
                     "add_time",
                 ),

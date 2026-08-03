@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -28,6 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,20 +51,32 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
+import ir.carepack.domain.experience.SeniorMode
+import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ExactAlarmReadiness
 import ir.carepack.domain.reminder.ManufacturerGuidance
 import ir.carepack.domain.reminder.NotificationPermissionReadiness
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
 import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderDeliveryMode
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderReadiness
 import ir.carepack.domain.reminder.ReminderReadinessPolicy
 import ir.carepack.domain.reminder.ReminderReadinessStatus
 import ir.carepack.domain.reminder.ReminderStatus
+import ir.carepack.domain.reminder.ReminderTestCoordinator
+import ir.carepack.domain.reminder.ReminderTestScheduleResult
 import ir.carepack.reminder.permission.AndroidBatteryOptimizationGateway
 import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.reminder.permission.NotificationPermissionGateway
+import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.CarePackExperience
+import ir.carepack.ui.experience.LocalCarePackExperience
+import ir.carepack.ui.experience.carePackExperience
+import java.time.Instant
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,6 +91,14 @@ enum class NotificationPermissionUiState {
     NOT_REQUIRED,
     GRANTED,
     DENIED,
+}
+
+enum class ReminderTestUiStatus {
+    IDLE,
+    SCHEDULED_EXACT,
+    SCHEDULED_APPROXIMATE,
+    NOTIFICATION_PERMISSION_REQUIRED,
+    SCHEDULING_UNAVAILABLE,
 }
 
 data class ReminderSettingsUiState(
@@ -100,6 +122,11 @@ data class ReminderSettingsUiState(
     Boolean = false,
     val showOemGuidance:
     Boolean = true,
+    val seniorMode: SeniorMode = SeniorMode.STANDARD,
+    val isSchedulingTest: Boolean = false,
+    val reminderTestStatus:
+    ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
+    val reminderTestScheduledAt: Instant? = null,
     val errorMessage: String? = null,
 )
 
@@ -111,6 +138,10 @@ private data class ReminderSettingsTransientState(
     Boolean = false,
     val showOemGuidance:
     Boolean = true,
+    val isSchedulingTest: Boolean = false,
+    val reminderTestStatus:
+    ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
+    val reminderTestScheduledAt: Instant? = null,
     val errorMessage: String? = null,
 )
 
@@ -119,8 +150,12 @@ class ReminderSettingsViewModel(
     ReminderPreferenceStore,
     private val reminderCoordinator:
     ReminderCoordinator,
+    private val reminderTestCoordinator:
+    ReminderTestCoordinator,
     private val notificationPermissionGateway:
     NotificationPermissionGateway,
+    private val userExperiencePreferenceStore:
+    UserExperiencePreferenceStore,
     private val batteryOptimizationState:
         () -> BatteryOptimizationState = {
         BatteryOptimizationState.UNKNOWN
@@ -149,10 +184,12 @@ class ReminderSettingsViewModel(
             preferenceStore.state,
             mutableStatus,
             mutableTransientState,
+            userExperiencePreferenceStore.state,
         ) {
                 preferenceState,
                 status,
-                transientState ->
+                transientState,
+                userExperienceState ->
             val runtimePermissionRequired =
                 notificationPermissionGateway
                     .requiresRuntimePermission()
@@ -232,6 +269,18 @@ class ReminderSettingsViewModel(
                 showOemGuidance =
                     transientState
                         .showOemGuidance,
+                seniorMode =
+                    userExperienceState
+                        .seniorMode,
+                isSchedulingTest =
+                    transientState
+                        .isSchedulingTest,
+                reminderTestStatus =
+                    transientState
+                        .reminderTestStatus,
+                reminderTestScheduledAt =
+                    transientState
+                        .reminderTestScheduledAt,
                 errorMessage =
                     transientState
                         .errorMessage,
@@ -299,6 +348,90 @@ class ReminderSettingsViewModel(
                     showOemGuidance =
                         true,
                 )
+            }
+        }
+    }
+
+    fun scheduleTestReminder() {
+        viewModelScope.launch {
+            operationMutex.withLock {
+                mutableTransientState.update { transient ->
+                    transient.copy(
+                        isSchedulingTest = true,
+                        reminderTestStatus =
+                            ReminderTestUiStatus.IDLE,
+                        reminderTestScheduledAt = null,
+                        errorMessage = null,
+                    )
+                }
+
+                try {
+                    when (
+                        val result =
+                            reminderTestCoordinator
+                                .scheduleTestReminder()
+                    ) {
+                        is ReminderTestScheduleResult.Scheduled -> {
+                            mutableTransientState.update { transient ->
+                                transient.copy(
+                                    reminderTestStatus =
+                                        when (result.deliveryMode) {
+                                            ReminderDeliveryMode.EXACT ->
+                                                ReminderTestUiStatus
+                                                    .SCHEDULED_EXACT
+
+                                            ReminderDeliveryMode.APPROXIMATE ->
+                                                ReminderTestUiStatus
+                                                    .SCHEDULED_APPROXIMATE
+                                        },
+                                    reminderTestScheduledAt =
+                                        result.triggerAt,
+                                )
+                            }
+                        }
+
+                        ReminderTestScheduleResult
+                            .NotificationPermissionRequired -> {
+                            mutableTransientState.update { transient ->
+                                transient.copy(
+                                    reminderTestStatus =
+                                        ReminderTestUiStatus
+                                            .NOTIFICATION_PERMISSION_REQUIRED,
+                                )
+                            }
+                        }
+
+                        ReminderTestScheduleResult
+                            .SchedulingUnavailable -> {
+                            mutableTransientState.update { transient ->
+                                transient.copy(
+                                    reminderTestStatus =
+                                        ReminderTestUiStatus
+                                            .SCHEDULING_UNAVAILABLE,
+                                )
+                            }
+                        }
+                    }
+                } catch (
+                    cancellationException:
+                    CancellationException,
+                ) {
+                    throw cancellationException
+                } catch (_: Exception) {
+                    mutableTransientState.update { transient ->
+                        transient.copy(
+                            reminderTestStatus =
+                                ReminderTestUiStatus
+                                    .SCHEDULING_UNAVAILABLE,
+                        )
+                    }
+                } finally {
+                    mutableTransientState.update { transient ->
+                        transient.copy(
+                            isSchedulingTest = false,
+                        )
+                    }
+                }
             }
         }
     }
@@ -554,8 +687,12 @@ class ReminderSettingsViewModel(
             ReminderPreferenceStore,
             reminderCoordinator:
             ReminderCoordinator,
+            reminderTestCoordinator:
+            ReminderTestCoordinator,
             notificationPermissionGateway:
             NotificationPermissionGateway,
+            userExperiencePreferenceStore:
+            UserExperiencePreferenceStore,
         ): ViewModelProvider.Factory {
             return viewModelFactory {
                 initializer {
@@ -564,8 +701,12 @@ class ReminderSettingsViewModel(
                             preferenceStore,
                         reminderCoordinator =
                             reminderCoordinator,
+                        reminderTestCoordinator =
+                            reminderTestCoordinator,
                         notificationPermissionGateway =
                             notificationPermissionGateway,
+                        userExperiencePreferenceStore =
+                            userExperiencePreferenceStore,
                     )
                 }
             }
@@ -673,61 +814,70 @@ fun ReminderSettingsRoute(
         }
     }
 
-    ReminderSettingsScreen(
-        state =
-            screenState,
-        onBack =
-            onBack,
-        onRemindersEnabledChanged =
-            viewModel::setRemindersEnabled,
-        onRequestNotificationPermission =
-            viewModel::showNotificationPermissionExplanation,
-        onOpenNotificationSettings = {
-            val intent =
-                Intent(
-                    Settings
-                        .ACTION_APP_NOTIFICATION_SETTINGS,
-                ).apply {
-                    putExtra(
-                        Settings.EXTRA_APP_PACKAGE,
-                        context.packageName,
-                    )
+    CompositionLocalProvider(
+        LocalCarePackExperience provides
+                CarePackExperience.forMode(
+                    state.seniorMode,
+                ),
+    ) {
+        ReminderSettingsScreen(
+            state =
+                screenState,
+            onBack =
+                onBack,
+            onRemindersEnabledChanged =
+                viewModel::setRemindersEnabled,
+            onRequestNotificationPermission =
+                viewModel::showNotificationPermissionExplanation,
+            onOpenNotificationSettings = {
+                val intent =
+                    Intent(
+                        Settings
+                            .ACTION_APP_NOTIFICATION_SETTINGS,
+                    ).apply {
+                        putExtra(
+                            Settings.EXTRA_APP_PACKAGE,
+                            context.packageName,
+                        )
+                    }
+
+                runCatching {
+                    notificationSettingsLauncher
+                        .launch(intent)
+                }.onFailure {
+                    viewModel
+                        .onPlatformLaunchFailed()
                 }
+            },
+            onRequestExactAlarmAccess =
+                viewModel::showExactAlarmExplanation,
+            onOpenBatterySettings = {
+                val intent =
+                    Intent(
+                        Settings
+                            .ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
+                    )
 
-            runCatching {
-                notificationSettingsLauncher
-                    .launch(intent)
-            }.onFailure {
-                viewModel
-                    .onPlatformLaunchFailed()
-            }
-        },
-        onRequestExactAlarmAccess =
-            viewModel::showExactAlarmExplanation,
-        onOpenBatterySettings = {
-            val intent =
-                Intent(
-                    Settings
-                        .ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
-                )
-
-            runCatching {
-                batterySettingsLauncher
-                    .launch(intent)
-            }.onFailure {
-                viewModel
-                    .onPlatformLaunchFailed()
-            }
-        },
-        onReviewSchedules =
-            onReviewSchedules,
-        onContinueAnyway =
-            viewModel::continueWithoutPermissionChanges,
-        onShowOemGuidance =
-            viewModel::showOemGuidance,
-        onRetry =
-            viewModel::refreshPlatformState,
-    )
+                runCatching {
+                    batterySettingsLauncher
+                        .launch(intent)
+                }.onFailure {
+                    viewModel
+                        .onPlatformLaunchFailed()
+                }
+            },
+            onReviewSchedules =
+                onReviewSchedules,
+            onScheduleTestReminder =
+                viewModel::scheduleTestReminder,
+            onContinueAnyway =
+                viewModel::continueWithoutPermissionChanges,
+            onShowOemGuidance =
+                viewModel::showOemGuidance,
+            onRetry =
+                viewModel::refreshPlatformState,
+        )
+    }
 
     if (
         state.showNotificationRationale
@@ -913,11 +1063,15 @@ fun ReminderSettingsScreen(
         () -> Unit,
     onOpenBatterySettings: () -> Unit = {},
     onReviewSchedules: () -> Unit,
+    onScheduleTestReminder: () -> Unit,
     onContinueAnyway: () -> Unit = {},
     onShowOemGuidance: () -> Unit = {},
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier.fillMaxSize(),
@@ -930,10 +1084,17 @@ fun ReminderSettingsScreen(
                     .verticalScroll(
                         rememberScrollState(),
                     )
-                    .padding(24.dp),
+                    .padding(
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
+                    ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             TextButton(
@@ -992,6 +1153,12 @@ fun ReminderSettingsScreen(
             ReadinessSummaryCard(
                 readiness =
                     state.readiness,
+            )
+
+            ReminderTestCard(
+                state = state,
+                onSchedule =
+                    onScheduleTestReminder,
             )
 
             ReminderStatusCard(
@@ -1141,6 +1308,157 @@ fun ReminderSettingsScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ReminderTestCard(
+    state: ReminderSettingsUiState,
+    onSchedule: () -> Unit,
+) {
+    val experience =
+        carePackExperience()
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .testTag(
+                    "reminder_test_card",
+                ),
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(
+                    16.dp,
+                ),
+            verticalArrangement =
+                Arrangement.spacedBy(
+                    experience.itemSpacing,
+                ),
+        ) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .reminder_test_title,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .titleLarge,
+                modifier =
+                    Modifier.carePackHeading(),
+            )
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .reminder_test_description,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+            )
+
+            Button(
+                onClick = onSchedule,
+                enabled =
+                    !state.isSchedulingTest,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .carePackPrimaryAction()
+                        .testTag(
+                            "schedule_reminder_test",
+                        ),
+            ) {
+                if (state.isSchedulingTest) {
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.size(
+                                24.dp,
+                            ),
+                    )
+                } else {
+                    Text(
+                        text =
+                            stringResource(
+                                R.string
+                                    .reminder_test_action,
+                            ),
+                    )
+                }
+            }
+
+            val statusText =
+                when (state.reminderTestStatus) {
+                    ReminderTestUiStatus.IDLE -> null
+
+                    ReminderTestUiStatus.SCHEDULED_EXACT ->
+                        stringResource(
+                            R.string
+                                .reminder_test_scheduled_exact,
+                        )
+
+                    ReminderTestUiStatus.SCHEDULED_APPROXIMATE ->
+                        stringResource(
+                            R.string
+                                .reminder_test_scheduled_approximate,
+                        )
+
+                    ReminderTestUiStatus
+                        .NOTIFICATION_PERMISSION_REQUIRED ->
+                        stringResource(
+                            R.string
+                                .reminder_test_permission_required,
+                        )
+
+                    ReminderTestUiStatus.SCHEDULING_UNAVAILABLE ->
+                        stringResource(
+                            R.string
+                                .reminder_test_scheduling_unavailable,
+                        )
+                }
+
+            statusText?.let { message ->
+                Text(
+                    text = message,
+                    color =
+                        when (state.reminderTestStatus) {
+                            ReminderTestUiStatus.SCHEDULED_EXACT,
+                            ReminderTestUiStatus.SCHEDULED_APPROXIMATE,
+                                -> MaterialTheme
+                                .colorScheme
+                                .primary
+
+                            else -> MaterialTheme
+                                .colorScheme
+                                .error
+                        },
+                    modifier =
+                        Modifier
+                            .carePackPoliteLiveRegion()
+                            .testTag(
+                                "reminder_test_status",
+                            ),
+                )
+            }
+
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .reminder_test_delivery_notice,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodySmall,
+            )
         }
     }
 }

@@ -268,6 +268,156 @@ interface MedicationDao {
     ): List<MedicationScheduleOverviewRow>
 
     @Query(
+        """
+        SELECT
+            medication.id AS medicationId,
+            medication.name AS medicationName,
+            medication.updatedAtEpochMillis
+                AS medicationUpdatedAtEpochMillis,
+            (
+                SELECT COUNT(*)
+                FROM schedule_series AS series
+                WHERE series.medicationId = medication.id
+            ) AS scheduleSeriesCount,
+            (
+                SELECT COUNT(*)
+                FROM schedule_versions AS version
+                INNER JOIN schedule_series AS series
+                    ON series.id = version.scheduleSeriesId
+                WHERE series.medicationId = medication.id
+            ) AS scheduleVersionCount,
+            (
+                SELECT COUNT(*)
+                FROM schedule_times AS scheduleTime
+                INNER JOIN schedule_versions AS version
+                    ON version.id = scheduleTime.scheduleVersionId
+                INNER JOIN schedule_series AS series
+                    ON series.id = version.scheduleSeriesId
+                WHERE series.medicationId = medication.id
+            ) AS scheduleTimeCount,
+            (
+                SELECT COUNT(*)
+                FROM occurrences AS occurrence
+                WHERE occurrence.medicationId = medication.id
+            ) AS occurrenceCount,
+            (
+                SELECT COUNT(*)
+                FROM caregiver_reports AS report
+                INNER JOIN occurrences AS occurrence
+                    ON occurrence.id = report.occurrenceId
+                WHERE occurrence.medicationId = medication.id
+            ) AS caregiverReportCount
+        FROM medications AS medication
+        WHERE medication.id = :medicationId
+        LIMIT 1
+        """,
+    )
+    suspend fun getDeletionPreview(
+        medicationId: String,
+    ): MedicationDeletionPreviewRow?
+
+    @Query(
+        """
+        SELECT id
+        FROM schedule_series
+        WHERE medicationId = :medicationId
+        ORDER BY createdAtEpochMillis, id
+        """,
+    )
+    suspend fun getDeletionScheduleSeriesIds(
+        medicationId: String,
+    ): List<String>
+
+    @Query(
+        """
+        SELECT id
+        FROM occurrences
+        WHERE medicationId = :medicationId
+        ORDER BY
+            localEpochDay,
+            minuteOfDay,
+            id
+        """,
+    )
+    suspend fun getDeletionOccurrenceIds(
+        medicationId: String,
+    ): List<String>
+
+    @Query(
+        """
+        DELETE FROM caregiver_reports
+        WHERE occurrenceId IN (
+            SELECT id
+            FROM occurrences
+            WHERE medicationId = :medicationId
+        )
+        """,
+    )
+    suspend fun deleteReportsOwnedByMedication(
+        medicationId: String,
+    ): Int
+
+    @Query(
+        """
+        DELETE FROM occurrences
+        WHERE medicationId = :medicationId
+        """,
+    )
+    suspend fun deleteOccurrencesOwnedByMedication(
+        medicationId: String,
+    ): Int
+
+    @Query(
+        """
+        DELETE FROM schedule_times
+        WHERE scheduleVersionId IN (
+            SELECT version.id
+            FROM schedule_versions AS version
+            INNER JOIN schedule_series AS series
+                ON series.id = version.scheduleSeriesId
+            WHERE series.medicationId = :medicationId
+        )
+        """,
+    )
+    suspend fun deleteScheduleTimesOwnedByMedication(
+        medicationId: String,
+    ): Int
+
+    @Query(
+        """
+        DELETE FROM schedule_versions
+        WHERE scheduleSeriesId IN (
+            SELECT id
+            FROM schedule_series
+            WHERE medicationId = :medicationId
+        )
+        """,
+    )
+    suspend fun deleteScheduleVersionsOwnedByMedication(
+        medicationId: String,
+    ): Int
+
+    @Query(
+        """
+        DELETE FROM schedule_series
+        WHERE medicationId = :medicationId
+        """,
+    )
+    suspend fun deleteScheduleSeriesOwnedByMedication(
+        medicationId: String,
+    ): Int
+
+    @Query(
+        """
+        DELETE FROM medications
+        WHERE id = :medicationId
+        """,
+    )
+    suspend fun deleteMedicationById(
+        medicationId: String,
+    ): Int
+
+    @Query(
         "SELECT COUNT(*) FROM medications",
     )
     suspend fun count(): Int

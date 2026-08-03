@@ -20,6 +20,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -40,12 +41,17 @@ import ir.carepack.domain.calendar.FirstDayOfWeekPolicy
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.UpdateScheduleCommand
 import ir.carepack.domain.careplan.UpdateScheduleOutcome
+import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.model.MedicationStatus
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.IntervalSchedule
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.CarePackExperience
+import ir.carepack.ui.experience.LocalCarePackExperience
+import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
@@ -66,6 +72,7 @@ data class ScheduleEditUiState(
     val schedule: ScheduleFormUiState? = null,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val previewAnchorDate: LocalDate = LocalDate.now(),
+    val seniorMode: SeniorMode = SeniorMode.STANDARD,
     val isSaving: Boolean = false,
     val generalError: String? = null,
 )
@@ -122,6 +129,9 @@ class ScheduleEditViewModel(
                                         locale =
                                             Locale.getDefault(),
                                     ),
+                            seniorMode =
+                                preferenceState
+                                    .seniorMode,
                         )
                     }
                 }
@@ -597,30 +607,37 @@ fun ScheduleEditRoute(
         }
     }
 
-    ScheduleEditScreen(
-        state = state,
-        onBack = onBack,
-        onWeekdayToggled =
-            viewModel::onWeekdayToggled,
-        onInputModeSelected =
-            viewModel::onInputModeSelected,
-        onTimeDraftChanged =
-            viewModel::onTimeDraftChanged,
-        onAddTime =
-            viewModel::addTime,
-        onRemoveTime =
-            viewModel::removeTime,
-        onIntervalHoursSelected =
-            viewModel::onIntervalHoursSelected,
-        onIntervalAnchorChanged =
-            viewModel::onIntervalAnchorChanged,
-        onStartDateChanged =
-            viewModel::onStartDateChanged,
-        onEndDateChanged =
-            viewModel::onEndDateChanged,
-        onSave =
-            viewModel::save,
-    )
+    CompositionLocalProvider(
+        LocalCarePackExperience provides
+                CarePackExperience.forMode(
+                    state.seniorMode,
+                ),
+    ) {
+        ScheduleEditScreen(
+            state = state,
+            onBack = onBack,
+            onWeekdayToggled =
+                viewModel::onWeekdayToggled,
+            onInputModeSelected =
+                viewModel::onInputModeSelected,
+            onTimeDraftChanged =
+                viewModel::onTimeDraftChanged,
+            onAddTime =
+                viewModel::addTime,
+            onRemoveTime =
+                viewModel::removeTime,
+            onIntervalHoursSelected =
+                viewModel::onIntervalHoursSelected,
+            onIntervalAnchorChanged =
+                viewModel::onIntervalAnchorChanged,
+            onStartDateChanged =
+                viewModel::onStartDateChanged,
+            onEndDateChanged =
+                viewModel::onEndDateChanged,
+            onSave =
+                viewModel::save,
+        )
+    }
 }
 
 @Composable
@@ -646,6 +663,9 @@ private fun ScheduleEditScreen(
         (String) -> Unit,
     onSave: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             Modifier
@@ -667,12 +687,16 @@ private fun ScheduleEditScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             TextButton(
@@ -855,6 +879,7 @@ private fun ScheduleEditScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .testTag(
                                     "schedule_edit_save",
                                 ),

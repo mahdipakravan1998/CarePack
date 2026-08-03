@@ -42,6 +42,9 @@ import ir.carepack.domain.careplan.UpdateRecipientNameCommand
 import ir.carepack.domain.careplan.UpdateRecipientNameOutcome
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -312,6 +315,9 @@ fun RecipientNameEditScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -333,20 +339,24 @@ fun RecipientNameEditScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience.screenHorizontalPadding,
+                        vertical =
+                            experience.screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             TextButton(
                 onClick = onBack,
                 modifier =
-                    Modifier.testTag(
-                        "recipient_name_edit_back",
-                    ),
+                    Modifier
+                        .carePackInteractiveControl()
+                        .testTag(
+                            "recipient_name_edit_back",
+                        ),
             ) {
                 Text(
                     text =
@@ -425,6 +435,7 @@ fun RecipientNameEditScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .carePackInteractiveControl()
                             .testTag(
                                 "recipient_name_edit_field",
                             ),
@@ -455,7 +466,7 @@ fun RecipientNameEditScreen(
                 Spacer(
                     modifier =
                         Modifier.height(
-                            8.dp,
+                            experience.compactSpacing,
                         ),
                 )
 
@@ -467,6 +478,7 @@ fun RecipientNameEditScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .carePackPrimaryAction()
                             .testTag(
                                 "recipient_name_edit_save",
                             ),
@@ -494,6 +506,7 @@ fun RecipientNameEditScreen(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .carePackInteractiveControl()
                             .testTag(
                                 "recipient_name_edit_retry",
                             ),

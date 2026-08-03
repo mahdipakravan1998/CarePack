@@ -20,7 +20,8 @@ class AndroidAlarmGateway(
     private val diagnosticSink:
     ReminderDiagnosticSink =
         NoOpReminderDiagnosticSink,
-) : AlarmGateway {
+) : AlarmGateway,
+    ReminderTestAlarmGateway {
 
     private val applicationContext =
         context.applicationContext
@@ -53,7 +54,7 @@ class AndroidAlarmGateway(
 
         try {
             val pendingIntent =
-                createPendingIntent(
+                createOccurrencePendingIntent(
                     alarmKey =
                         request.alarmKey,
                     occurrenceId =
@@ -65,29 +66,16 @@ class AndroidAlarmGateway(
                                     .FLAG_IMMUTABLE,
                 )
 
-            when (request.deliveryMode) {
-                AlarmDeliveryMode.EXACT -> {
-                    alarmManager
-                        .setExactAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            request
-                                .triggerAt
-                                .toEpochMilli(),
-                            pendingIntent,
-                        )
-                }
-
-                AlarmDeliveryMode.APPROXIMATE -> {
-                    alarmManager
-                        .setAndAllowWhileIdle(
-                            AlarmManager.RTC_WAKEUP,
-                            request
-                                .triggerAt
-                                .toEpochMilli(),
-                            pendingIntent,
-                        )
-                }
-            }
+            registerAlarm(
+                triggerAtEpochMillis =
+                    request
+                        .triggerAt
+                        .toEpochMilli(),
+                deliveryMode =
+                    request.deliveryMode,
+                pendingIntent =
+                    pendingIntent,
+            )
 
             diagnosticSink.recordReminderDiagnostic(
                 type =
@@ -131,28 +119,142 @@ class AndroidAlarmGateway(
         alarmKey: AlarmKey,
     ) {
         val existingPendingIntent =
-            findPendingIntent(
-                alarmKey =
-                    alarmKey,
+            findOccurrencePendingIntent(
+                alarmKey = alarmKey,
             ) ?: return
 
-        alarmManager.cancel(
-            existingPendingIntent,
+        cancelPendingIntent(
+            pendingIntent =
+                existingPendingIntent,
         )
-
-        existingPendingIntent.cancel()
     }
 
-    private fun createPendingIntent(
+    override fun scheduleTest(
+        request: ReminderTestAlarmRequest,
+    ) {
+        val alarmKey =
+            AlarmKey.forTestReminder()
+
+        diagnosticSink.recordReminderDiagnostic(
+            type =
+                ReminderDiagnosticEventType
+                    .ALARM_REGISTRATION_ATTEMPTED,
+            clock = clock,
+            alarmKey = alarmKey,
+            deliveryMode =
+                request
+                    .deliveryMode
+                    .toReminderDeliveryMode(),
+            outcome = TEST_DIAGNOSTIC_OUTCOME,
+        )
+
+        try {
+            val pendingIntent =
+                createTestPendingIntent(
+                    flags =
+                        PendingIntent
+                            .FLAG_UPDATE_CURRENT or
+                                PendingIntent
+                                    .FLAG_IMMUTABLE,
+                )
+
+            registerAlarm(
+                triggerAtEpochMillis =
+                    request
+                        .triggerAt
+                        .toEpochMilli(),
+                deliveryMode =
+                    request.deliveryMode,
+                pendingIntent =
+                    pendingIntent,
+            )
+
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTERED,
+                clock = clock,
+                alarmKey = alarmKey,
+                deliveryMode =
+                    request
+                        .deliveryMode
+                        .toReminderDeliveryMode(),
+                outcome = TEST_DIAGNOSTIC_OUTCOME,
+            )
+        } catch (failure: RuntimeException) {
+            diagnosticSink.recordReminderDiagnostic(
+                type =
+                    ReminderDiagnosticEventType
+                        .ALARM_REGISTRATION_FAILED,
+                clock = clock,
+                alarmKey = alarmKey,
+                deliveryMode =
+                    request
+                        .deliveryMode
+                        .toReminderDeliveryMode(),
+                outcome =
+                    "$TEST_DIAGNOSTIC_OUTCOME:" +
+                            failure
+                                .javaClass
+                                .simpleName,
+            )
+
+            throw failure
+        }
+    }
+
+    override fun cancelTest() {
+        val pendingIntent =
+            findTestPendingIntent()
+                ?: return
+
+        cancelPendingIntent(
+            pendingIntent = pendingIntent,
+        )
+    }
+
+    private fun registerAlarm(
+        triggerAtEpochMillis: Long,
+        deliveryMode: AlarmDeliveryMode,
+        pendingIntent: PendingIntent,
+    ) {
+        when (deliveryMode) {
+            AlarmDeliveryMode.EXACT -> {
+                alarmManager
+                    .setExactAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtEpochMillis,
+                        pendingIntent,
+                    )
+            }
+
+            AlarmDeliveryMode.APPROXIMATE -> {
+                alarmManager
+                    .setAndAllowWhileIdle(
+                        AlarmManager.RTC_WAKEUP,
+                        triggerAtEpochMillis,
+                        pendingIntent,
+                    )
+            }
+        }
+    }
+
+    private fun createOccurrencePendingIntent(
         alarmKey: AlarmKey,
         occurrenceId: String,
         flags: Int,
     ): PendingIntent {
         val intent =
             createAlarmIntent(
-                alarmKey =
-                    alarmKey,
+                alarmKey = alarmKey,
             ).apply {
+                putExtra(
+                    ReminderAlarmReceiver
+                        .EXTRA_ALARM_TYPE,
+                    ReminderAlarmReceiver
+                        .ALARM_TYPE_OCCURRENCE,
+                )
+
                 putExtra(
                     ReminderAlarmReceiver
                         .EXTRA_OCCURRENCE_ID,
@@ -162,8 +264,7 @@ class AndroidAlarmGateway(
                 putExtra(
                     ReminderAlarmReceiver
                         .EXTRA_SCHEDULE_SERIES_ID,
-                    alarmKey
-                        .scheduleSeriesId,
+                    alarmKey.scheduleSeriesId,
                 )
             }
 
@@ -175,25 +276,70 @@ class AndroidAlarmGateway(
         )
     }
 
-    private fun findPendingIntent(
-        alarmKey: AlarmKey,
-    ): PendingIntent? {
+    private fun createTestPendingIntent(
+        flags: Int,
+    ): PendingIntent {
+        val intent =
+            createAlarmIntent(
+                alarmKey =
+                    AlarmKey.forTestReminder(),
+            ).apply {
+                putExtra(
+                    ReminderAlarmReceiver
+                        .EXTRA_ALARM_TYPE,
+                    ReminderAlarmReceiver
+                        .ALARM_TYPE_TEST,
+                )
+            }
+
         return PendingIntent.getBroadcast(
             applicationContext,
             REQUEST_CODE,
+            intent,
+            flags,
+        )
+    }
+
+    private fun findOccurrencePendingIntent(
+        alarmKey: AlarmKey,
+    ): PendingIntent? =
+        PendingIntent.getBroadcast(
+            applicationContext,
+            REQUEST_CODE,
             createAlarmIntent(
-                alarmKey =
-                    alarmKey,
+                alarmKey = alarmKey,
             ),
             PendingIntent.FLAG_NO_CREATE or
                     PendingIntent.FLAG_IMMUTABLE,
         )
+
+    private fun findTestPendingIntent():
+            PendingIntent? =
+        PendingIntent.getBroadcast(
+            applicationContext,
+            REQUEST_CODE,
+            createAlarmIntent(
+                alarmKey =
+                    AlarmKey.forTestReminder(),
+            ),
+            PendingIntent.FLAG_NO_CREATE or
+                    PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    private fun cancelPendingIntent(
+        pendingIntent: PendingIntent,
+    ) {
+        alarmManager.cancel(
+            pendingIntent,
+        )
+
+        pendingIntent.cancel()
     }
 
     private fun createAlarmIntent(
         alarmKey: AlarmKey,
-    ): Intent {
-        return Intent(
+    ): Intent =
+        Intent(
             applicationContext,
             ReminderAlarmReceiver::class.java,
         ).apply {
@@ -215,7 +361,6 @@ class AndroidAlarmGateway(
                 applicationContext
                     .packageName
         }
-    }
 
     private fun AlarmDeliveryMode.toReminderDeliveryMode():
             ReminderDeliveryMode =
@@ -239,5 +384,8 @@ class AndroidAlarmGateway(
 
         const val URI_ALARM_PATH =
             "alarm"
+
+        const val TEST_DIAGNOSTIC_OUTCOME =
+            "test_reminder"
     }
 }

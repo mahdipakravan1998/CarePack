@@ -36,6 +36,9 @@ import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.time.DayOfWeek
 import java.util.Locale
 import kotlinx.coroutines.flow.SharingStarted
@@ -194,6 +197,9 @@ fun SettingsScreen(
         (SeniorMode) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -214,12 +220,16 @@ fun SettingsScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    18.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             TextButtonBack(
@@ -244,17 +254,19 @@ fun SettingsScreen(
                         ),
             )
 
-            Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_settings_description,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
-            )
+            if (!experience.isSimple) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .carepack_settings_description,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge,
+                )
+            }
 
             SettingsActionButton(
                 title =
@@ -352,9 +364,11 @@ private fun TextButtonBack(
     androidx.compose.material3.TextButton(
         onClick = onBack,
         modifier =
-            Modifier.testTag(
-                "settings_back",
-            ),
+            Modifier
+                .carePackInteractiveControl()
+                .testTag(
+                    "settings_back",
+                ),
     ) {
         Text(
             text =
@@ -371,10 +385,13 @@ private fun WeekStartSection(
     onFirstDayOfWeekPreferenceChanged:
         (FirstDayOfWeekPreference) -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         verticalArrangement =
             Arrangement.spacedBy(
-                8.dp,
+                experience.compactSpacing,
             ),
         modifier =
             Modifier
@@ -397,17 +414,19 @@ private fun WeekStartSection(
                 Modifier.carePackHeading(),
         )
 
-        Text(
-            text =
-                stringResource(
-                    R.string
-                        .carepack_settings_week_start_description,
-                ),
-            style =
-                MaterialTheme
-                    .typography
-                    .bodyMedium,
-        )
+        if (!experience.isSimple) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_settings_week_start_description,
+                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+            )
+        }
 
         Text(
             text =
@@ -424,84 +443,114 @@ private fun WeekStartSection(
             style =
                 MaterialTheme
                     .typography
-                    .bodySmall,
+                    .bodyLarge,
         )
 
-        Row(
-            modifier =
-                Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(
-                    8.dp,
-                ),
-        ) {
-            WeekStartChip(
-                label =
-                    stringResource(
-                        R.string
-                            .carepack_week_start_system,
+        if (experience.isSimple) {
+            Column(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        experience.itemSpacing,
                     ),
-                selected =
-                    state
-                        .preferenceState
-                        .firstDayOfWeekPreference ==
-                            FirstDayOfWeekPreference
-                                .SYSTEM_DEFAULT,
-                testTag =
-                    "week_start_system",
-                onClick = {
-                    onFirstDayOfWeekPreferenceChanged(
-                        FirstDayOfWeekPreference
-                            .SYSTEM_DEFAULT,
-                    )
-                },
-            )
-
-            WeekStartChip(
-                label =
-                    stringResource(
-                        R.string
-                            .carepack_week_start_saturday,
+            ) {
+                WeekStartOptions(
+                    state = state,
+                    onFirstDayOfWeekPreferenceChanged =
+                        onFirstDayOfWeekPreferenceChanged,
+                )
+            }
+        } else {
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        experience.compactSpacing,
                     ),
-                selected =
-                    state
-                        .preferenceState
-                        .firstDayOfWeekPreference ==
-                            FirstDayOfWeekPreference
-                                .SATURDAY,
-                testTag =
-                    "week_start_saturday",
-                onClick = {
-                    onFirstDayOfWeekPreferenceChanged(
-                        FirstDayOfWeekPreference
-                            .SATURDAY,
-                    )
-                },
-            )
-
-            WeekStartChip(
-                label =
-                    stringResource(
-                        R.string
-                            .carepack_week_start_monday,
-                    ),
-                selected =
-                    state
-                        .preferenceState
-                        .firstDayOfWeekPreference ==
-                            FirstDayOfWeekPreference
-                                .MONDAY,
-                testTag =
-                    "week_start_monday",
-                onClick = {
-                    onFirstDayOfWeekPreferenceChanged(
-                        FirstDayOfWeekPreference
-                            .MONDAY,
-                    )
-                },
-            )
+            ) {
+                WeekStartOptions(
+                    state = state,
+                    onFirstDayOfWeekPreferenceChanged =
+                        onFirstDayOfWeekPreferenceChanged,
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun WeekStartOptions(
+    state: SettingsUiState,
+    onFirstDayOfWeekPreferenceChanged:
+        (FirstDayOfWeekPreference) -> Unit,
+) {
+    WeekStartChip(
+        label =
+            stringResource(
+                R.string
+                    .carepack_week_start_system,
+            ),
+        selected =
+            state
+                .preferenceState
+                .firstDayOfWeekPreference ==
+                    FirstDayOfWeekPreference
+                        .SYSTEM_DEFAULT,
+        testTag =
+            "week_start_system",
+        onClick = {
+            onFirstDayOfWeekPreferenceChanged(
+                FirstDayOfWeekPreference
+                    .SYSTEM_DEFAULT,
+            )
+        },
+    )
+
+    WeekStartChip(
+        label =
+            stringResource(
+                R.string
+                    .carepack_week_start_saturday,
+            ),
+        selected =
+            state
+                .preferenceState
+                .firstDayOfWeekPreference ==
+                    FirstDayOfWeekPreference
+                        .SATURDAY,
+        testTag =
+            "week_start_saturday",
+        onClick = {
+            onFirstDayOfWeekPreferenceChanged(
+                FirstDayOfWeekPreference
+                    .SATURDAY,
+            )
+        },
+    )
+
+    WeekStartChip(
+        label =
+            stringResource(
+                R.string
+                    .carepack_week_start_monday,
+            ),
+        selected =
+            state
+                .preferenceState
+                .firstDayOfWeekPreference ==
+                    FirstDayOfWeekPreference
+                        .MONDAY,
+        testTag =
+            "week_start_monday",
+        onClick = {
+            onFirstDayOfWeekPreferenceChanged(
+                FirstDayOfWeekPreference
+                    .MONDAY,
+            )
+        },
+    )
 }
 
 @Composable
@@ -510,10 +559,13 @@ private fun DisplaySection(
     onSeniorModeChanged:
         (SeniorMode) -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         verticalArrangement =
             Arrangement.spacedBy(
-                8.dp,
+                experience.compactSpacing,
             ),
         modifier =
             Modifier
@@ -536,89 +588,128 @@ private fun DisplaySection(
                 Modifier.carePackHeading(),
         )
 
-        Text(
-            text =
-                stringResource(
-                    R.string
-                        .carepack_settings_display_description,
-                ),
-            style =
-                MaterialTheme
-                    .typography
-                    .bodyMedium,
-        )
-
-        Row(
-            modifier =
-                Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(
-                    8.dp,
-                ),
-        ) {
-            FilterChip(
-                selected =
-                    state
-                        .preferenceState
-                        .seniorMode ==
-                            SeniorMode.STANDARD,
-                onClick = {
-                    onSeniorModeChanged(
-                        SeniorMode.STANDARD,
-                    )
-                },
-                label = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_display_standard,
-                            ),
-                    )
-                },
-                modifier =
-                    Modifier.testTag(
-                        "display_standard",
+        if (!experience.isSimple) {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_settings_display_description,
                     ),
-            )
-
-            FilterChip(
-                selected =
-                    state
-                        .preferenceState
-                        .seniorMode ==
-                            SeniorMode.SIMPLE,
-                onClick = {
-                    onSeniorModeChanged(
-                        SeniorMode.SIMPLE,
-                    )
-                },
-                label = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_display_simple,
-                            ),
-                    )
-                },
-                modifier =
-                    Modifier.testTag(
-                        "display_simple",
-                    ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
             )
         }
+
+        if (experience.isSimple) {
+            Column(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                verticalArrangement =
+                    Arrangement.spacedBy(
+                        experience.itemSpacing,
+                    ),
+            ) {
+                DisplayOptions(
+                    state = state,
+                    onSeniorModeChanged =
+                        onSeniorModeChanged,
+                )
+            }
+        } else {
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(
+                        experience.compactSpacing,
+                    ),
+            ) {
+                DisplayOptions(
+                    state = state,
+                    onSeniorModeChanged =
+                        onSeniorModeChanged,
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun DisplayOptions(
+    state: SettingsUiState,
+    onSeniorModeChanged:
+        (SeniorMode) -> Unit,
+) {
+    FilterChip(
+        selected =
+            state
+                .preferenceState
+                .seniorMode ==
+                    SeniorMode.STANDARD,
+        onClick = {
+            onSeniorModeChanged(
+                SeniorMode.STANDARD,
+            )
+        },
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_display_standard,
+                    ),
+            )
+        },
+        modifier =
+            Modifier
+                .carePackInteractiveControl()
+                .testTag(
+                    "display_standard",
+                ),
+    )
+
+    FilterChip(
+        selected =
+            state
+                .preferenceState
+                .seniorMode ==
+                    SeniorMode.SIMPLE,
+        onClick = {
+            onSeniorModeChanged(
+                SeniorMode.SIMPLE,
+            )
+        },
+        label = {
+            Text(
+                text =
+                    stringResource(
+                        R.string
+                            .carepack_display_simple,
+                    ),
+            )
+        },
+        modifier =
+            Modifier
+                .carePackInteractiveControl()
+                .testTag(
+                    "display_simple",
+                ),
+    )
 }
 
 @Composable
 private fun AppVersionSection(
     appVersion: String,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         verticalArrangement =
             Arrangement.spacedBy(
-                4.dp,
+                experience.compactSpacing,
             ),
         modifier =
             Modifier
@@ -667,6 +758,9 @@ private fun WeekStartChip(
     testTag: String,
     onClick: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     FilterChip(
         selected = selected,
         onClick = onClick,
@@ -676,9 +770,18 @@ private fun WeekStartChip(
             )
         },
         modifier =
-            Modifier.testTag(
-                testTag,
-            ),
+            Modifier
+                .then(
+                    if (experience.isSimple) {
+                        Modifier.fillMaxWidth()
+                    } else {
+                        Modifier
+                    },
+                )
+                .carePackInteractiveControl()
+                .testTag(
+                    testTag,
+                ),
     )
 }
 
@@ -690,22 +793,27 @@ private fun SettingsActionButton(
     onClick: () -> Unit,
     destructive: Boolean = false,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         verticalArrangement =
             Arrangement.spacedBy(
-                6.dp,
+                experience.compactSpacing,
             ),
         modifier =
             Modifier.fillMaxWidth(),
     ) {
-        Text(
-            text =
-                description,
-            style =
-                MaterialTheme
-                    .typography
-                    .bodyMedium,
-        )
+        if (!experience.isSimple) {
+            Text(
+                text =
+                    description,
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyMedium,
+            )
+        }
 
         if (destructive) {
             OutlinedButton(
@@ -714,6 +822,7 @@ private fun SettingsActionButton(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             testTag,
                         ),
@@ -734,6 +843,7 @@ private fun SettingsActionButton(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             testTag,
                         ),

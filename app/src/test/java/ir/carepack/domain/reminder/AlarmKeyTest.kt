@@ -54,20 +54,100 @@ class AlarmKeyTest {
     }
 
     @Test
-    fun stableToken_containsOnlyLowercaseHexCharacters() {
-        val alarmKey =
-            AlarmKey.forScheduleSeries(
-                scheduleSeriesId =
-                    "series/with spaces/و/فارسی",
+    fun delayedOccurrenceIdentity_isStableAndDistinctFromScheduleSeries() {
+        val delayed =
+            AlarmKey.forDelayedOccurrence(
+                occurrenceId =
+                    "shared-identifier",
             )
 
-        assertTrue(
-            alarmKey.stableToken.all {
-                    character ->
-                character in '0'..'9' ||
-                        character in 'a'..'f'
-            },
+        val delayedAgain =
+            AlarmKey.forDelayedOccurrence(
+                occurrenceId =
+                    "shared-identifier",
+            )
+
+        val schedule =
+            AlarmKey.forScheduleSeries(
+                scheduleSeriesId =
+                    "shared-identifier",
+            )
+
+        assertEquals(delayed, delayedAgain)
+        assertEquals(
+            delayed.stableToken,
+            delayedAgain.stableToken,
         )
+        assertNotEquals(delayed, schedule)
+        assertNotEquals(
+            delayed.stableToken,
+            schedule.stableToken,
+        )
+    }
+
+    @Test
+    fun testReminderIdentity_isStableAndCollisionSafe() {
+        val first =
+            AlarmKey.forTestReminder()
+
+        val second =
+            AlarmKey.forTestReminder()
+
+        val schedule =
+            AlarmKey.forScheduleSeries(
+                scheduleSeriesId = "single",
+            )
+
+        val delayed =
+            AlarmKey.forDelayedOccurrence(
+                occurrenceId = "single",
+            )
+
+        assertEquals(first, second)
+        assertEquals(
+            first.stableToken,
+            second.stableToken,
+        )
+        assertNotEquals(first, schedule)
+        assertNotEquals(first, delayed)
+        assertNotEquals(
+            first.stableToken,
+            schedule.stableToken,
+        )
+        assertNotEquals(
+            first.stableToken,
+            delayed.stableToken,
+        )
+    }
+
+    @Test
+    fun stableTokensContainOnlyLowercaseHexCharacters() {
+        val keys =
+            listOf(
+                AlarmKey.forScheduleSeries(
+                    scheduleSeriesId =
+                        "series/with spaces/و/فارسی",
+                ),
+                AlarmKey.forDelayedOccurrence(
+                    occurrenceId =
+                        "occurrence/with spaces/و/فارسی",
+                ),
+                AlarmKey.forTestReminder(),
+            )
+
+        keys.forEach { alarmKey ->
+            assertEquals(
+                SHA_256_HEX_LENGTH,
+                alarmKey.stableToken.length,
+            )
+
+            assertTrue(
+                alarmKey.stableToken.all { character ->
+                    character in '0'..'9' ||
+                            character in 'a'..'f'
+                },
+            )
+        }
     }
 
     @Test(
@@ -77,6 +157,16 @@ class AlarmKeyTest {
     fun blankScheduleSeries_isRejected() {
         AlarmKey.forScheduleSeries(
             scheduleSeriesId = " ",
+        )
+    }
+
+    @Test(
+        expected =
+            IllegalArgumentException::class,
+    )
+    fun blankDelayedOccurrence_isRejected() {
+        AlarmKey.forDelayedOccurrence(
+            occurrenceId = " ",
         )
     }
 

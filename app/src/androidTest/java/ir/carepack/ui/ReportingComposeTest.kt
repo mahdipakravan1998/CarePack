@@ -254,8 +254,11 @@ class ReportingComposeTest {
 
         composeRule
             .onNodeWithTag(
-                "today_recording_details_schedule-one",
+                testTag =
+                    "today_recording_details_schedule-one",
+                useUnmergedTree = true,
             )
+            .performScrollTo()
             .assertIsDisplayed()
 
         assertVisibleText(
@@ -266,6 +269,7 @@ class ReportingComposeTest {
             .onNodeWithTag(
                 "today_item_schedule-two",
             )
+            .performScrollTo()
             .assertIsDisplayed()
     }
 

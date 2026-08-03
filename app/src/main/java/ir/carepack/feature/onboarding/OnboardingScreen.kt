@@ -24,6 +24,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ir.carepack.R
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 
 @Composable
 fun OnboardingScreen(
@@ -34,6 +37,9 @@ fun OnboardingScreen(
     onKeepStandardMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -54,11 +60,14 @@ fun OnboardingScreen(
                     )
                     .navigationBarsPadding()
                     .padding(
-                        24.dp,
+                        horizontal =
+                            experience.screenHorizontalPadding,
+                        vertical =
+                            experience.screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -81,7 +90,7 @@ fun OnboardingScreen(
             Spacer(
                 modifier =
                     Modifier.height(
-                        8.dp,
+                        experience.compactSpacing,
                     ),
             )
 
@@ -98,7 +107,7 @@ fun OnboardingScreen(
                     modifier =
                         Modifier
                             .padding(
-                                20.dp,
+                                experience.screenHorizontalPadding,
                             )
                             .testTag(
                                 "onboarding_local_summary",
@@ -123,7 +132,7 @@ fun OnboardingScreen(
                     modifier =
                         Modifier
                             .padding(
-                                20.dp,
+                                experience.screenHorizontalPadding,
                             )
                             .testTag(
                                 "onboarding_non_medical_summary",
@@ -140,6 +149,7 @@ fun OnboardingScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackInteractiveControl()
                         .testTag(
                             "onboarding_open_privacy",
                         ),
@@ -164,11 +174,11 @@ fun OnboardingScreen(
                 Column(
                     modifier =
                         Modifier.padding(
-                            20.dp,
+                            experience.screenHorizontalPadding,
                         ),
                     verticalArrangement =
                         Arrangement.spacedBy(
-                            12.dp,
+                            experience.itemSpacing,
                         ),
                 ) {
                     Text(
@@ -229,6 +239,7 @@ fun OnboardingScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .testTag(
                                     "onboarding_simple_mode_enable",
                                 ),
@@ -247,6 +258,7 @@ fun OnboardingScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackInteractiveControl()
                                 .testTag(
                                     "onboarding_simple_mode_defer",
                                 ),
@@ -265,7 +277,7 @@ fun OnboardingScreen(
             Spacer(
                 modifier =
                     Modifier.height(
-                        8.dp,
+                        experience.compactSpacing,
                     ),
             )
 
@@ -274,6 +286,7 @@ fun OnboardingScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             "onboarding_continue",
                         ),

@@ -46,12 +46,36 @@ mahdipakravan1998@gmail.com
 
 ## Build and verification
 
-Run from the repository root:
+Run JVM checks from the repository root:
 
     gradlew.bat clean
-    gradlew.bat testDebugUnitTest
+    gradlew.bat testDebugUnitTest --stacktrace
+    gradlew.bat lintDebug --stacktrace
+    gradlew.bat assembleDebug --stacktrace
+
+On the Xiaomi physical device, run instrumented tests only through the Xiaomi runner. Do not invoke `connectedDebugAndroidTest` directly, because MIUI can block repeated APK installation and background test windows.
+
+Run the current CarePack feature-verification suite:
+
+    tools\run-xiaomi-android-tests.cmd --core-workflows
+
+Run the complete instrumented suite:
+
     tools\run-xiaomi-android-tests.cmd
-    gradlew.bat assembleDebug
+
+Run one class:
+
+    tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.RangeReportingIntegrationTest"
+
+Run one Compose class:
+
+    tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.JalaliDatePickerComposeTest"
+
+Run one method:
+
+    tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.RangeReportComposeTest#defaultSevenDayReportCanSwitchToThirtyDays"
+
+The Xiaomi runner builds and installs the target and test APKs once, grants the required Xiaomi background-window access, prepares the device, and then starts instrumentation.
 
 Release builds require a local signing key and `keystore.properties`, which must not be committed.
 

@@ -78,6 +78,9 @@ import ir.carepack.domain.report.UndoReportOutcome
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
@@ -822,6 +825,9 @@ fun TodayScreen(
     onSnackbarConsumed: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -846,12 +852,14 @@ fun TodayScreen(
                         ),
                 contentPadding =
                     PaddingValues(
-                        horizontal = 20.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience.screenHorizontalPadding,
+                        vertical =
+                            experience.screenVerticalPadding,
                     ),
                 verticalArrangement =
                     Arrangement.spacedBy(
-                        12.dp,
+                        experience.itemSpacing,
                     ),
             ) {
                 item {
@@ -923,7 +931,9 @@ fun TodayScreen(
                                 Alignment.BottomCenter,
                             )
                             .navigationBarsPadding()
-                            .padding(16.dp)
+                            .padding(
+                                experience.compactSpacing,
+                            )
                             .carePackPoliteLiveRegion()
                             .testTag(
                                 "today_snackbar",
@@ -933,9 +943,11 @@ fun TodayScreen(
                             TextButton(
                                 onClick = onUndo,
                                 modifier =
-                                    Modifier.testTag(
-                                        "today_undo_report",
-                                    ),
+                                    Modifier
+                                        .carePackInteractiveControl()
+                                        .testTag(
+                                            "today_undo_report",
+                                        ),
                             ) {
                                 Text(
                                     text =
@@ -949,9 +961,11 @@ fun TodayScreen(
                                 onClick =
                                     onSnackbarConsumed,
                                 modifier =
-                                    Modifier.testTag(
-                                        "today_snackbar_dismiss",
-                                    ),
+                                    Modifier
+                                        .carePackInteractiveControl()
+                                        .testTag(
+                                            "today_snackbar_dismiss",
+                                        ),
                             ) {
                                 Text(
                                     text =
@@ -1213,6 +1227,9 @@ private fun TodayHeader(
     onOpenSettings: () -> Unit,
     onOpenTodayReport: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         modifier =
             Modifier
@@ -1222,7 +1239,7 @@ private fun TodayHeader(
                 ),
         verticalArrangement =
             Arrangement.spacedBy(
-                8.dp,
+                experience.compactSpacing,
             ),
     ) {
         Text(
@@ -1272,6 +1289,7 @@ private fun TodayHeader(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .carePackInteractiveControl()
                     .testTag(
                         "today_open_report",
                     ),
@@ -1290,6 +1308,7 @@ private fun TodayHeader(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .carePackInteractiveControl()
                     .testTag(
                         "today_open_settings",
                     ),
@@ -1308,6 +1327,8 @@ private fun TodayHeader(
 private fun ReminderAwarenessCard(
     status: ReminderStatus?,
 ) {
+    val experience =
+        carePackExperience()
     val message =
         when (status?.availability) {
             ReminderAvailability.NOTIFICATION_PERMISSION_REQUIRED -> {
@@ -1338,7 +1359,7 @@ private fun ReminderAwarenessCard(
                 text = message,
                 modifier =
                     Modifier.padding(
-                        16.dp,
+                        experience.screenHorizontalPadding,
                     ),
             )
         }
@@ -1374,9 +1395,11 @@ private fun TodayTabs(
                 )
             },
             modifier =
-                Modifier.testTag(
-                    "today_tab_today",
-                ),
+                Modifier
+                    .carePackInteractiveControl()
+                    .testTag(
+                        "today_tab_today",
+                    ),
         )
 
         Tab(
@@ -1391,9 +1414,11 @@ private fun TodayTabs(
                 )
             },
             modifier =
-                Modifier.testTag(
-                    "today_tab_history",
-                ),
+                Modifier
+                    .carePackInteractiveControl()
+                    .testTag(
+                        "today_tab_history",
+                    ),
         )
     }
 }
@@ -1408,6 +1433,9 @@ private fun SimpleTodayCard(
     onRemindLater: () -> Unit,
     onOpenDetails: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     val canRecord =
         item.lifecycle ==
                 OccurrenceLifecycle.ACTIVE
@@ -1431,14 +1459,14 @@ private fun SimpleTodayCard(
             modifier =
                 Modifier
                     .padding(
-                        20.dp,
+                        experience.screenHorizontalPadding,
                     )
                     .testTag(
                         "simple_today_card",
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -1542,6 +1570,7 @@ private fun SimpleTodayCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .heightIn(
                             min = 64.dp,
                         )
@@ -1570,6 +1599,7 @@ private fun SimpleTodayCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .heightIn(
                             min = 64.dp,
                         )
@@ -1609,6 +1639,7 @@ private fun SimpleTodayCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackInteractiveControl()
                         .defaultMinSize(
                             minHeight = 56.dp,
                         )
@@ -1631,6 +1662,7 @@ private fun SimpleTodayCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackInteractiveControl()
                         .defaultMinSize(
                             minHeight = 56.dp,
                         )
@@ -1652,6 +1684,7 @@ private fun SimpleTodayCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackInteractiveControl()
                         .defaultMinSize(
                             minHeight = 56.dp,
                         )
@@ -1799,6 +1832,7 @@ private fun TodayItemCard(
                     modifier =
                         Modifier
                             .weight(1f)
+                            .carePackPrimaryAction()
                             .testTag(
                                 "today_given_${item.occurrenceId}",
                             ),
@@ -1820,6 +1854,7 @@ private fun TodayItemCard(
                     modifier =
                         Modifier
                             .weight(1f)
+                            .carePackInteractiveControl()
                             .testTag(
                                 "today_remind_later_${item.occurrenceId}",
                             ),
@@ -1848,6 +1883,7 @@ private fun TodayItemCard(
                     modifier =
                         Modifier
                             .weight(1f)
+                            .carePackInteractiveControl()
                             .testTag(
                                 "today_not_given_${item.occurrenceId}",
                             ),
@@ -1867,6 +1903,7 @@ private fun TodayItemCard(
                     modifier =
                         Modifier
                             .weight(1f)
+                            .carePackInteractiveControl()
                             .testTag(
                                 "today_unknown_${item.occurrenceId}",
                             ),
@@ -2079,6 +2116,7 @@ private fun TodayEmptyCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             "today_empty_open_care_plan",
                         ),
@@ -2164,6 +2202,7 @@ private fun ErrorCard(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             "${testTag}_retry",
                         ),
