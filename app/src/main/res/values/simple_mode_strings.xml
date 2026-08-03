@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="medication_deletion_warning_body_simple">این دارو و همه برنامه‌ها، نوبت‌ها، گزارش‌ها و یادآورهای مربوط به آن برای همیشه از این دستگاه حذف می‌شوند. این کار قابل برگشت نیست.</string>
+</resources>

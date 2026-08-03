@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
@@ -46,7 +48,10 @@ import ir.carepack.reporting.share.CopyTextResult
 import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackInteractiveControl
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.time.LocalDate
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -411,6 +416,9 @@ private fun TodayReportScreen(
     onShareReport: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         snackbarHost = {
             SnackbarHost(
@@ -432,24 +440,34 @@ private fun TodayReportScreen(
                     .padding(
                         paddingValues,
                     )
+                    .imePadding()
+                    .navigationBarsPadding()
                     .verticalScroll(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 20.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             TextButton(
                 onClick = onBack,
+                enabled =
+                    !state.isSharing,
                 modifier =
-                    Modifier.testTag(
-                        "today_report_back",
-                    ),
+                    Modifier
+                        .carePackInteractiveControl()
+                        .testTag(
+                            "today_report_back",
+                        ),
             ) {
                 Text(
                     text =
@@ -499,25 +517,30 @@ private fun TodayReportScreen(
             IncludeRecipientNameToggle(
                 checked =
                     state.includeRecipientName,
+                enabled =
+                    !state.isLoading &&
+                            !state.isSharing,
                 onCheckedChange =
                     onIncludeRecipientNameChanged,
             )
 
-            Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_share_destination_notice,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
-                modifier =
-                    Modifier.testTag(
-                        "share_notice",
-                    ),
-            )
+            if (!experience.isSimple) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .carepack_share_destination_notice,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyMedium,
+                    modifier =
+                        Modifier.testTag(
+                            "share_notice",
+                        ),
+                )
+            }
 
             when {
                 state.isLoading -> {
@@ -557,15 +580,21 @@ private fun TodayReportScreen(
 @Composable
 private fun IncludeRecipientNameToggle(
     checked: Boolean,
+    enabled: Boolean,
     onCheckedChange:
         (Boolean) -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
+                .carePackInteractiveControl()
                 .toggleable(
                     value = checked,
+                    enabled = enabled,
                     role = Role.Switch,
                     onValueChange =
                         onCheckedChange,
@@ -574,7 +603,9 @@ private fun IncludeRecipientNameToggle(
                     "include_recipient_name_row",
                 ),
         horizontalArrangement =
-            Arrangement.SpaceBetween,
+            Arrangement.spacedBy(
+                experience.itemSpacing,
+            ),
         verticalAlignment =
             Alignment.CenterVertically,
     ) {
@@ -585,7 +616,7 @@ private fun IncludeRecipientNameToggle(
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    4.dp,
+                    experience.compactSpacing,
                 ),
         ) {
             Text(
@@ -600,21 +631,24 @@ private fun IncludeRecipientNameToggle(
                         .titleMedium,
             )
 
-            Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_include_recipient_name_description,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodySmall,
-            )
+            if (!experience.isSimple) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .carepack_include_recipient_name_description,
+                        ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodySmall,
+                )
+            }
         }
 
         Switch(
             checked = checked,
+            enabled = enabled,
             onCheckedChange = null,
             modifier =
                 Modifier.testTag(
@@ -626,6 +660,9 @@ private fun IncludeRecipientNameToggle(
 
 @Composable
 private fun LoadingReport() {
+    val experience =
+        carePackExperience()
+
     Column(
         modifier =
             Modifier
@@ -638,7 +675,7 @@ private fun LoadingReport() {
             Alignment.CenterHorizontally,
         verticalArrangement =
             Arrangement.spacedBy(
-                12.dp,
+                experience.itemSpacing,
             ),
     ) {
         CircularProgressIndicator()
@@ -648,6 +685,10 @@ private fun LoadingReport() {
                 stringResource(
                     R.string.carepack_report_loading,
                 ),
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyLarge,
         )
     }
 }
@@ -657,6 +698,9 @@ private fun ErrorReport(
     message: String,
     onRetry: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         modifier =
             Modifier
@@ -667,11 +711,15 @@ private fun ErrorReport(
                 ),
         verticalArrangement =
             Arrangement.spacedBy(
-                12.dp,
+                experience.itemSpacing,
             ),
     ) {
         Text(
             text = message,
+            style =
+                MaterialTheme
+                    .typography
+                    .bodyLarge,
             color =
                 MaterialTheme
                     .colorScheme
@@ -681,9 +729,12 @@ private fun ErrorReport(
         Button(
             onClick = onRetry,
             modifier =
-                Modifier.testTag(
-                    "today_report_retry",
-                ),
+                Modifier
+                    .fillMaxWidth()
+                    .carePackPrimaryAction()
+                    .testTag(
+                        "today_report_retry",
+                    ),
         ) {
             Text(
                 text =
@@ -699,6 +750,9 @@ private fun ErrorReport(
 private fun ReportPreview(
     reportText: String,
 ) {
+    val experience =
+        carePackExperience()
+
     Card(
         modifier =
             Modifier
@@ -710,11 +764,11 @@ private fun ReportPreview(
         Column(
             modifier =
                 Modifier.padding(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    12.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -736,13 +790,23 @@ private fun ReportPreview(
                     text =
                         reportText,
                     style =
-                        MaterialTheme
-                            .typography
-                            .bodyMedium
-                            .copy(
-                                textDirection =
-                                    TextDirection.ContentOrRtl,
-                            ),
+                        if (experience.isSimple) {
+                            MaterialTheme
+                                .typography
+                                .bodyLarge
+                                .copy(
+                                    textDirection =
+                                        TextDirection.ContentOrRtl,
+                                )
+                        } else {
+                            MaterialTheme
+                                .typography
+                                .bodyMedium
+                                .copy(
+                                    textDirection =
+                                        TextDirection.ContentOrRtl,
+                                )
+                        },
                     modifier =
                         Modifier.testTag(
                             "today_report_preview_text",
@@ -760,12 +824,15 @@ private fun ReportActions(
     onCopyReport: () -> Unit,
     onShareReport: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Column(
         modifier =
             Modifier.fillMaxWidth(),
         verticalArrangement =
             Arrangement.spacedBy(
-                12.dp,
+                experience.itemSpacing,
             ),
     ) {
         OutlinedButton(
@@ -777,6 +844,7 @@ private fun ReportActions(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .carePackPrimaryAction()
                     .testTag(
                         "today_report_copy",
                     ),
@@ -798,6 +866,7 @@ private fun ReportActions(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .carePackPrimaryAction()
                     .testTag(
                         "today_report_share",
                     ),

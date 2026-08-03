@@ -266,6 +266,9 @@ class CareRecipientEditComposeTest {
                         RecipientEditReminderPreferenceStore(),
                     reminderCoordinator =
                         RecipientEditReminderCoordinator(),
+                    reminderTestCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedReminderTestCoordinator(),
                     notificationPermissionGateway =
                         RecipientEditNotificationPermissionGateway(),
                     todayReportFormatter =
@@ -273,6 +276,24 @@ class CareRecipientEditComposeTest {
                             database =
                                 fixture.database,
                         ),
+                    dateRangeSummaryService =
+                        ir.carepack.domain.report
+                            .RoomDateRangeSummaryService(
+                                database =
+                                    fixture.database,
+                            ),
+                    rangeReportFormatter =
+                        ir.carepack.domain.report
+                            .RoomRangeReportFormatter(
+                                database =
+                                    fixture.database,
+                                summaryService =
+                                    ir.carepack.domain.report
+                                        .RoomDateRangeSummaryService(
+                                            database =
+                                                fixture.database,
+                                        ),
+                            ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
                     userExperiencePreferenceStore =
@@ -281,6 +302,9 @@ class CareRecipientEditComposeTest {
                         RecordingTextShareGateway(),
                     dataDeletionCoordinator =
                         RecordingDataDeletionCoordinator(),
+                    medicationDeletionCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedMedicationDeletionCoordinator(),
                     clock =
                         fixture.clock,
                     zoneProvider =

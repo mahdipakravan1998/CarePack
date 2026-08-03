@@ -3,7 +3,11 @@ package ir.carepack.feature.privacy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -12,9 +16,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import ir.carepack.R
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 
 @Composable
 fun PrivacyRoute(
@@ -32,6 +37,9 @@ fun PrivacyScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -47,21 +55,32 @@ fun PrivacyScreen(
                     .padding(
                         contentPadding,
                     )
+                    .navigationBarsPadding()
+                    .verticalScroll(
+                        rememberScrollState(),
+                    )
                     .padding(
-                        horizontal = 20.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             OutlinedButton(
                 onClick = onBack,
                 modifier =
-                    Modifier.testTag(
-                        "privacy_back",
-                    ),
+                    Modifier
+                        .fillMaxWidth()
+                        .carePackPrimaryAction()
+                        .testTag(
+                            "privacy_back",
+                        ),
             ) {
                 Text(
                     text =

@@ -68,6 +68,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -92,6 +93,7 @@ class ReminderComposeTest {
             .onNodeWithTag(
                 "reminder_delivery_status",
             )
+            .performScrollTo()
             .assertIsDisplayed()
     }
 
@@ -135,6 +137,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -204,6 +207,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -213,6 +217,7 @@ class ReminderComposeTest {
             .onNodeWithTag(
                 "reminder_delivery_status",
             )
+            .performScrollTo()
             .assertIsDisplayed()
 
         composeRule
@@ -269,6 +274,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -313,6 +319,7 @@ class ReminderComposeTest {
                     onRequestExactAlarmAccess = {},
                     onOpenBatterySettings = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -370,6 +377,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -435,6 +443,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -485,6 +494,7 @@ class ReminderComposeTest {
                     onOpenNotificationSettings = {},
                     onRequestExactAlarmAccess = {},
                     onReviewSchedules = {},
+                    onScheduleTestReminder = {},
                     onRetry = {},
                 )
             }
@@ -508,6 +518,69 @@ class ReminderComposeTest {
                         .generic_oem_guidance_body,
                 ),
             )
+    }
+
+
+    @Test
+    fun reminderTestSchedulesOnlyAfterExplicitUserAction() {
+        val scheduleCount =
+            AtomicInteger(0)
+
+        composeRule.setContent {
+            CarePackTheme {
+                ReminderSettingsScreen(
+                    state =
+                        reminderState(
+                            remindersEnabled = true,
+                            permissionState =
+                                NotificationPermissionUiState
+                                    .GRANTED,
+                            hasActiveSchedule = true,
+                            exactAlarmCapabilityGranted = true,
+                            availability =
+                                ReminderAvailability.EXACT,
+                            batteryOptimizationState =
+                                BatteryOptimizationState.IGNORED,
+                            manufacturer = "Google",
+                        ),
+                    onBack = {},
+                    onRemindersEnabledChanged = {},
+                    onRequestNotificationPermission = {},
+                    onOpenNotificationSettings = {},
+                    onRequestExactAlarmAccess = {},
+                    onReviewSchedules = {},
+                    onScheduleTestReminder = {
+                        scheduleCount.incrementAndGet()
+                    },
+                    onRetry = {},
+                )
+            }
+        }
+
+        assertEquals(
+            0,
+            scheduleCount.get(),
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "reminder_test_card",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "schedule_reminder_test",
+            )
+            .performScrollTo()
+            .assertIsDisplayed()
+            .performClick()
+
+        assertEquals(
+            1,
+            scheduleCount.get(),
+        )
     }
 
     @Test

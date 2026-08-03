@@ -499,11 +499,58 @@ class ReminderNavigationComposeTest {
         )
     }
 
+
+    @Test
+    fun testReminderRequestOpensReminderSettingsWithoutWritingReport() {
+        runBlocking {
+            createNoonPlanAndReturnTodayOccurrenceId()
+        }
+
+        var handledCount = 0
+
+        setAppContent(
+            openReminderSettingsRequested = true,
+            onReminderSettingsRequestHandled = {
+                handledCount += 1
+            },
+        )
+
+        waitForTag(
+            tag =
+                "reminder_settings_intro",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "reminder_settings_intro",
+            )
+            .assertIsDisplayed()
+
+        composeRule.waitUntil(
+            timeoutMillis =
+                WAIT_TIMEOUT_MILLIS,
+        ) {
+            handledCount == 1
+        }
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture
+                    .database
+                    .reportingDao()
+                    .countReports()
+            },
+        )
+    }
+
     private fun setAppContent(
         notificationOccurrenceId: String? = null,
         reminderCoordinator: NavigationReminderCoordinator =
             NavigationReminderCoordinator(),
         onNotificationOccurrenceHandled: () -> Unit = {},
+        openReminderSettingsRequested: Boolean = false,
+        onReminderSettingsRequestHandled: () -> Unit = {},
     ) {
         composeRule.setContent {
             CarePackTheme {
@@ -522,6 +569,9 @@ class ReminderNavigationComposeTest {
                         NavigationReminderPreferenceStore(),
                     reminderCoordinator =
                         reminderCoordinator,
+                    reminderTestCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedReminderTestCoordinator(),
                     notificationPermissionGateway =
                         NavigationNotificationPermissionGateway(),
                     todayReportFormatter =
@@ -529,6 +579,24 @@ class ReminderNavigationComposeTest {
                             database =
                                 fixture.database,
                         ),
+                    dateRangeSummaryService =
+                        ir.carepack.domain.report
+                            .RoomDateRangeSummaryService(
+                                database =
+                                    fixture.database,
+                            ),
+                    rangeReportFormatter =
+                        ir.carepack.domain.report
+                            .RoomRangeReportFormatter(
+                                database =
+                                    fixture.database,
+                                summaryService =
+                                    ir.carepack.domain.report
+                                        .RoomDateRangeSummaryService(
+                                            database =
+                                                fixture.database,
+                                        ),
+                            ),
                     privacyPreferenceStore =
                         InstrumentedPrivacyPreferenceStore(),
                     userExperiencePreferenceStore =
@@ -537,6 +605,9 @@ class ReminderNavigationComposeTest {
                         RecordingTextShareGateway(),
                     dataDeletionCoordinator =
                         RecordingDataDeletionCoordinator(),
+                    medicationDeletionCoordinator =
+                        ir.carepack.testing
+                            .InstrumentedMedicationDeletionCoordinator(),
                     clock =
                         fixture.clock,
                     zoneProvider =
@@ -545,6 +616,10 @@ class ReminderNavigationComposeTest {
                         notificationOccurrenceId,
                     onNotificationOccurrenceHandled =
                         onNotificationOccurrenceHandled,
+                    openReminderSettingsRequested =
+                        openReminderSettingsRequested,
+                    onReminderSettingsRequestHandled =
+                        onReminderSettingsRequestHandled,
                 )
             }
         }
@@ -662,6 +737,9 @@ class ReminderNavigationComposeTest {
     }
 
     private companion object {
+        const val WAIT_TIMEOUT_MILLIS =
+            5_000L
+
         val TODAY_DATE: LocalDate =
             LocalDate.parse(
                 "2026-06-24",

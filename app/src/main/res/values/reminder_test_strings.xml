@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reminder_test_title">تست یادآور در ۳۰ ثانیه آینده</string>
+    <string name="reminder_test_description">یک یادآور آزمایشی بدون ساخت دارو، برنامه مصرف، نوبت یا گزارش زمان‌بندی می‌شود. اجرای دوباره، تست در انتظار قبلی را جایگزین می‌کند.</string>
+    <string name="reminder_test_action">تنظیم تست برای ۳۰ ثانیه دیگر</string>
+    <string name="reminder_test_scheduled_exact">تست یادآور با زمان‌بندی دقیق ثبت شد.</string>
+    <string name="reminder_test_scheduled_approximate">تست یادآور با زمان‌بندی تقریبی ثبت شد و ممکن است دیرتر نمایش داده شود.</string>
+    <string name="reminder_test_permission_required">اجازه اعلان فعال نیست؛ تست یادآور زمان‌بندی نشد.</string>
+    <string name="reminder_test_scheduling_unavailable">زمان‌بندی تست یادآور انجام نشد. وضعیت یادآورها و تنظیمات دستگاه را بررسی کنید.</string>
+    <string name="reminder_test_delivery_notice">نمایش این اعلان تضمین‌شده نیست و ممکن است تحت‌تأثیر اندروید، اجازه‌ها، دسترسی یادآور دقیق، باتری یا محدودیت‌های سازنده قرار بگیرد. اجرای تست هیچ گزارشی ثبت نمی‌کند.</string>
+    <string name="reminder_test_notification_title">تست یادآور کرپک</string>
+    <string name="reminder_test_notification_body">این یک اعلان آزمایشی است و به نوبت واقعی دارو مربوط نیست.</string>
+</resources>

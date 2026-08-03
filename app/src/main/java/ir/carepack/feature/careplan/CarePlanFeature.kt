@@ -43,6 +43,8 @@ import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.IntervalSchedule
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -371,6 +373,8 @@ fun CarePlanRoute(
         (String) -> Unit,
     onEditSchedule:
         (String) -> Unit,
+    onDeleteMedication:
+        (String) -> Unit,
     snackbarHost:
     suspend (String) -> Unit = {},
 ) {
@@ -407,6 +411,8 @@ fun CarePlanRoute(
             onEditMedicationText,
         onEditSchedule =
             onEditSchedule,
+        onDeleteMedication =
+            onDeleteMedication,
         onStopMedication =
             viewModel::requestStopMedication,
         onArchiveMedication =
@@ -430,6 +436,8 @@ private fun CarePlanScreen(
         (String) -> Unit,
     onEditSchedule:
         (String) -> Unit,
+    onDeleteMedication:
+        (String) -> Unit,
     onStopMedication:
         (String, String) -> Unit,
     onArchiveMedication:
@@ -439,6 +447,9 @@ private fun CarePlanScreen(
 ) {
     val overview =
         state.overview
+
+    val experience =
+        carePackExperience()
 
     Column(
         modifier =
@@ -455,12 +466,16 @@ private fun CarePlanScreen(
                     .fillMaxSize(),
             contentPadding =
                 PaddingValues(
-                    horizontal = 24.dp,
-                    vertical = 16.dp,
+                    horizontal =
+                        experience
+                            .screenHorizontalPadding,
+                    vertical =
+                        experience
+                            .screenVerticalPadding,
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             item {
@@ -549,6 +564,8 @@ private fun CarePlanScreen(
                                 onEditMedicationText,
                             onEditSchedule =
                                 onEditSchedule,
+                            onDeleteMedication =
+                                onDeleteMedication,
                             onStopMedication =
                                 onStopMedication,
                             onArchiveMedication =
@@ -585,11 +602,16 @@ private fun MedicationCard(
         (String) -> Unit,
     onEditSchedule:
         (String) -> Unit,
+    onDeleteMedication:
+        (String) -> Unit,
     onStopMedication:
         (String, String) -> Unit,
     onArchiveMedication:
         (String, String) -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Card(
         modifier =
             Modifier
@@ -605,7 +627,7 @@ private fun MedicationCard(
                 ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    12.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             Text(
@@ -713,6 +735,7 @@ private fun MedicationCard(
                     modifier =
                         Modifier
                             .fillMaxWidth()
+                            .carePackPrimaryAction()
                             .testTag(
                                 "add_schedule_${medication.medicationId}",
                             ),
@@ -797,6 +820,35 @@ private fun MedicationCard(
                         stringResource(
                             R.string.archive_medication,
                         ),
+                )
+            }
+
+            HorizontalDivider()
+
+            TextButton(
+                onClick = {
+                    onDeleteMedication(
+                        medication.medicationId,
+                    )
+                },
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .carePackPrimaryAction()
+                        .testTag(
+                            "delete_medication_${medication.medicationId}",
+                        ),
+            ) {
+                Text(
+                    text =
+                        stringResource(
+                            R.string
+                                .medication_deletion_entry_action,
+                        ),
+                    color =
+                        MaterialTheme
+                            .colorScheme
+                            .error,
                 )
             }
         }

@@ -25,8 +25,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import ir.carepack.app.CarePackApp
 import ir.carepack.app.ForegroundGenerationErrorHost
+import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.reminder.ReconciliationReason
+import ir.carepack.reminder.notification.ReminderNotificationContract
 import ir.carepack.settings.deletion.DataDeletionResult
+import ir.carepack.settings.deletion.MedicationDeletionRecoveryResult
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import ir.carepack.ui.theme.CarePackTheme
@@ -50,6 +53,9 @@ class MainActivity :
 
     private val notificationOccurrenceId =
         MutableStateFlow<String?>(null)
+
+    private val reminderSettingsRequested =
+        MutableStateFlow(false)
 
     private val startupDeletionState =
         MutableStateFlow(
@@ -85,7 +91,24 @@ class MainActivity :
             notificationOccurrenceId
                 .collectAsStateWithLifecycle()
 
-            CarePackTheme {
+            val pendingReminderSettingsRequest by
+            reminderSettingsRequested
+                .collectAsStateWithLifecycle()
+
+            val userExperienceState by
+            container
+                .userExperiencePreferenceStore
+                .state
+                .collectAsStateWithLifecycle(
+                    initialValue =
+                        UserExperiencePreferenceState(),
+                )
+
+            CarePackTheme(
+                seniorMode =
+                    userExperienceState
+                        .seniorMode,
+            ) {
                 when (deletionState) {
                     StartupDeletionState.CHECKING -> {
                         StartupDeletionRecoveryScreen(
@@ -128,12 +151,21 @@ class MainActivity :
                                 reminderCoordinator =
                                     container
                                         .reminderCoordinator,
+                                reminderTestCoordinator =
+                                    container
+                                        .reminderTestCoordinator,
                                 notificationPermissionGateway =
                                     container
                                         .notificationPermissionGateway,
                                 todayReportFormatter =
                                     container
                                         .todayReportFormatter,
+                                dateRangeSummaryService =
+                                    container
+                                        .dateRangeSummaryService,
+                                rangeReportFormatter =
+                                    container
+                                        .rangeReportFormatter,
                                 privacyPreferenceStore =
                                     container
                                         .privacyPreferenceStore,
@@ -146,6 +178,9 @@ class MainActivity :
                                 dataDeletionCoordinator =
                                     container
                                         .dataDeletionCoordinator,
+                                medicationDeletionCoordinator =
+                                    container
+                                        .medicationDeletionCoordinator,
                                 clock =
                                     container.clock,
                                 zoneProvider =
@@ -156,6 +191,12 @@ class MainActivity :
                                 onNotificationOccurrenceHandled = {
                                     notificationOccurrenceId.value =
                                         null
+                                },
+                                openReminderSettingsRequested =
+                                    pendingReminderSettingsRequest,
+                                onReminderSettingsRequestHandled = {
+                                    reminderSettingsRequested.value =
+                                        false
                                 },
                             )
                         }
@@ -180,7 +221,12 @@ class MainActivity :
     override fun onStart() {
         super.onStart()
 
-        reconcileForegroundState()
+        if (
+            startupDeletionState.value ==
+            StartupDeletionState.READY
+        ) {
+            reconcileForegroundState()
+        }
     }
 
     override fun onStop() {
@@ -196,6 +242,13 @@ class MainActivity :
     }
 
     private fun reconcileForegroundState() {
+        if (
+            startupDeletionState.value !=
+            StartupDeletionState.READY
+        ) {
+            return
+        }
+
         foregroundReconciliationJob?.cancel()
 
         foregroundReconciliationJob =
@@ -205,7 +258,7 @@ class MainActivity :
                         null
 
                     container
-                        .reminderCoordinator
+                        .appReconciler
                         .reconcile(
                             ReconciliationReason
                                 .APPLICATION_FOREGROUND,
@@ -228,6 +281,18 @@ class MainActivity :
         intent: Intent?,
     ) {
         if (intent == null) {
+            return
+        }
+
+        if (
+            ReminderNotificationContract
+                .isOpenReminderSettingsIntent(
+                    intent,
+                )
+        ) {
+            reminderSettingsRequested.value =
+                true
+
             return
         }
 
@@ -256,24 +321,66 @@ class MainActivity :
                 startupDeletionState.value =
                     StartupDeletionState.CHECKING
 
-                startupDeletionState.value =
-                    when (
-                        container
-                            .dataDeletionCoordinator
-                            .resumeIncompleteDeletionIfNeeded()
+                val ready =
+                    try {
+                        recoverMedicationDeletion() &&
+                                recoverAllDataDeletion()
+                    } catch (
+                        cancellationException:
+                        CancellationException,
                     ) {
-                        DataDeletionResult.Completed,
-                        DataDeletionResult.NoDeletionPending,
-                            -> {
-                            StartupDeletionState.READY
-                        }
-
-                        is DataDeletionResult.Failed -> {
-                            StartupDeletionState.FAILED
-                        }
+                        throw cancellationException
+                    } catch (_: Exception) {
+                        false
                     }
+
+                startupDeletionState.value =
+                    if (ready) {
+                        StartupDeletionState.READY
+                    } else {
+                        StartupDeletionState.FAILED
+                    }
+
+                if (ready) {
+                    reconcileForegroundState()
+                }
             }
     }
+
+    private suspend fun recoverMedicationDeletion():
+            Boolean =
+        when (
+            container
+                .medicationDeletionCoordinator
+                .resumeIncompleteDeletionIfNeeded()
+        ) {
+            MedicationDeletionRecoveryResult
+                .NoDeletionPending,
+            is MedicationDeletionRecoveryResult
+            .Completed,
+            is MedicationDeletionRecoveryResult
+            .AbortedChangedPreview,
+                -> true
+
+            is MedicationDeletionRecoveryResult
+            .Failed,
+                -> false
+        }
+
+    private suspend fun recoverAllDataDeletion():
+            Boolean =
+        when (
+            container
+                .dataDeletionCoordinator
+                .resumeIncompleteDeletionIfNeeded()
+        ) {
+            DataDeletionResult.Completed,
+            DataDeletionResult.NoDeletionPending,
+                -> true
+
+            is DataDeletionResult.Failed ->
+                false
+        }
 }
 
 private enum class StartupDeletionState {

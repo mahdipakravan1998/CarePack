@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -36,7 +37,10 @@ import ir.carepack.settings.deletion.DataDeletionCoordinator
 import ir.carepack.settings.deletion.DataDeletionResult
 import ir.carepack.settings.deletion.DataDeletionStage
 import ir.carepack.ui.accessibility.carePackHeading
+import ir.carepack.ui.accessibility.carePackInteractiveControl
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -268,6 +272,9 @@ fun DeleteAllDataScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -283,16 +290,21 @@ fun DeleteAllDataScreen(
                     .padding(
                         contentPadding,
                     )
+                    .navigationBarsPadding()
                     .verticalScroll(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 20.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience
+                                .screenHorizontalPadding,
+                        vertical =
+                            experience
+                                .screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.sectionSpacing,
                 ),
         ) {
             OutlinedButton(
@@ -300,9 +312,11 @@ fun DeleteAllDataScreen(
                 enabled =
                     !state.isDeleting,
                 modifier =
-                    Modifier.testTag(
-                        "delete_all_data_back",
-                    ),
+                    Modifier
+                        .carePackInteractiveControl()
+                        .testTag(
+                            "delete_all_data_back",
+                        ),
             ) {
                 Text(
                     text =
@@ -341,11 +355,11 @@ fun DeleteAllDataScreen(
                 Column(
                     modifier =
                         Modifier.padding(
-                            16.dp,
+                            experience.itemSpacing,
                         ),
                     verticalArrangement =
                         Arrangement.spacedBy(
-                            12.dp,
+                            experience.itemSpacing,
                         ),
                 ) {
                     Text(
@@ -373,6 +387,10 @@ fun DeleteAllDataScreen(
                                 R.string
                                     .carepack_delete_all_warning_body,
                             ),
+                        style =
+                            MaterialTheme
+                                .typography
+                                .bodyLarge,
                     )
                 }
             }
@@ -397,6 +415,10 @@ fun DeleteAllDataScreen(
                         R.string
                             .carepack_delete_all_scope_body,
                     ),
+                style =
+                    MaterialTheme
+                        .typography
+                        .bodyLarge,
                 modifier =
                     Modifier.testTag(
                         "delete_all_data_scope",
@@ -433,7 +455,7 @@ fun DeleteAllDataScreen(
                             Alignment.CenterHorizontally,
                         verticalArrangement =
                             Arrangement.spacedBy(
-                                12.dp,
+                                experience.itemSpacing,
                             ),
                     ) {
                         CircularProgressIndicator()
@@ -444,6 +466,10 @@ fun DeleteAllDataScreen(
                                     R.string
                                         .carepack_delete_all_progress,
                                 ),
+                            style =
+                                MaterialTheme
+                                    .typography
+                                    .bodyLarge,
                         )
                     }
                 }
@@ -461,11 +487,11 @@ fun DeleteAllDataScreen(
                         Column(
                             modifier =
                                 Modifier.padding(
-                                    16.dp,
+                                    experience.itemSpacing,
                                 ),
                             verticalArrangement =
                                 Arrangement.spacedBy(
-                                    12.dp,
+                                    experience.itemSpacing,
                                 ),
                         ) {
                             Text(
@@ -474,6 +500,10 @@ fun DeleteAllDataScreen(
                                         R.string
                                             .carepack_delete_all_failed,
                                     ),
+                                style =
+                                    MaterialTheme
+                                        .typography
+                                        .bodyLarge,
                                 color =
                                     MaterialTheme
                                         .colorScheme
@@ -485,6 +515,7 @@ fun DeleteAllDataScreen(
                                 modifier =
                                     Modifier
                                         .fillMaxWidth()
+                                        .carePackPrimaryAction()
                                         .testTag(
                                             "delete_all_data_retry",
                                         ),
@@ -507,6 +538,7 @@ fun DeleteAllDataScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .testTag(
                                     "delete_all_data_request",
                                 ),
@@ -546,6 +578,10 @@ fun DeleteAllDataScreen(
                             R.string
                                 .carepack_delete_confirmation_body,
                         ),
+                    style =
+                        MaterialTheme
+                            .typography
+                            .bodyLarge,
                     modifier =
                         Modifier.testTag(
                             "delete_all_data_confirmation_body",
@@ -557,9 +593,11 @@ fun DeleteAllDataScreen(
                     onClick =
                         onConfirmDeletion,
                     modifier =
-                        Modifier.testTag(
-                            "delete_all_data_confirm",
-                        ),
+                        Modifier
+                            .carePackPrimaryAction()
+                            .testTag(
+                                "delete_all_data_confirm",
+                            ),
                 ) {
                     Text(
                         text =
@@ -575,9 +613,11 @@ fun DeleteAllDataScreen(
                     onClick =
                         onDismissConfirmation,
                     modifier =
-                        Modifier.testTag(
-                            "delete_all_data_cancel",
-                        ),
+                        Modifier
+                            .carePackInteractiveControl()
+                            .testTag(
+                                "delete_all_data_cancel",
+                            ),
                 ) {
                     Text(
                         text =

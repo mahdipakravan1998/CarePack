@@ -10,8 +10,6 @@ import java.time.Clock
 import java.time.Instant
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 class DefaultReminderCoordinator(
     private val scheduleSource:
@@ -32,10 +30,10 @@ class DefaultReminderCoordinator(
     private val diagnosticSink:
     ReminderDiagnosticSink =
         NoOpReminderDiagnosticSink,
+    private val operationLock:
+    ReminderOperationLock =
+        ReminderOperationLock(),
 ) : ReminderCoordinator {
-
-    private val reconciliationMutex =
-        Mutex()
 
     override suspend fun currentStatus():
             ReminderStatus {
@@ -53,7 +51,7 @@ class DefaultReminderCoordinator(
     override suspend fun reconcile(
         reason: ReconciliationReason,
     ): ReminderReconciliationResult {
-        return reconciliationMutex.withLock {
+        return operationLock.withLock {
             reconcileLocked(
                 reason = reason,
             )
@@ -65,7 +63,7 @@ class DefaultReminderCoordinator(
     ): AlarmFireResult {
         require(occurrenceId.isNotBlank())
 
-        return reconciliationMutex.withLock {
+        return operationLock.withLock {
             handleAlarmFiredLocked(
                 occurrenceId =
                     occurrenceId,
@@ -79,7 +77,7 @@ class DefaultReminderCoordinator(
     ): RemindLaterOutcome {
         require(occurrenceId.isNotBlank())
 
-        return reconciliationMutex.withLock {
+        return operationLock.withLock {
             remindLaterLocked(
                 occurrenceId =
                     occurrenceId,
@@ -94,7 +92,7 @@ class DefaultReminderCoordinator(
     ) {
         require(occurrenceId.isNotBlank())
 
-        reconciliationMutex.withLock {
+        operationLock.withLock {
             recordDiagnostic(
                 type =
                     ReminderDiagnosticEventType
@@ -124,7 +122,7 @@ class DefaultReminderCoordinator(
     }
 
     override suspend fun cancelAllOwnedReminderState() {
-        reconciliationMutex.withLock {
+        operationLock.withLock {
             val scheduleAlarmKeys =
                 scheduleSource
                     .getAllScheduleSeriesIds()

@@ -40,6 +40,9 @@ import ir.carepack.domain.careplan.UpdateMedicationTextOutcome
 import ir.carepack.domain.model.MedicationStatus
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -448,6 +451,9 @@ private fun MedicationTextEditScreen(
         (String) -> Unit,
     onSave: () -> Unit,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             Modifier
@@ -469,12 +475,14 @@ private fun MedicationTextEditScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience.screenHorizontalPadding,
+                        vertical =
+                            experience.screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.spacedBy(
-                    16.dp,
+                    experience.itemSpacing,
                 ),
         ) {
             TextButton(
@@ -482,9 +490,11 @@ private fun MedicationTextEditScreen(
                 enabled =
                     !state.isSaving,
                 modifier =
-                    Modifier.testTag(
-                        "medication_text_edit_back",
-                    ),
+                    Modifier
+                        .carePackInteractiveControl()
+                        .testTag(
+                            "medication_text_edit_back",
+                        ),
             ) {
                 Text(
                     text =
@@ -526,7 +536,7 @@ private fun MedicationTextEditScreen(
                             Alignment.CenterHorizontally,
                         verticalArrangement =
                             Arrangement.spacedBy(
-                                12.dp,
+                                experience.itemSpacing,
                             ),
                     ) {
                         CircularProgressIndicator()
@@ -599,7 +609,7 @@ private fun MedicationTextEditScreen(
                     Spacer(
                         modifier =
                             Modifier.height(
-                                8.dp,
+                                experience.compactSpacing,
                             ),
                     )
 
@@ -610,6 +620,7 @@ private fun MedicationTextEditScreen(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
+                                .carePackPrimaryAction()
                                 .testTag(
                                     "medication_text_edit_save",
                                 ),

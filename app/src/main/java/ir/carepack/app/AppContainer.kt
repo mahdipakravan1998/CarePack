@@ -1,13 +1,14 @@
 package ir.carepack.app
 
 import android.content.Context
-import ir.carepack.BuildConfig
 import androidx.room.Room
+import ir.carepack.BuildConfig
 import ir.carepack.core.id.IdSource
 import ir.carepack.core.id.UuidIdSource
 import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
+import ir.carepack.data.preferences.DataStoreMedicationDeletionMarkerStore
 import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
@@ -22,14 +23,21 @@ import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.OccurrenceGenerator
 import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
 import ir.carepack.domain.reminder.DefaultReminderCoordinator
+import ir.carepack.domain.reminder.DefaultReminderTestCoordinator
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderDiagnosticSink
+import ir.carepack.domain.reminder.ReminderOperationLock
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderScheduleSource
+import ir.carepack.domain.reminder.ReminderTestCoordinator
 import ir.carepack.domain.reminder.RoomReminderScheduleSource
 import ir.carepack.domain.reminder.SnoozedReminderStore
 import ir.carepack.domain.report.CaregiverReportService
+import ir.carepack.domain.report.DateRangeSummaryService
+import ir.carepack.domain.report.RangeReportFormatter
 import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.domain.report.RoomDateRangeSummaryService
+import ir.carepack.domain.report.RoomRangeReportFormatter
 import ir.carepack.domain.report.RoomTodayReportFormatter
 import ir.carepack.domain.report.TodayReportFormatter
 import ir.carepack.domain.today.RoomTodayQueryService
@@ -49,8 +57,13 @@ import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.AndroidTemporaryDataCleaner
 import ir.carepack.settings.deletion.DataDeletionCoordinator
 import ir.carepack.settings.deletion.DefaultDataDeletionCoordinator
+import ir.carepack.settings.deletion.DefaultMedicationDeletionCoordinator
 import ir.carepack.settings.deletion.DomainDataCleaner
+import ir.carepack.settings.deletion.MedicationDeletionCoordinator
+import ir.carepack.settings.deletion.MedicationDeletionDataSource
+import ir.carepack.settings.deletion.MedicationDeletionMarkerStore
 import ir.carepack.settings.deletion.RoomDomainDataCleaner
+import ir.carepack.settings.deletion.RoomMedicationDeletionDataSource
 import ir.carepack.settings.deletion.TemporaryDataCleaner
 import java.time.Clock
 
@@ -68,6 +81,9 @@ class AppContainer(
 
     private val idSource: IdSource =
         UuidIdSource()
+
+    private val reminderOperationLock =
+        ReminderOperationLock()
 
     val reminderDiagnosticSink:
             ReminderDiagnosticSink =
@@ -119,6 +135,13 @@ class AppContainer(
                 applicationContext,
         )
 
+    private val medicationDeletionMarkerStore:
+            MedicationDeletionMarkerStore =
+        DataStoreMedicationDeletionMarkerStore(
+            context =
+                applicationContext,
+        )
+
     val notificationPermissionGateway:
             NotificationPermissionGateway =
         AndroidNotificationPermissionGateway(
@@ -133,8 +156,20 @@ class AppContainer(
                 applicationContext,
         )
 
-    val alarmGateway: AlarmGateway =
+    private val androidAlarmGateway =
         AndroidAlarmGateway(
+            context =
+                applicationContext,
+            clock = clock,
+            diagnosticSink =
+                reminderDiagnosticSink,
+        )
+
+    val alarmGateway: AlarmGateway =
+        androidAlarmGateway
+
+    private val androidNotificationGateway =
+        AndroidNotificationGateway(
             context =
                 applicationContext,
             clock = clock,
@@ -144,13 +179,7 @@ class AppContainer(
 
     val notificationGateway:
             NotificationGateway =
-        AndroidNotificationGateway(
-            context =
-                applicationContext,
-            clock = clock,
-            diagnosticSink =
-                reminderDiagnosticSink,
-        )
+        androidNotificationGateway
 
     val occurrenceGenerator:
             OccurrenceGenerator =
@@ -187,6 +216,24 @@ class AppContainer(
             clock = clock,
             diagnosticSink =
                 reminderDiagnosticSink,
+            operationLock =
+                reminderOperationLock,
+        )
+
+    val reminderTestCoordinator:
+            ReminderTestCoordinator =
+        DefaultReminderTestCoordinator(
+            notificationPermissionGateway =
+                notificationPermissionGateway,
+            exactAlarmCapabilityGateway =
+                exactAlarmCapabilityGateway,
+            alarmGateway =
+                androidAlarmGateway,
+            notificationGateway =
+                androidNotificationGateway,
+            clock = clock,
+            operationLock =
+                reminderOperationLock,
         )
 
     private val roomCarePlanService:
@@ -236,11 +283,51 @@ class AppContainer(
             database = database,
         )
 
+    val dateRangeSummaryService:
+            DateRangeSummaryService =
+        RoomDateRangeSummaryService(
+            database = database,
+        )
+
+    val rangeReportFormatter:
+            RangeReportFormatter =
+        RoomRangeReportFormatter(
+            database = database,
+            summaryService =
+                dateRangeSummaryService,
+        )
+
     val textShareGateway:
             TextShareGateway =
         AndroidTextShareGateway(
             context =
                 applicationContext,
+        )
+
+    private val medicationDeletionDataSource:
+            MedicationDeletionDataSource =
+        RoomMedicationDeletionDataSource(
+            database = database,
+        )
+
+    val medicationDeletionCoordinator:
+            MedicationDeletionCoordinator =
+        DefaultMedicationDeletionCoordinator(
+            dataSource =
+                medicationDeletionDataSource,
+            markerStore =
+                medicationDeletionMarkerStore,
+            alarmGateway =
+                alarmGateway,
+            notificationGateway =
+                notificationGateway,
+            snoozedReminderStore =
+                snoozedReminderStore,
+            reminderCoordinator =
+                reminderCoordinator,
+            reminderOperationLock =
+                reminderOperationLock,
+            clock = clock,
         )
 
     private val domainDataCleaner:

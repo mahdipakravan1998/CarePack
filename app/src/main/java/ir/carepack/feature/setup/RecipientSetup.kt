@@ -40,6 +40,9 @@ import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
+import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPrimaryAction
+import ir.carepack.ui.experience.carePackExperience
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -254,6 +257,9 @@ fun RecipientSetupScreen(
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val experience =
+        carePackExperience()
+
     Scaffold(
         modifier =
             modifier
@@ -275,8 +281,10 @@ fun RecipientSetupScreen(
                         rememberScrollState(),
                     )
                     .padding(
-                        horizontal = 24.dp,
-                        vertical = 16.dp,
+                        horizontal =
+                            experience.screenHorizontalPadding,
+                        vertical =
+                            experience.screenVerticalPadding,
                     ),
             verticalArrangement =
                 Arrangement.Top,
@@ -302,7 +310,7 @@ fun RecipientSetupScreen(
             Spacer(
                 modifier =
                     Modifier.height(
-                        8.dp,
+                        experience.compactSpacing,
                     ),
             )
 
@@ -321,7 +329,7 @@ fun RecipientSetupScreen(
             Spacer(
                 modifier =
                     Modifier.height(
-                        24.dp,
+                        experience.sectionSpacing,
                     ),
             )
 
@@ -361,6 +369,7 @@ fun RecipientSetupScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackInteractiveControl()
                         .testTag(
                             "recipient_name",
                         ),
@@ -399,7 +408,7 @@ fun RecipientSetupScreen(
             Spacer(
                 modifier =
                     Modifier.height(
-                        24.dp,
+                        experience.sectionSpacing,
                     ),
             )
 
@@ -411,6 +420,7 @@ fun RecipientSetupScreen(
                 modifier =
                     Modifier
                         .fillMaxWidth()
+                        .carePackPrimaryAction()
                         .testTag(
                             "recipient_save",
                         ),

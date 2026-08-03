@@ -47,8 +47,11 @@ import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderTestCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.report.CaregiverReportService
+import ir.carepack.domain.report.DateRangeSummaryService
+import ir.carepack.domain.report.RangeReportFormatter
 import ir.carepack.domain.report.TodayReportFormatter
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.feature.careplan.CarePlanRoute
@@ -59,7 +62,9 @@ import ir.carepack.feature.careplan.RecipientNameEditRoute
 import ir.carepack.feature.careplan.RecipientNameEditViewModel
 import ir.carepack.feature.careplan.ScheduleEditRoute
 import ir.carepack.feature.careplan.ScheduleEditViewModel
+import ir.carepack.feature.calendar.CalendarRoute
 import ir.carepack.feature.deletion.DeleteAllDataRoute
+import ir.carepack.feature.deletion.MedicationDeletionRoute
 import ir.carepack.feature.detail.OccurrenceDetailEntryMode
 import ir.carepack.feature.detail.OccurrenceDetailRoute
 import ir.carepack.feature.detail.OccurrenceDetailViewModel
@@ -67,6 +72,7 @@ import ir.carepack.feature.onboarding.OnboardingScreen
 import ir.carepack.feature.privacy.PrivacyRoute
 import ir.carepack.feature.reminder.ReminderSettingsRoute
 import ir.carepack.feature.reminder.ReminderSettingsViewModel
+import ir.carepack.feature.reporting.RangeReportRoute
 import ir.carepack.feature.reporting.TodayReportRoute
 import ir.carepack.feature.settings.SettingsRoute
 import ir.carepack.feature.settings.SettingsViewModel
@@ -75,12 +81,11 @@ import ir.carepack.feature.setup.MedicationScheduleViewModel
 import ir.carepack.feature.setup.RecipientSetupRoute
 import ir.carepack.feature.setup.RecipientSetupViewModel
 import ir.carepack.feature.today.TodayRoute
-import ir.carepack.feature.today.TodayScreen
-import ir.carepack.feature.today.TodaySection
 import ir.carepack.feature.today.TodayViewModel
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.DataDeletionCoordinator
+import ir.carepack.settings.deletion.MedicationDeletionCoordinator
 import java.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,10 +97,11 @@ private object Routes {
     const val Recipient = "recipient"
     const val Today = "today"
     const val CarePlan = "care-plan"
-    const val History = "history"
+    const val Calendar = "calendar"
     const val Settings = "settings"
     const val ReminderSettings = "reminder-settings"
     const val TodayReport = "today-report"
+    const val RangeReport = "range-report"
     const val Privacy = "privacy"
     const val DeleteAllData = "delete-all-data"
     const val EditRecipientName = "edit-recipient-name"
@@ -119,6 +125,9 @@ private object Routes {
 
     const val EditSchedulePattern =
         "edit-schedule/{$ScheduleSeriesIdArgument}"
+
+    const val DeleteMedicationPattern =
+        "delete-medication/{$MedicationIdArgument}"
 
     const val OccurrenceDetailPattern =
         "occurrence/{$OccurrenceIdArgument}"
@@ -151,6 +160,11 @@ private object Routes {
     ): String =
         "edit-schedule/$scheduleSeriesId"
 
+    fun deleteMedication(
+        medicationId: String,
+    ): String =
+        "delete-medication/$medicationId"
+
     fun occurrenceDetail(
         occurrenceId: String,
     ): String =
@@ -181,9 +195,9 @@ private val primaryDestinations =
             testTag = "primary_nav_medications",
         ),
         PrimaryDestination(
-            route = Routes.History,
-            labelResId = R.string.primary_nav_history,
-            testTag = "primary_nav_history",
+            route = Routes.Calendar,
+            labelResId = R.string.primary_nav_calendar,
+            testTag = "primary_nav_calendar",
         ),
         PrimaryDestination(
             route = Routes.Settings,
@@ -308,16 +322,22 @@ fun CarePackApp(
     setupPreferenceStore: SetupPreferenceStore,
     reminderPreferenceStore: ReminderPreferenceStore,
     reminderCoordinator: ReminderCoordinator,
+    reminderTestCoordinator: ReminderTestCoordinator,
     notificationPermissionGateway: NotificationPermissionGateway,
     todayReportFormatter: TodayReportFormatter,
+    dateRangeSummaryService: DateRangeSummaryService,
+    rangeReportFormatter: RangeReportFormatter,
     privacyPreferenceStore: PrivacyPreferenceStore,
     userExperiencePreferenceStore: UserExperiencePreferenceStore,
     textShareGateway: TextShareGateway,
     dataDeletionCoordinator: DataDeletionCoordinator,
+    medicationDeletionCoordinator: MedicationDeletionCoordinator,
     clock: Clock,
     zoneProvider: ZoneProvider,
     notificationOccurrenceId: String? = null,
     onNotificationOccurrenceHandled: () -> Unit = {},
+    openReminderSettingsRequested: Boolean = false,
+    onReminderSettingsRequestHandled: () -> Unit = {},
 ) {
     val appViewModel:
             AppViewModel =
@@ -357,20 +377,32 @@ fun CarePackApp(
                 setupPreferenceStore = setupPreferenceStore,
                 reminderPreferenceStore = reminderPreferenceStore,
                 reminderCoordinator = reminderCoordinator,
+                reminderTestCoordinator =
+                    reminderTestCoordinator,
                 notificationPermissionGateway =
                     notificationPermissionGateway,
                 todayReportFormatter = todayReportFormatter,
+                dateRangeSummaryService =
+                    dateRangeSummaryService,
+                rangeReportFormatter =
+                    rangeReportFormatter,
                 privacyPreferenceStore = privacyPreferenceStore,
                 userExperiencePreferenceStore =
                     userExperiencePreferenceStore,
                 textShareGateway = textShareGateway,
                 dataDeletionCoordinator = dataDeletionCoordinator,
+                medicationDeletionCoordinator =
+                    medicationDeletionCoordinator,
                 clock = clock,
                 zoneProvider = zoneProvider,
                 notificationOccurrenceId =
                     notificationOccurrenceId,
                 onNotificationOccurrenceHandled =
                     onNotificationOccurrenceHandled,
+                openReminderSettingsRequested =
+                    openReminderSettingsRequested,
+                onReminderSettingsRequestHandled =
+                    onReminderSettingsRequestHandled,
             )
         }
     }
@@ -434,16 +466,22 @@ private fun CarePackNavigation(
     setupPreferenceStore: SetupPreferenceStore,
     reminderPreferenceStore: ReminderPreferenceStore,
     reminderCoordinator: ReminderCoordinator,
+    reminderTestCoordinator: ReminderTestCoordinator,
     notificationPermissionGateway: NotificationPermissionGateway,
     todayReportFormatter: TodayReportFormatter,
+    dateRangeSummaryService: DateRangeSummaryService,
+    rangeReportFormatter: RangeReportFormatter,
     privacyPreferenceStore: PrivacyPreferenceStore,
     userExperiencePreferenceStore: UserExperiencePreferenceStore,
     textShareGateway: TextShareGateway,
     dataDeletionCoordinator: DataDeletionCoordinator,
+    medicationDeletionCoordinator: MedicationDeletionCoordinator,
     clock: Clock,
     zoneProvider: ZoneProvider,
     notificationOccurrenceId: String?,
     onNotificationOccurrenceHandled: () -> Unit,
+    openReminderSettingsRequested: Boolean,
+    onReminderSettingsRequestHandled: () -> Unit,
 ) {
     val navController =
         rememberNavController()
@@ -474,6 +512,20 @@ private fun CarePackNavigation(
             }
 
             onNotificationOccurrenceHandled()
+        }
+    }
+
+    LaunchedEffect(
+        openReminderSettingsRequested,
+    ) {
+        if (openReminderSettingsRequested) {
+            navController.navigate(
+                Routes.ReminderSettings,
+            ) {
+                launchSingleTop = true
+            }
+
+            onReminderSettingsRequestHandled()
         }
     }
 
@@ -508,7 +560,10 @@ private fun CarePackNavigation(
                 ) {
                     Text(
                         text =
-                            "ویرایش نام فرد تحت مراقبت",
+                            stringResource(
+                                R.string
+                                    .edit_recipient,
+                            ),
                     )
                 }
             }
@@ -785,70 +840,29 @@ private fun CarePackNavigation(
                             ),
                         )
                     },
+                    onDeleteMedication = {
+                            medicationId ->
+                        navController.navigate(
+                            Routes.deleteMedication(
+                                medicationId =
+                                    medicationId,
+                            ),
+                        )
+                    },
                 )
             }
 
             composable(
-                Routes.History,
+                Routes.Calendar,
             ) {
-                val viewModel:
-                        TodayViewModel =
-                    viewModel(
-                        factory =
-                            todayViewModelFactory(
-                                todayQueryService =
-                                    todayQueryService,
-                                caregiverReportService =
-                                    caregiverReportService,
-                                carePlanService =
-                                    carePlanService,
-                                reminderPreferenceStore =
-                                    reminderPreferenceStore,
-                                reminderCoordinator =
-                                    reminderCoordinator,
-                                userExperiencePreferenceStore =
-                                    userExperiencePreferenceStore,
-                                clock = clock,
-                                zoneProvider =
-                                    zoneProvider,
-                            ),
-                    )
-
-                val state by
-                viewModel
-                    .state
-                    .collectAsStateWithLifecycle()
-
-                TodayScreen(
-                    state =
-                        state.copy(
-                            selectedSection =
-                                TodaySection.HISTORY,
-                        ),
-                    onTodaySelected = {
-                        navController.navigatePrimary(
-                            Routes.Today,
-                        )
-                    },
-                    onHistorySelected =
-                        viewModel::showHistory,
-                    onRetry =
-                        viewModel::retry,
-                    onOpenCarePlan = {
-                        navController.navigatePrimary(
-                            Routes.CarePlan,
-                        )
-                    },
-                    onOpenSettings = {
-                        navController.navigatePrimary(
-                            Routes.Settings,
-                        )
-                    },
-                    onOpenTodayReport = {
-                        navController.navigate(
-                            Routes.TodayReport,
-                        )
-                    },
+                CalendarRoute(
+                    summaryService =
+                        dateRangeSummaryService,
+                    userExperiencePreferenceStore =
+                        userExperiencePreferenceStore,
+                    clock = clock,
+                    zoneProvider =
+                        zoneProvider,
                     onOpenOccurrence = {
                             occurrenceId ->
                         navController.navigate(
@@ -858,39 +872,11 @@ private fun CarePackNavigation(
                             ),
                         )
                     },
-                    onGiven = {
-                            occurrenceId ->
-                        viewModel.setReport(
-                            occurrenceId =
-                                occurrenceId,
-                            state =
-                                CaregiverReportState.GIVEN,
+                    onOpenRangeReport = {
+                        navController.navigate(
+                            Routes.RangeReport,
                         )
                     },
-                    onNotGiven = {
-                            occurrenceId ->
-                        viewModel.setReport(
-                            occurrenceId =
-                                occurrenceId,
-                            state =
-                                CaregiverReportState.NOT_GIVEN,
-                        )
-                    },
-                    onUnknown = {
-                            occurrenceId ->
-                        viewModel.setReport(
-                            occurrenceId =
-                                occurrenceId,
-                            state =
-                                CaregiverReportState.UNKNOWN,
-                        )
-                    },
-                    onRemindLater =
-                        viewModel::remindLater,
-                    onUndo =
-                        viewModel::undoReportChange,
-                    onSnackbarConsumed =
-                        viewModel::consumeSnackbar,
                 )
             }
 
@@ -953,8 +939,12 @@ private fun CarePackNavigation(
                                     reminderPreferenceStore,
                                 reminderCoordinator =
                                     reminderCoordinator,
+                                reminderTestCoordinator =
+                                    reminderTestCoordinator,
                                 notificationPermissionGateway =
                                     notificationPermissionGateway,
+                                userExperiencePreferenceStore =
+                                    userExperiencePreferenceStore,
                             ),
                     )
 
@@ -989,6 +979,27 @@ private fun CarePackNavigation(
                         privacyPreferenceStore,
                     textShareGateway =
                         textShareGateway,
+                    onBack = {
+                        navController.popBackStack()
+                    },
+                )
+            }
+
+            composable(
+                Routes.RangeReport,
+            ) {
+                RangeReportRoute(
+                    formatter =
+                        rangeReportFormatter,
+                    privacyPreferenceStore =
+                        privacyPreferenceStore,
+                    userExperiencePreferenceStore =
+                        userExperiencePreferenceStore,
+                    textShareGateway =
+                        textShareGateway,
+                    clock = clock,
+                    zoneProvider =
+                        zoneProvider,
                     onBack = {
                         navController.popBackStack()
                     },
@@ -1046,6 +1057,40 @@ private fun CarePackNavigation(
 
                             launchSingleTop = true
                         }
+                    },
+                )
+            }
+
+            composable(
+                route = Routes.DeleteMedicationPattern,
+                arguments =
+                    listOf(
+                        navArgument(
+                            Routes.MedicationIdArgument,
+                        ) {
+                            type = NavType.StringType
+                        },
+                    ),
+            ) { entry ->
+                val medicationId =
+                    checkNotNull(
+                        entry.arguments?.getString(
+                            Routes.MedicationIdArgument,
+                        ),
+                    )
+
+                MedicationDeletionRoute(
+                    medicationId =
+                        medicationId,
+                    coordinator =
+                        medicationDeletionCoordinator,
+                    onDeletionCompleted = {
+                        navController.navigatePrimary(
+                            Routes.CarePlan,
+                        )
+                    },
+                    onBack = {
+                        navController.popBackStack()
                     },
                 )
             }

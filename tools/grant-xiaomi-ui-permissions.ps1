@@ -1,5 +1,16 @@
 param(
-    [string]$PackageName = "ir.carepack.debug"
+    [string]$PackageName = "ir.carepack.debug",
+
+    [ValidateSet(
+        "GrantBackgroundWindowPermission",
+        "InstallApk"
+    )]
+    [string]$Mode =
+        "GrantBackgroundWindowPermission",
+
+    [string]$ApkPath = "",
+
+    [int]$AndroidUserId = 0
 )
 
 Set-StrictMode -Version Latest
@@ -487,6 +498,350 @@ function Open-AlwaysAllowPage {
     throw "Could not navigate to the Always allow option."
 }
 
+function Find-InstallerApprovalNode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [xml]$Xml
+    )
+
+    $installerPackages =
+        @(
+            "com.miui.securitycenter",
+            "com.miui.packageinstaller",
+            "com.android.packageinstaller",
+            "com.google.android.packageinstaller",
+            "com.android.permissioncontroller",
+            "com.google.android.permissioncontroller"
+        )
+
+    $positiveTexts =
+        @(
+            "Allow",
+            "Install",
+            "Continue",
+            "Install anyway",
+            "OK",
+            "Yes"
+        )
+
+    $nodes =
+        $Xml.SelectNodes(
+            "//node"
+        )
+
+    foreach ($node in $nodes) {
+        if (
+            $node -isnot
+            [System.Xml.XmlElement]
+        ) {
+            continue
+        }
+
+        $packageName =
+            $node.GetAttribute(
+                "package"
+            )
+
+        if (
+            -not (
+                $installerPackages -contains
+                $packageName
+            )
+        ) {
+            continue
+        }
+
+        if (
+            $node.GetAttribute(
+                "enabled"
+            ) -eq "false"
+        ) {
+            continue
+        }
+
+        $text =
+            $node.GetAttribute(
+                "text"
+            ).Trim()
+
+        $resourceId =
+            $node.GetAttribute(
+                "resource-id"
+            )
+
+        if (
+            $positiveTexts -contains
+            $text
+        ) {
+            return $node
+        }
+
+        if (
+            $text -notmatch
+            "^(Cancel|Deny|No|Not now|Open|Done)$" -and
+            $resourceId -match
+            "(?i)(permission_allow_button|button1|positive|install|allow)"
+        ) {
+            return $node
+        }
+    }
+
+    return $null
+}
+
+function Try-ApproveInstallerPrompt {
+    try {
+        $xml =
+            Get-FreshUiXml
+
+        $approvalNode =
+            Find-InstallerApprovalNode `
+                -Xml $xml
+
+        if ($null -eq $approvalNode) {
+            return $false
+        }
+
+        Write-Host ""
+        Write-Host "Xiaomi installation confirmation found."
+        Write-Host "Selecting the positive installation action..."
+
+        Tap-Node `
+            -Node $approvalNode
+
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-XiaomiAwareApkInstall {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path,
+
+        [Parameter(Mandatory = $true)]
+        [int]$UserId
+    )
+
+    if (
+        [string]::IsNullOrWhiteSpace(
+            $Path
+        )
+    ) {
+        throw "ApkPath is required in InstallApk mode."
+    }
+
+    $resolvedApkPath =
+        (
+            Resolve-Path `
+                -LiteralPath $Path
+        ).Path
+
+    $timestamp =
+        Get-Date `
+            -Format "yyyyMMdd-HHmmss-fff"
+
+    $stdoutPath =
+        Join-Path `
+            $ArtifactDirectory `
+            "$timestamp-adb-install-stdout.txt"
+
+    $stderrPath =
+        Join-Path `
+            $ArtifactDirectory `
+            "$timestamp-adb-install-stderr.txt"
+
+    $quotedApkPath =
+        '"' +
+        $resolvedApkPath.Replace(
+            '"',
+            '\"'
+        ) +
+        '"'
+
+    $argumentText =
+        "install --user $UserId -r -t -g $quotedApkPath"
+
+    Write-Host ""
+    Write-Host "Starting Xiaomi-aware APK installation..."
+    Write-Host $resolvedApkPath
+
+    $process =
+        Start-Process `
+            -FilePath "adb" `
+            -ArgumentList $argumentText `
+            -NoNewWindow `
+            -PassThru `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath
+
+    $deadline =
+        [DateTime]::UtcNow.AddSeconds(
+            120
+        )
+
+    $approvalAttempts = 0
+
+    while (
+        -not $process.HasExited -and
+        [DateTime]::UtcNow -lt
+        $deadline
+    ) {
+        if (
+            Try-ApproveInstallerPrompt
+        ) {
+            $approvalAttempts += 1
+
+            Start-Sleep `
+                -Milliseconds 700
+        }
+        else {
+            Start-Sleep `
+                -Milliseconds 300
+        }
+    }
+
+    if (-not $process.HasExited) {
+        try {
+            $process.Kill()
+        }
+        catch {
+        }
+
+        throw @"
+APK installation did not finish within 120 seconds.
+The Xiaomi confirmation window may not be visible to UiAutomator.
+Approve the installation manually and run the command again.
+"@
+    }
+
+    $process.WaitForExit()
+
+    $stdout =
+        if (Test-Path -LiteralPath $stdoutPath) {
+            [string](
+                Get-Content `
+                    -LiteralPath $stdoutPath `
+                    -Raw
+            )
+        }
+        else {
+            ""
+        }
+
+    $stderr =
+        if (Test-Path -LiteralPath $stderrPath) {
+            [string](
+                Get-Content `
+                    -LiteralPath $stderrPath `
+                    -Raw
+            )
+        }
+        else {
+            ""
+        }
+
+    $normalizedStdout =
+        if ($null -eq $stdout) {
+            ""
+        }
+        else {
+            ([string]$stdout).Trim()
+        }
+
+    $normalizedStderr =
+        if ($null -eq $stderr) {
+            ""
+        }
+        else {
+            ([string]$stderr).Trim()
+        }
+
+    $combinedOutput =
+        @(
+            @(
+                $normalizedStdout,
+                $normalizedStderr
+            ) |
+                Where-Object {
+                    -not [string]::IsNullOrWhiteSpace(
+                        [string]$_
+                    )
+                }
+        )
+
+    if ($combinedOutput.Count -gt 0) {
+        Write-Host ""
+        $combinedOutput |
+            ForEach-Object {
+                Write-Host $_
+            }
+    }
+
+    if ($approvalAttempts -gt 0) {
+        Write-Host ""
+        Write-Host (
+            "Installer confirmation actions selected: {0}" -f
+            $approvalAttempts
+        )
+    }
+
+    $exitCode =
+        try {
+            $process.Refresh()
+
+            if ($null -eq $process.ExitCode) {
+                $null
+            }
+            else {
+                [int]$process.ExitCode
+            }
+        }
+        catch {
+            $null
+        }
+
+    if (
+        $null -ne $exitCode -and
+        $exitCode -ne 0
+    ) {
+        throw @"
+ADB APK installation failed.
+
+Exit code:
+$exitCode
+
+Output:
+$($combinedOutput -join [Environment]::NewLine)
+"@
+    }
+
+    $installationOutput =
+        (
+            ([string]$stdout) +
+            [Environment]::NewLine +
+            ([string]$stderr)
+        )
+
+    if (
+        $installationOutput -notmatch
+        "(?im)^\s*Success\s*$"
+    ) {
+        throw @"
+ADB did not report a successful APK installation.
+
+Output:
+$($combinedOutput -join [Environment]::NewLine)
+"@
+    }
+
+    Write-Host ""
+    Write-Host "APK installation completed successfully."
+    Write-Host ""
+}
+
 function Test-AlwaysAllowChecked {
     param(
         [Parameter(Mandatory = $true)]
@@ -582,6 +937,14 @@ if (
     $deviceState.Text.Trim() -ne "device"
 ) {
     throw "No authorized Android device was found."
+}
+
+if ($Mode -eq "InstallApk") {
+    Invoke-XiaomiAwareApkInstall `
+        -Path $ApkPath `
+        -UserId $AndroidUserId
+
+    exit 0
 }
 
 $packageState =

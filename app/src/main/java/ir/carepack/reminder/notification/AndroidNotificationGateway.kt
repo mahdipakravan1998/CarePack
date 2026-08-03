@@ -14,6 +14,7 @@ import ir.carepack.domain.reminder.ReminderDiagnosticSink
 import ir.carepack.domain.reminder.ReminderNotification
 import ir.carepack.domain.reminder.recordReminderDiagnostic
 import java.time.Clock
+import java.time.Instant
 import java.util.Locale
 
 class AndroidNotificationGateway(
@@ -22,7 +23,8 @@ class AndroidNotificationGateway(
     private val diagnosticSink:
     ReminderDiagnosticSink =
         NoOpReminderDiagnosticSink,
-) : NotificationGateway {
+) : NotificationGateway,
+    ReminderTestNotificationGateway {
 
     private val applicationContext =
         context.applicationContext
@@ -134,7 +136,7 @@ class AndroidNotificationGateway(
             }
 
             notificationManager.notify(
-                notificationId(
+                occurrenceNotificationId(
                     occurrenceId =
                         notification
                             .occurrenceId,
@@ -168,16 +170,85 @@ class AndroidNotificationGateway(
         }
     }
 
+    override fun postTestReminder(
+        scheduledAt: Instant,
+    ) {
+        val notification =
+            NotificationCompat.Builder(
+                applicationContext,
+                ReminderNotificationContract
+                    .CHANNEL_ID,
+            )
+                .setSmallIcon(
+                    R.drawable
+                        .ic_notification_reminder,
+                )
+                .setContentTitle(
+                    applicationContext.getString(
+                        R.string
+                            .reminder_test_notification_title,
+                    ),
+                )
+                .setContentText(
+                    applicationContext.getString(
+                        R.string
+                            .reminder_test_notification_body,
+                    ),
+                )
+                .setCategory(
+                    NotificationCompat
+                        .CATEGORY_ALARM,
+                )
+                .setPriority(
+                    NotificationCompat
+                        .PRIORITY_HIGH,
+                )
+                .setDefaults(
+                    NotificationCompat
+                        .DEFAULT_SOUND or
+                            NotificationCompat
+                                .DEFAULT_VIBRATE,
+                )
+                .setVibrate(
+                    REMINDER_VIBRATION_PATTERN,
+                )
+                .setVisibility(
+                    NotificationCompat
+                        .VISIBILITY_PUBLIC,
+                )
+                .setContentIntent(
+                    createTestContentPendingIntent(),
+                )
+                .setWhen(
+                    scheduledAt.toEpochMilli(),
+                )
+                .setShowWhen(true)
+                .setOnlyAlertOnce(false)
+                .setAutoCancel(true)
+                .build()
+
+        notificationManager.notify(
+            TEST_NOTIFICATION_ID,
+            notification,
+        )
+    }
+
     override fun cancel(
         occurrenceId: String,
     ) {
         require(occurrenceId.isNotBlank())
 
         notificationManager.cancel(
-            notificationId(
+            occurrenceNotificationId(
                 occurrenceId =
                     occurrenceId,
             ),
+        )
+    }
+
+    override fun cancelTestReminder() {
+        notificationManager.cancel(
+            TEST_NOTIFICATION_ID,
         )
     }
 
@@ -220,8 +291,8 @@ class AndroidNotificationGateway(
     }
 
     private fun buildPublicNotification():
-            Notification {
-        return NotificationCompat.Builder(
+            Notification =
+        NotificationCompat.Builder(
             applicationContext,
             ReminderNotificationContract
                 .CHANNEL_ID,
@@ -251,12 +322,11 @@ class AndroidNotificationGateway(
                     .VISIBILITY_PUBLIC,
             )
             .build()
-    }
 
     private fun createContentPendingIntent(
         occurrenceId: String,
-    ): PendingIntent {
-        return PendingIntent.getActivity(
+    ): PendingIntent =
+        PendingIntent.getActivity(
             applicationContext,
             ReminderNotificationContract
                 .contentRequestCode(
@@ -273,12 +343,11 @@ class AndroidNotificationGateway(
             PendingIntent.FLAG_UPDATE_CURRENT or
                     PendingIntent.FLAG_IMMUTABLE,
         )
-    }
 
     private fun createFullScreenPendingIntent(
         occurrenceId: String,
-    ): PendingIntent {
-        return PendingIntent.getActivity(
+    ): PendingIntent =
+        PendingIntent.getActivity(
             applicationContext,
             ReminderNotificationContract
                 .fullScreenRequestCode(
@@ -295,11 +364,25 @@ class AndroidNotificationGateway(
             PendingIntent.FLAG_UPDATE_CURRENT or
                     PendingIntent.FLAG_IMMUTABLE,
         )
-    }
+
+    private fun createTestContentPendingIntent():
+            PendingIntent =
+        PendingIntent.getActivity(
+            applicationContext,
+            ReminderNotificationContract
+                .testContentRequestCode(),
+            ReminderNotificationContract
+                .createOpenReminderSettingsIntent(
+                    context =
+                        applicationContext,
+                ),
+            PendingIntent.FLAG_UPDATE_CURRENT or
+                    PendingIntent.FLAG_IMMUTABLE,
+        )
 
     private fun canUseFullScreenIntent():
-            Boolean {
-        return if (
+            Boolean =
+        if (
             Build.VERSION.SDK_INT >=
             Build.VERSION_CODES.UPSIDE_DOWN_CAKE
         ) {
@@ -308,25 +391,21 @@ class AndroidNotificationGateway(
         } else {
             true
         }
-    }
 
-    private fun notificationId(
+    private fun occurrenceNotificationId(
         occurrenceId: String,
-    ): Int {
-        return occurrenceId
-            .hashCode() and
-                Int.MAX_VALUE
-    }
+    ): Int =
+        occurrenceId.hashCode() and
+                OCCURRENCE_NOTIFICATION_ID_MASK
 
     private fun java.time.LocalTime
-            .toDisplayText(): String {
-        return String.format(
+            .toDisplayText(): String =
+        String.format(
             Locale.getDefault(),
             "%02d:%02d",
             hour,
             minute,
         )
-    }
 
     private companion object {
         val REMINDER_VIBRATION_PATTERN =
@@ -336,5 +415,11 @@ class AndroidNotificationGateway(
                 250L,
                 500L,
             )
+
+        const val OCCURRENCE_NOTIFICATION_ID_MASK =
+            0x3fffffff
+
+        const val TEST_NOTIFICATION_ID =
+            0x7fffff01
     }
 }

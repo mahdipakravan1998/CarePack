@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="range_report_title">گزارش ۷ و ۳۰ روزه</string>
+    <string name="range_report_description">این خلاصه فقط از نوبت‌ها و گزارش‌های ثبت‌شده در کرپک ساخته می‌شود و ارزیابی پزشکی نیست.</string>
+    <string name="range_report_period_label">بازه گزارش</string>
+    <string name="range_report_7_days">۷ روز اخیر</string>
+    <string name="range_report_30_days">۳۰ روز اخیر</string>
+    <string name="range_report_date_range">از %1$s تا %2$s</string>
+    <string name="range_report_loading">در حال آماده‌سازی گزارش…</string>
+    <string name="range_report_empty">در این بازه نوبتی برای نمایش وجود ندارد.</string>
+    <string name="range_report_load_failed">گزارش بارگذاری نشد. دوباره تلاش کنید.</string>
+    <string name="range_report_summary_title">خلاصه بازه</string>
+    <string name="range_report_total">مجموع نوبت‌ها</string>
+    <string name="range_report_given">مصرف شد</string>
+    <string name="range_report_not_given">مصرف نشد</string>
+    <string name="range_report_unknown">نامشخص</string>
+    <string name="range_report_no_report">بدون گزارش</string>
+    <string name="range_report_preview_title">پیش‌نمایش متن گزارش</string>
+    <string name="range_report_copy">کپی گزارش</string>
+    <string name="range_report_share">اشتراک‌گذاری گزارش</string>
+    <string name="range_report_copied">متن گزارش کپی شد.</string>
+    <string name="range_report_share_opened">پنجره اشتراک‌گذاری باز شد.</string>
+    <string name="range_report_copy_failed">کپی متن گزارش انجام نشد.</string>
+    <string name="range_report_no_share_target">برنامه‌ای برای اشتراک‌گذاری متن پیدا نشد.</string>
+    <string name="range_report_share_failed">باز کردن اشتراک‌گذاری انجام نشد.</string>
+</resources>
