@@ -12,7 +12,7 @@
     <string name="calendar_loading">در حال بارگذاری تقویم…</string>
     <string name="calendar_error">اطلاعات تقویم بارگذاری نشد. دوباره تلاش کنید.</string>
     <string name="calendar_day_total_compact">%1$s نوبت</string>
-    <string name="calendar_day_semantics">%1$s؛ مجموع %2$s نوبت؛ %3$s مصرف شد؛ %4$s مصرف نشد؛ %5$s نامشخص؛ %6$s بدون گزارش</string>
+    <string name="calendar_day_semantics">%1$s؛ مجموع %2$s نوبت؛ %3$s مراقب: داده شد؛ %4$s مراقب: داده نشد؛ %5$s نامشخص؛ %6$s بدون گزارش</string>
     <string name="calendar_today_description">امروز</string>
     <string name="calendar_selected_description">انتخاب‌شده</string>
     <string name="calendar_adjacent_month_description">مربوط به ماه مجاور</string>
@@ -20,8 +20,8 @@
     <string name="calendar_selected_day_loading">در حال بارگذاری نوبت‌های این روز…</string>
     <string name="calendar_empty_day">برای این روز نوبتی وجود ندارد.</string>
     <string name="calendar_open_occurrence">مشاهده جزئیات نوبت</string>
-    <string name="calendar_report_given">مصرف شد</string>
-    <string name="calendar_report_not_given">مصرف نشد</string>
+    <string name="calendar_report_given">مراقب: داده شد</string>
+    <string name="calendar_report_not_given">مراقب: داده نشد</string>
     <string name="calendar_report_unknown">نامشخص</string>
     <string name="calendar_report_no_report">بدون گزارش</string>
     <string name="calendar_entry_instruction">دستور: %1$s</string>

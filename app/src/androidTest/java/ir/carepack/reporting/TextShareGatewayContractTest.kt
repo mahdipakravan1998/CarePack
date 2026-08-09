@@ -7,6 +7,8 @@ import ir.carepack.platform.ExternalIntentLaunchResult
 import ir.carepack.reporting.share.AndroidTextShareGateway
 import ir.carepack.reporting.share.ClipboardWriter
 import ir.carepack.reporting.share.CopyTextResult
+import ir.carepack.reporting.share.ShareDescriptor
+import ir.carepack.reporting.share.ShareReportKind
 import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.testing.RecordingExternalIntentLauncher
 import org.junit.Assert.assertEquals
@@ -35,7 +37,7 @@ class TextShareGatewayContractTest {
             )
 
         val result =
-            gateway.share(
+            gateway.shareToday(
                 REPORT_TEXT,
             )
 
@@ -105,7 +107,7 @@ class TextShareGatewayContractTest {
             )
 
         val result =
-            gateway.share(
+            gateway.shareToday(
                 "   ",
             )
 
@@ -141,7 +143,7 @@ class TextShareGatewayContractTest {
 
         assertEquals(
             ShareTextResult.NoShareTarget,
-            gateway.share(
+            gateway.shareToday(
                 REPORT_TEXT,
             ),
         )
@@ -169,7 +171,7 @@ class TextShareGatewayContractTest {
 
         assertEquals(
             ShareTextResult.Blocked,
-            gateway.share(
+            gateway.shareToday(
                 REPORT_TEXT,
             ),
         )
@@ -192,7 +194,7 @@ class TextShareGatewayContractTest {
             )
 
         val result =
-            gateway.copy(
+            gateway.copyToday(
                 REPORT_TEXT,
             )
 
@@ -210,7 +212,7 @@ class TextShareGatewayContractTest {
 
         assertEquals(
             listOf(
-                "گزارش امروز کرپک",
+                "گزارش امروز CarePack",
             ),
             clipboardWriter.labels,
         )
@@ -233,7 +235,7 @@ class TextShareGatewayContractTest {
             )
 
         val result =
-            gateway.copy(
+            gateway.copyToday(
                 "   ",
             )
 
@@ -267,7 +269,7 @@ class TextShareGatewayContractTest {
 
         assertEquals(
             CopyTextResult.Blocked,
-            gateway.copy(
+            gateway.copyToday(
                 REPORT_TEXT,
             ),
         )
@@ -275,7 +277,7 @@ class TextShareGatewayContractTest {
 
     private companion object {
         const val REPORT_TEXT =
-            "گزارش امروز کرپک"
+            "گزارش امروز CarePack"
 
         const val MIUI_CHOOSER_ACTION =
             "miui.intent.action.MIUI_CHOOSER"
@@ -302,3 +304,24 @@ private class RecordingClipboardWriter(
         return writeResult
     }
 }
+
+private val TODAY_SHARE_DESCRIPTOR =
+    ShareDescriptor(
+        kind = ShareReportKind.TODAY,
+    )
+
+private fun AndroidTextShareGateway.shareToday(
+    text: String,
+): ShareTextResult =
+    share(
+        text = text,
+        descriptor = TODAY_SHARE_DESCRIPTOR,
+    )
+
+private fun AndroidTextShareGateway.copyToday(
+    text: String,
+): CopyTextResult =
+    copy(
+        text = text,
+        descriptor = TODAY_SHARE_DESCRIPTOR,
+    )

@@ -11,8 +11,8 @@
     <string name="range_report_load_failed">گزارش بارگذاری نشد. دوباره تلاش کنید.</string>
     <string name="range_report_summary_title">خلاصه بازه</string>
     <string name="range_report_total">مجموع نوبت‌ها</string>
-    <string name="range_report_given">مصرف شد</string>
-    <string name="range_report_not_given">مصرف نشد</string>
+    <string name="range_report_given">مراقب: داده شد</string>
+    <string name="range_report_not_given">مراقب: داده نشد</string>
     <string name="range_report_unknown">نامشخص</string>
     <string name="range_report_no_report">بدون گزارش</string>
     <string name="range_report_preview_title">پیش‌نمایش متن گزارش</string>

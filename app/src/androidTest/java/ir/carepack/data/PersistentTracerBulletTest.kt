@@ -12,12 +12,12 @@ import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
-import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.data.service.RoomCarePlanService
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
-import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
-import ir.carepack.domain.report.RoomCaregiverReportService
+import ir.carepack.data.service.RoomOccurrenceGenerator
+import ir.carepack.data.service.RoomCaregiverReportService
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.testing.IncrementingIdSource
 import ir.carepack.testing.SequenceIdSource

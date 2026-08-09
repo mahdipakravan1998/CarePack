@@ -30,7 +30,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -177,42 +176,26 @@ class ReminderNotificationContractTest {
     }
 
     @Test
-    fun requestCodesAreStableAndDistinctForSameOccurrence() {
-        val occurrenceId =
-            "occurrence-request-code"
+    fun contentRequestCode_isStableAndUriProvidesPerOccurrenceIdentity() {
+        val first =
+            ReminderNotificationContract.contentRequestCode()
+        val second =
+            ReminderNotificationContract.contentRequestCode()
 
-        assertEquals(
-            ReminderNotificationContract
-                .contentRequestCode(
-                    occurrenceId,
-                ),
-            ReminderNotificationContract
-                .contentRequestCode(
-                    occurrenceId,
-                ),
-        )
+        assertEquals(first, second)
 
-        assertEquals(
-            ReminderNotificationContract
-                .fullScreenRequestCode(
-                    occurrenceId,
-                ),
-            ReminderNotificationContract
-                .fullScreenRequestCode(
-                    occurrenceId,
-                ),
-        )
+        val firstIntent =
+            ReminderNotificationContract.createOpenOccurrenceIntent(
+                context = context,
+                occurrenceId = "occurrence-request-code-1",
+            )
+        val secondIntent =
+            ReminderNotificationContract.createOpenOccurrenceIntent(
+                context = context,
+                occurrenceId = "occurrence-request-code-2",
+            )
 
-        assertNotEquals(
-            ReminderNotificationContract
-                .contentRequestCode(
-                    occurrenceId,
-                ),
-            ReminderNotificationContract
-                .fullScreenRequestCode(
-                    occurrenceId,
-                ),
-        )
+        assertNotEquals(firstIntent.data, secondIntent.data)
     }
 
     @Test
@@ -315,11 +298,11 @@ class ReminderNotificationContractTest {
     @Test
     fun notificationCancellation_hasNoDeleteIntentAndDoesNotWriteReport() =
         runBlocking {
-            assumeTrue(
+            assertTrue(
                 isNotificationPermissionGranted(),
             )
 
-            assumeTrue(
+            assertTrue(
                 notificationManager
                     .areNotificationsEnabled(),
             )
@@ -495,11 +478,11 @@ class ReminderNotificationContractTest {
 
     @Test
     fun postedNotification_hasPrivateFullContentAndGenericPublicVersion() {
-        assumeTrue(
+        assertTrue(
             isNotificationPermissionGranted(),
         )
 
-        assumeTrue(
+        assertTrue(
             notificationManager
                 .areNotificationsEnabled(),
         )
@@ -566,7 +549,7 @@ class ReminderNotificationContractTest {
                 ?.toString()
                 .orEmpty()
 
-        assertTrue(
+        assertFalse(
             fullText.contains(
                 medicationName,
             ),

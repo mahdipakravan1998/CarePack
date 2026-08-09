@@ -11,19 +11,19 @@ data class OccurrenceGenerationDateWindow(
     }
 
     fun dates(): Sequence<LocalDate> =
-        generateSequence(
-            firstDate,
-        ) { currentDate ->
+        generateSequence(firstDate) { currentDate ->
             currentDate
-                .plusDays(1)
-                .takeIf {
-                    !it.isAfter(lastDate)
+                .plusDays(1L)
+                .takeIf { nextDate ->
+                    !nextDate.isAfter(lastDate)
                 }
         }
 }
 
 object OccurrenceGenerationWindow {
-    const val RADIUS_DAYS: Long = 7L
+    const val EDITING_RADIUS_DAYS: Long = 7L
+    const val MAINTENANCE_LOOKBACK_DAYS: Long = 1L
+    const val MAINTENANCE_FORWARD_DAYS: Long = 35L
 
     fun around(
         anchorDate: LocalDate,
@@ -31,11 +31,25 @@ object OccurrenceGenerationWindow {
         OccurrenceGenerationDateWindow(
             firstDate =
                 anchorDate.minusDays(
-                    RADIUS_DAYS,
+                    EDITING_RADIUS_DAYS,
                 ),
             lastDate =
                 anchorDate.plusDays(
-                    RADIUS_DAYS,
+                    EDITING_RADIUS_DAYS,
+                ),
+        )
+
+    fun maintenance(
+        anchorDate: LocalDate,
+    ): OccurrenceGenerationDateWindow =
+        OccurrenceGenerationDateWindow(
+            firstDate =
+                anchorDate.minusDays(
+                    MAINTENANCE_LOOKBACK_DAYS,
+                ),
+            lastDate =
+                anchorDate.plusDays(
+                    MAINTENANCE_FORWARD_DAYS,
                 ),
         )
 
@@ -46,8 +60,7 @@ object OccurrenceGenerationWindow {
         require(dayCount > 0)
 
         return OccurrenceGenerationDateWindow(
-            firstDate =
-                anchorDate,
+            firstDate = anchorDate,
             lastDate =
                 anchorDate.plusDays(
                     dayCount.toLong() - 1L,

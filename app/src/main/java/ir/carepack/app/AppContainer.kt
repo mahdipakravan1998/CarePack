@@ -8,7 +8,9 @@ import ir.carepack.core.id.UuidIdSource
 import ir.carepack.core.time.SystemZoneProvider
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.local.CarePackDatabase
+import ir.carepack.data.preferences.DataStoreDataDeletionMarkerStore
 import ir.carepack.data.preferences.DataStoreMedicationDeletionMarkerStore
+import ir.carepack.data.preferences.DataStorePreferenceDataCleaner
 import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
 import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
 import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
@@ -17,30 +19,30 @@ import ir.carepack.data.preferences.DataStoreUserExperiencePreferenceStore
 import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.careplan.CarePlanService
-import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.data.service.RoomCarePlanService
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
 import ir.carepack.domain.occurrence.OccurrenceGenerator
-import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
+import ir.carepack.data.service.RoomOccurrenceGenerator
 import ir.carepack.domain.reminder.DefaultReminderCoordinator
 import ir.carepack.domain.reminder.DefaultReminderTestCoordinator
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderDiagnosticSink
-import ir.carepack.domain.reminder.ReminderOperationLock
+import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderScheduleSource
 import ir.carepack.domain.reminder.ReminderTestCoordinator
-import ir.carepack.domain.reminder.RoomReminderScheduleSource
+import ir.carepack.data.service.RoomReminderScheduleSource
 import ir.carepack.domain.reminder.SnoozedReminderStore
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.DateRangeSummaryService
 import ir.carepack.domain.report.RangeReportFormatter
-import ir.carepack.domain.report.RoomCaregiverReportService
-import ir.carepack.domain.report.RoomDateRangeSummaryService
-import ir.carepack.domain.report.RoomRangeReportFormatter
-import ir.carepack.domain.report.RoomTodayReportFormatter
+import ir.carepack.data.service.RoomCaregiverReportService
+import ir.carepack.data.service.RoomDateRangeSummaryService
+import ir.carepack.data.service.RoomRangeReportFormatter
+import ir.carepack.data.service.RoomTodayReportFormatter
 import ir.carepack.domain.report.TodayReportFormatter
-import ir.carepack.domain.today.RoomTodayQueryService
+import ir.carepack.data.service.RoomTodayQueryService
 import ir.carepack.domain.today.TodayQueryService
 import ir.carepack.reminder.alarm.AlarmGateway
 import ir.carepack.reminder.alarm.AndroidAlarmGateway
@@ -48,6 +50,7 @@ import ir.carepack.reminder.diagnostic.LogcatReminderDiagnosticSink
 import ir.carepack.reminder.navigation.NotificationNavigationValidator
 import ir.carepack.reminder.notification.AndroidNotificationGateway
 import ir.carepack.reminder.notification.NotificationGateway
+import ir.carepack.reminder.receiver.SystemReconciliationRetryScheduler
 import ir.carepack.reminder.permission.AndroidExactAlarmCapabilityGateway
 import ir.carepack.reminder.permission.AndroidNotificationPermissionGateway
 import ir.carepack.reminder.permission.ExactAlarmCapabilityGateway
@@ -55,12 +58,15 @@ import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.reporting.share.AndroidTextShareGateway
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.AndroidTemporaryDataCleaner
+import ir.carepack.settings.deletion.AuxiliaryDeletionStateCleaner
 import ir.carepack.settings.deletion.DataDeletionCoordinator
+import ir.carepack.settings.deletion.DataDeletionMarkerStore
 import ir.carepack.settings.deletion.DefaultDataDeletionCoordinator
 import ir.carepack.settings.deletion.DefaultMedicationDeletionCoordinator
 import ir.carepack.settings.deletion.DomainDataCleaner
 import ir.carepack.settings.deletion.MedicationDeletionCoordinator
 import ir.carepack.settings.deletion.MedicationDeletionDataSource
+import ir.carepack.settings.deletion.PreferenceDataCleaner
 import ir.carepack.settings.deletion.MedicationDeletionMarkerStore
 import ir.carepack.settings.deletion.RoomDomainDataCleaner
 import ir.carepack.settings.deletion.RoomMedicationDeletionDataSource
@@ -79,11 +85,17 @@ class AppContainer(
     val zoneProvider: ZoneProvider =
         SystemZoneProvider()
 
+    val systemReconciliationRetryScheduler =
+        SystemReconciliationRetryScheduler(
+            context = applicationContext,
+            clock = clock,
+        )
+
     private val idSource: IdSource =
         UuidIdSource()
 
     private val reminderOperationLock =
-        ReminderOperationLock()
+        AppOperationGate()
 
     val reminderDiagnosticSink:
             ReminderDiagnosticSink =
@@ -98,6 +110,9 @@ class AppContainer(
             CarePackDatabase::class.java,
             DATABASE_NAME,
         )
+            .addCallback(
+                CarePackDatabase.invariantCallback,
+            )
             .build()
 
     val setupPreferenceStore:
@@ -140,6 +155,18 @@ class AppContainer(
         DataStoreMedicationDeletionMarkerStore(
             context =
                 applicationContext,
+        )
+
+    private val dataDeletionMarkerStore:
+            DataDeletionMarkerStore =
+        DataStoreDataDeletionMarkerStore(
+            context = applicationContext,
+        )
+
+    private val preferenceDataCleaner:
+            PreferenceDataCleaner =
+        DataStorePreferenceDataCleaner(
+            context = applicationContext,
         )
 
     val notificationPermissionGateway:
@@ -249,10 +276,12 @@ class AppContainer(
     val carePlanService:
             CarePlanService =
         ReminderAwareCarePlanService(
-            delegate =
-                roomCarePlanService,
-            reminderCoordinator =
-                reminderCoordinator,
+            delegate = roomCarePlanService,
+            reminderCoordinator = reminderCoordinator,
+            reminderPreferenceStore =
+                reminderPreferenceStore,
+            operationGate = reminderOperationLock,
+            clock = clock,
         )
 
     private val roomCaregiverReportService:
@@ -265,10 +294,12 @@ class AppContainer(
     val caregiverReportService:
             CaregiverReportService =
         ReminderAwareCaregiverReportService(
-            delegate =
-                roomCaregiverReportService,
-            reminderCoordinator =
-                reminderCoordinator,
+            delegate = roomCaregiverReportService,
+            reminderCoordinator = reminderCoordinator,
+            reminderPreferenceStore =
+                reminderPreferenceStore,
+            operationGate = reminderOperationLock,
+            clock = clock,
         )
 
     val todayQueryService:
@@ -325,7 +356,7 @@ class AppContainer(
                 snoozedReminderStore,
             reminderCoordinator =
                 reminderCoordinator,
-            reminderOperationLock =
+            operationGate =
                 reminderOperationLock,
             clock = clock,
         )
@@ -343,19 +374,26 @@ class AppContainer(
                 applicationContext,
         )
 
+    private val auxiliaryDeletionStateCleaner =
+        AuxiliaryDeletionStateCleaner {
+            reminderTestCoordinator.cancelPendingTest()
+            systemReconciliationRetryScheduler.clearAll()
+        }
+
     val dataDeletionCoordinator:
             DataDeletionCoordinator =
         DefaultDataDeletionCoordinator(
-            privacyPreferenceStore =
-                privacyPreferenceStore,
-            reminderCoordinator =
-                reminderCoordinator,
-            notificationGateway =
-                notificationGateway,
-            domainDataCleaner =
-                domainDataCleaner,
-            temporaryDataCleaner =
-                temporaryDataCleaner,
+            markerStore = dataDeletionMarkerStore,
+            reminderCoordinator = reminderCoordinator,
+            notificationGateway = notificationGateway,
+            domainDataCleaner = domainDataCleaner,
+            preferenceDataCleaner = preferenceDataCleaner,
+            temporaryDataCleaner = temporaryDataCleaner,
+            auxiliaryDeletionStateCleaner =
+                auxiliaryDeletionStateCleaner,
+            operationGate = reminderOperationLock,
+            idSource = idSource,
+            clock = clock,
         )
 
     val notificationNavigationValidator =
@@ -365,15 +403,17 @@ class AppContainer(
 
     val appReconciler =
         AppReconciler(
-            occurrenceGenerator =
-                occurrenceGenerator,
-            reminderCoordinator =
-                reminderCoordinator,
+            medicationDeletionCoordinator =
+                medicationDeletionCoordinator,
+            dataDeletionCoordinator =
+                dataDeletionCoordinator,
+            occurrenceGenerator = occurrenceGenerator,
+            reminderCoordinator = reminderCoordinator,
             reminderPreferenceStore =
                 reminderPreferenceStore,
             clock = clock,
-            zoneProvider =
-                zoneProvider,
+            zoneProvider = zoneProvider,
+            operationGate = reminderOperationLock,
         )
 
     private companion object {

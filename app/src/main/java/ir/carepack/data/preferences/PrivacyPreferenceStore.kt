@@ -10,26 +10,16 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
 data class PrivacyPreferenceState(
-    val includeRecipientName:
-    Boolean = false,
-    val deletionInProgress:
-    Boolean = false,
+    val includeRecipientName: Boolean = false,
 )
 
 interface PrivacyPreferenceStore {
 
-    val state:
-            Flow<PrivacyPreferenceState>
+    val state: Flow<PrivacyPreferenceState>
 
     suspend fun setIncludeRecipientName(
         includeRecipientName: Boolean,
     )
-
-    suspend fun markDeletionInProgress()
-
-    suspend fun clearAllPreservingDeletionMarker()
-
-    suspend fun completeDeletion()
 }
 
 class DataStorePrivacyPreferenceStore(
@@ -39,16 +29,13 @@ class DataStorePrivacyPreferenceStore(
     private val applicationContext =
         context.applicationContext
 
-    override val state:
-            Flow<PrivacyPreferenceState> =
+    override val state: Flow<PrivacyPreferenceState> =
         applicationContext
             .carePackDataStore
             .data
             .catch { throwable ->
                 if (throwable is IOException) {
-                    emit(
-                        emptyPreferences(),
-                    )
+                    emit(emptyPreferences())
                 } else {
                     throw throwable
                 }
@@ -56,13 +43,8 @@ class DataStorePrivacyPreferenceStore(
             .map { preferences ->
                 PrivacyPreferenceState(
                     includeRecipientName =
-                        preferences[
-                            INCLUDE_RECIPIENT_NAME
-                        ] ?: false,
-                    deletionInProgress =
-                        preferences[
-                            DELETION_IN_PROGRESS
-                        ] ?: false,
+                        preferences[INCLUDE_RECIPIENT_NAME]
+                            ?: false,
                 )
             }
 
@@ -72,54 +54,15 @@ class DataStorePrivacyPreferenceStore(
         applicationContext
             .carePackDataStore
             .edit { preferences ->
-                preferences[
-                    INCLUDE_RECIPIENT_NAME
-                ] = includeRecipientName
-            }
-    }
-
-    override suspend fun markDeletionInProgress() {
-        applicationContext
-            .carePackDataStore
-            .edit { preferences ->
-                preferences[
-                    DELETION_IN_PROGRESS
-                ] = true
-            }
-    }
-
-    override suspend fun clearAllPreservingDeletionMarker() {
-        applicationContext
-            .carePackDataStore
-            .edit { preferences ->
-                preferences.clear()
-
-                preferences[
-                    DELETION_IN_PROGRESS
-                ] = true
-            }
-    }
-
-    override suspend fun completeDeletion() {
-        applicationContext
-            .carePackDataStore
-            .edit { preferences ->
-                preferences.remove(
-                    DELETION_IN_PROGRESS,
-                )
+                preferences[INCLUDE_RECIPIENT_NAME] =
+                    includeRecipientName
             }
     }
 
     private companion object {
-
         val INCLUDE_RECIPIENT_NAME =
             booleanPreferencesKey(
                 "report_include_recipient_name",
-            )
-
-        val DELETION_IN_PROGRESS =
-            booleanPreferencesKey(
-                "deletion_in_progress",
             )
     }
 }

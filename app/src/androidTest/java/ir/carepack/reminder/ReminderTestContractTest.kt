@@ -17,7 +17,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.R
 import ir.carepack.domain.reminder.AlarmKey
 import ir.carepack.domain.reminder.DefaultReminderTestCoordinator
-import ir.carepack.domain.reminder.ReminderOperationLock
+import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.domain.reminder.ReminderTestScheduleResult
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
 import ir.carepack.reminder.alarm.AndroidAlarmGateway
@@ -41,7 +41,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -146,11 +145,11 @@ class ReminderTestContractTest {
 
     @Test
     fun testNotificationIsExplicitlyIdentifiedAndOpensReminderSettings() {
-        assumeTrue(
+        assertTrue(
             isNotificationPermissionGranted(),
         )
 
-        assumeTrue(
+        assertTrue(
             notificationManager
                 .areNotificationsEnabled(),
         )
@@ -225,9 +224,7 @@ class ReminderTestContractTest {
             ReminderNotificationContract
                 .testContentRequestCode(),
             ReminderNotificationContract
-                .contentRequestCode(
-                    "occurrence-1",
-                ),
+                .contentRequestCode(),
         )
     }
 
@@ -262,7 +259,7 @@ class ReminderTestContractTest {
                                 ZoneOffset.UTC,
                             ),
                         operationLock =
-                            ReminderOperationLock(),
+                            AppOperationGate(),
                     )
 
                 assertEquals(

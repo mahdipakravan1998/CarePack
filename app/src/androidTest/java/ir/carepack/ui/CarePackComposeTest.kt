@@ -1,4 +1,4 @@
-﻿package ir.carepack.ui
+package ir.carepack.ui
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -22,7 +22,7 @@ import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.domain.reminder.TimezoneObservation
-import ir.carepack.domain.report.RoomTodayReportFormatter
+import ir.carepack.data.service.RoomTodayReportFormatter
 import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.testing.CarePlanRoomTestFixture
 import ir.carepack.testing.InstrumentedPrivacyPreferenceStore
@@ -576,19 +576,16 @@ class CarePackComposeTest {
                                 fixture.database,
                         ),
                     dateRangeSummaryService =
-                        ir.carepack.domain.report
-                            .RoomDateRangeSummaryService(
+                        ir.carepack.data.service.RoomDateRangeSummaryService(
                                 database =
                                     fixture.database,
                             ),
                     rangeReportFormatter =
-                        ir.carepack.domain.report
-                            .RoomRangeReportFormatter(
+                        ir.carepack.data.service.RoomRangeReportFormatter(
                                 database =
                                     fixture.database,
                                 summaryService =
-                                    ir.carepack.domain.report
-                                        .RoomDateRangeSummaryService(
+                                    ir.carepack.data.service.RoomDateRangeSummaryService(
                                             database =
                                                 fixture.database,
                                         ),
@@ -768,6 +765,17 @@ private class ComposeReminderPreferenceStore :
         TimezoneObservation.Initialized
 
     override suspend fun dismissTimezoneWarning() {
+        Unit
+    }
+
+    override suspend fun markHealthy() {
+        Unit
+    }
+
+    override suspend fun markFailure(
+        failure: ir.carepack.core.error.SafeAppFailure,
+        failedAtEpochMillis: Long,
+    ) {
         Unit
     }
 }

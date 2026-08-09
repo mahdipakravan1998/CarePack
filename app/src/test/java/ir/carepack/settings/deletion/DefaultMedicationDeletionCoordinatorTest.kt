@@ -2,7 +2,10 @@ package ir.carepack.settings.deletion
 
 import ir.carepack.domain.reminder.AlarmKey
 import ir.carepack.domain.reminder.ReconciliationReason
-import ir.carepack.domain.reminder.ReminderOperationLock
+import ir.carepack.core.concurrency.AppOperationGate
+import ir.carepack.core.error.AppFailureKind
+import ir.carepack.core.error.AppOperationStage
+import ir.carepack.core.error.SafeAppFailure
 import ir.carepack.domain.reminder.SnoozedReminder
 import ir.carepack.testing.FakeMedicationDeletionDataSource
 import ir.carepack.testing.InMemoryMedicationDeletionMarkerStore
@@ -161,12 +164,13 @@ class DefaultMedicationDeletionCoordinatorTest {
             )
 
             assertEquals(
-                listOf(
+                setOf(
                     "occurrence-1",
                     "occurrence-2",
                 ),
                 notificationGateway
-                    .cancelledOccurrenceIds,
+                    .cancelledOccurrenceIds
+                    .toSet(),
             )
 
             assertEquals(1, dataSource.deletionRequests.size)
@@ -180,8 +184,14 @@ class DefaultMedicationDeletionCoordinatorTest {
             assertEquals(
                 listOf(
                     "medication-1" to
-                            MedicationDeletionMarkerStage
-                                .DATABASE_DELETED,
+                        MedicationDeletionMarkerStage
+                            .DATABASE_DELETE_PENDING,
+                    "medication-1" to
+                        MedicationDeletionMarkerStage
+                            .DATABASE_DELETED,
+                    "medication-1" to
+                        MedicationDeletionMarkerStage
+                            .FINAL_RECONCILIATION_PENDING,
                 ),
                 markerStore.stageUpdates,
             )
@@ -278,6 +288,14 @@ class DefaultMedicationDeletionCoordinatorTest {
                         MedicationDeletionStage
                             .CANCELLING_SCHEDULE_ALARMS,
                     databaseDeleted = false,
+                    failure =
+                        SafeAppFailure(
+                            kind = AppFailureKind.CORRUPTION,
+                            stage =
+                                AppOperationStage
+                                    .CANCELLING_ALARMS,
+                            retryable = false,
+                        ),
                 ),
                 coordinator.deleteMedication(PREVIEW),
             )
@@ -324,6 +342,14 @@ class DefaultMedicationDeletionCoordinatorTest {
                         MedicationDeletionStage
                             .DELETING_DATABASE_GRAPH,
                     databaseDeleted = false,
+                    failure =
+                        SafeAppFailure(
+                            kind = AppFailureKind.CORRUPTION,
+                            stage =
+                                AppOperationStage
+                                    .DELETING_DATABASE_GRAPH,
+                            retryable = false,
+                        ),
                 ),
                 coordinator.deleteMedication(PREVIEW),
             )
@@ -331,7 +357,7 @@ class DefaultMedicationDeletionCoordinatorTest {
             assertEquals(PREVIEW, dataSource.graph?.preview)
             assertEquals(
                 MedicationDeletionMarkerStage
-                    .PLATFORM_CLEANUP_PENDING,
+                    .DATABASE_DELETE_PENDING,
                 markerStore.marker.first()?.stage,
             )
         }
@@ -370,6 +396,14 @@ class DefaultMedicationDeletionCoordinatorTest {
                         MedicationDeletionStage
                             .RECONCILING_REMAINING_REMINDERS,
                     databaseDeleted = true,
+                    failure =
+                        SafeAppFailure(
+                            kind = AppFailureKind.PLATFORM,
+                            stage =
+                                AppOperationStage
+                                    .RECONCILING_REMINDERS,
+                            retryable = true,
+                        ),
                 ),
                 coordinator.deleteMedication(PREVIEW),
             )
@@ -377,7 +411,7 @@ class DefaultMedicationDeletionCoordinatorTest {
             assertNull(dataSource.graph)
             assertEquals(
                 MedicationDeletionMarkerStage
-                    .DATABASE_DELETED,
+                    .FINAL_RECONCILIATION_PENDING,
                 markerStore.marker.first()?.stage,
             )
             assertTrue(
@@ -386,15 +420,20 @@ class DefaultMedicationDeletionCoordinatorTest {
         }
 
     @Test
-    fun recoveryAfterDatabaseDeletionUsesNarrowGlobalFallbackThenReconciles() =
+    fun recoveryAfterDatabaseDeletionUsesTargetScopedCleanupThenReconciles() =
         runTest {
             val marker =
-                MedicationDeletionMarker(
+                MedicationDeletionMarker.create(
                     expectedPreview = PREVIEW,
                     scheduleSeriesIds =
                         setOf(
                             "series-1",
                             "series-2",
+                        ),
+                    occurrenceIds =
+                        setOf(
+                            "occurrence-1",
+                            "occurrence-2",
                         ),
                     stage =
                         MedicationDeletionMarkerStage
@@ -454,11 +493,21 @@ class DefaultMedicationDeletionCoordinatorTest {
                     AlarmKey.forScheduleSeries(
                         "series-2",
                     ),
+                    AlarmKey.forDelayedOccurrence(
+                        "occurrence-1",
+                    ),
+                    AlarmKey.forDelayedOccurrence(
+                        "occurrence-2",
+                    ),
                 ),
                 alarmGateway.cancelledKeys.toSet(),
             )
-            assertEquals(1, notificationGateway.cancelAllCallCount)
-            assertEquals(1, reminderCoordinator.cancelAllOwnedCallCount)
+            assertEquals(
+                setOf("occurrence-1", "occurrence-2"),
+                notificationGateway.cancelledOccurrenceIds.toSet(),
+            )
+            assertEquals(0, notificationGateway.cancelAllCallCount)
+            assertEquals(0, reminderCoordinator.cancelAllOwnedCallCount)
             assertEquals(
                 listOf(
                     ReconciliationReason
@@ -545,8 +594,8 @@ class DefaultMedicationDeletionCoordinatorTest {
             snoozedReminderStore = snoozeStore,
             reminderCoordinator =
                 reminderCoordinator,
-            reminderOperationLock =
-                ReminderOperationLock(),
+            operationGate =
+                AppOperationGate(),
             clock =
                 Clock.fixed(
                     NOW,

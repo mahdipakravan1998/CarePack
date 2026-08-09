@@ -1,79 +1,29 @@
-# CarePack Domain Context
+# CarePack Engineering Context
 
-## Care Recipient
+## Architecture
 
-The single person whose medication schedule is recorded in CarePack.
+CarePack is a single-module Android application with manual dependency injection in `AppContainer`. Pure interfaces, models, and policies remain under `domain`. Room-backed implementations are under `data/service`. Android platform gateways are under `reminder`, `reporting`, and `settings/deletion`. The application intentionally does not add Hilt, Koin, SQLCipher, a repository wrapper for every DAO, or a multi-module structure.
 
-Avoid: patient account, user profile, member, dependent list.
+## Shared operation ordering
 
-## Medication
+`AppOperationGate` serializes care-plan mutations, report mutations, reminder reconciliation, permanent medication deletion, delete-all, and recovery. `AppReconciler` is the shared entry-point orchestrator and runs in this order:
 
-A caregiver-entered medication name and instruction text copied from an existing source. CarePack does not validate the medication.
+1. permanent medication deletion recovery;
+2. delete-all recovery;
+3. corrupted or retry marker handling;
+4. bounded occurrence maintenance;
+5. reminder reconciliation.
 
-Avoid: verified drug, prescription entity, treatment.
+`MainActivity`, alarm delivery, boot, time, timezone, package replacement, exact-alarm capability change, and retry broadcasts use that ordering.
 
-## Schedule
+## Time policy
 
-The logical recurring plan for one medication, consisting of selected weekdays, one or more local times, optional date limits, and a fixed zone.
+Schedule zones are snapshots and are not rewritten when the device timezone changes. For an invalid local time in a DST gap, the local time is moved to the first valid local date-time after the gap. For an overlap, the offset that produces the earlier instant is selected and one occurrence is created. Preview, persistence, reports, and alarms use the same resolver result.
 
-Avoid: dose recommendation, medical timing rule.
+## Destructive-operation policy
 
-## Schedule Version
+Markers are versioned, checksum-validated, and fail closed. Partial fields, unknown versions, unknown stages, invalid values, checksum mismatch, and storage read failure are not treated as an absent marker. Permanent medication recovery stores target schedule-series and occurrence identities before database deletion and never performs global cleanup. Delete-all alone is permitted to perform global platform cleanup.
 
-An immutable historical version of a schedule. Editing creates a new version; it does not rewrite old occurrences.
+## Diagnostic policy
 
-Avoid: overwrite, mutable schedule row.
-
-## Occurrence
-
-One scheduled instance for a specific local date and local time under one schedule version.
-
-Avoid: consumed dose, administration proof, alarm event.
-
-## Caregiver Report
-
-The caregiver's explicit statement about what they know for an occurrence: Given, Not Given, or Unknown. The absence of a report is NoReport.
-
-Avoid: medical confirmation, adherence proof.
-
-## Lifecycle
-
-The stored occurrence lifecycle: Active or Cancelled.
-
-Avoid: upcoming lifecycle, overdue state.
-
-## Report State
-
-NoReport, ReportedAsGiven, ReportedAsNotGiven, or ReportedAsUnknown.
-
-Avoid: dismissed, missed notification.
-
-## Temporal Phase
-
-A derived presentation classification computed from scheduledAt and current time: Upcoming, Due, or Past.
-
-Avoid: stored phase, medical grace period.
-
-## Today Report
-
-A structured text report containing only today's non-cancelled occurrences and their report states.
-
-Avoid: medical report, date-range report, PDF report.
-
-## Recent History
-
-The in-app display of today and the previous seven calendar days. It is not a retention policy.
-
-Avoid: seven-day storage, automatic deletion.
-
-## Reminder
-
-A user-visible Android notification attempt associated with an occurrence. Delivery does not change its Caregiver Report.
-
-Avoid: proof, administration event.
-
-## Fixed Zone
-
-The ZoneId stored with a schedule version. Device timezone changes do not silently convert it.
-
-Avoid: floating local time, follow-device schedule.
+Diagnostics are debug-only and bounded. They contain operation stage, failure category, and short non-reversible tokens only. Raw recipient names, medication names, instructions, dose text, raw identifiers, and exception messages are prohibited.

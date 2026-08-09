@@ -680,6 +680,7 @@ class MedicationScheduleSetupComposeTest {
             .onNodeWithTag(
                 "post_setup_defer_simple_mode",
             )
+            .assertIsDisplayed()
 
         assertFalse(
             completed.get(),
@@ -758,6 +759,86 @@ class MedicationScheduleSetupComposeTest {
         assertTagDoesNotExist(
             "request_notification_permission",
         )
+    }
+
+    @Test
+    fun firstMedicationSchedule_pendingTimeDraftIsNotCommittedBySaveWithoutAddAction() {
+        val recipientId =
+            runBlocking {
+                fixture.createOrGetRecipient()
+            }
+
+        renderFirstSetup(
+            recipientId = recipientId,
+        )
+
+        waitForTag(
+            "first_setup_reminder_guidance_continue",
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "first_setup_reminder_guidance_continue",
+            )
+            .performScrollTo()
+            .performClick()
+
+        composeRule
+            .onNodeWithTag(
+                "medication_name",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "داروی آزمون",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "medication_instruction",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "بعد از غذا",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "time_draft",
+            )
+            .performScrollTo()
+            .performTextInput(
+                "12:00",
+            )
+
+        composeRule
+            .onNodeWithTag(
+                "save_medication_schedule",
+            )
+            .performScrollTo()
+            .performClick()
+
+        composeRule.waitForIdle()
+
+        assertEquals(
+            0,
+            runBlocking {
+                fixture.database
+                    .medicationDao()
+                    .count()
+            },
+        )
+
+        composeRule
+            .onNodeWithTag(
+                "medication_schedule_error",
+            )
+            .assertIsDisplayed()
+
+        composeRule
+            .onNodeWithTag(
+                "add_time",
+            )
+            .assertIsDisplayed()
     }
 
     @Test

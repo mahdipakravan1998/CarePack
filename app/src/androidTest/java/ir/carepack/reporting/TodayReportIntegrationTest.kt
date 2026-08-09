@@ -3,7 +3,7 @@ package ir.carepack.reporting
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceCancellationReason
-import ir.carepack.domain.report.RoomTodayReportFormatter
+import ir.carepack.data.service.RoomTodayReportFormatter
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.DayOfWeek
 import java.time.Instant

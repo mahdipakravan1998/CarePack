@@ -6,8 +6,8 @@ import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.report.RangeReportPeriod
 import ir.carepack.domain.report.ReportDateRange
-import ir.carepack.domain.report.RoomDateRangeSummaryService
-import ir.carepack.domain.report.RoomRangeReportFormatter
+import ir.carepack.data.service.RoomDateRangeSummaryService
+import ir.carepack.data.service.RoomRangeReportFormatter
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.Instant
 import java.time.LocalDate

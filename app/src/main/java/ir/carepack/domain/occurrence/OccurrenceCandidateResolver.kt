@@ -15,21 +15,59 @@ data class OccurrenceCandidate(
     val minuteOfDay: Int,
     val zoneId: String,
     val scheduledAt: Instant,
+    val resolutionKind: LocalDateTimeResolutionKind,
 )
 
-class OccurrenceCandidateResolver {
+class OccurrenceCandidateResolver(
+    private val localDateTimeResolver:
+        CarePackLocalDateTimeResolver =
+        CarePackLocalDateTimeResolver(),
+) {
 
     fun resolve(
         definition: ScheduleDefinition,
         anchorDate: LocalDate,
-    ): OccurrenceCandidate? =
-        resolveAll(
+    ): OccurrenceCandidate? {
+        if (!isScheduledWeekday(definition.weekdayMask, anchorDate)) {
+            return null
+        }
+
+        if (
+            definition.startDate != null &&
+            anchorDate.isBefore(definition.startDate)
+        ) {
+            return null
+        }
+
+        if (
+            definition.endDate != null &&
+            anchorDate.isAfter(definition.endDate)
+        ) {
+            return null
+        }
+
+        val requestedMinuteOfDay =
+            definition.minuteOfDay
+
+        val eligibleMinutes =
+            minutesFor(
+                schedulePattern = definition.schedulePattern,
+                fallbackMinuteOfDay = requestedMinuteOfDay,
+                anchorDate = anchorDate,
+                startDate = definition.startDate,
+            )
+
+        if (requestedMinuteOfDay !in eligibleMinutes) {
+            return null
+        }
+
+        return candidateForMinute(
             definition = definition,
             anchorDate = anchorDate,
-        ).singleOrNull {
-            it.minuteOfDay ==
-                    definition.minuteOfDay
-        }
+            minuteOfDay = requestedMinuteOfDay,
+            zoneId = ZoneId.of(definition.zoneId),
+        )
+    }
 
     fun resolveAll(
         definition: ScheduleDefinition,
@@ -53,25 +91,21 @@ class OccurrenceCandidateResolver {
             return emptyList()
         }
 
-        val zoneId =
-            ZoneId.of(
-                definition.zoneId,
-            )
+        val zoneId = ZoneId.of(definition.zoneId)
 
         return minutesFor(
             schedulePattern = definition.schedulePattern,
             fallbackMinuteOfDay = definition.minuteOfDay,
             anchorDate = anchorDate,
             startDate = definition.startDate,
-        )
-            .mapNotNull { minuteOfDay ->
-                candidateForMinute(
-                    definition = definition,
-                    anchorDate = anchorDate,
-                    minuteOfDay = minuteOfDay,
-                    zoneId = zoneId,
-                )
-            }
+        ).mapNotNull { minuteOfDay ->
+            candidateForMinute(
+                definition = definition,
+                anchorDate = anchorDate,
+                minuteOfDay = minuteOfDay,
+                zoneId = zoneId,
+            )
+        }
     }
 
     private fun candidateForMinute(
@@ -86,39 +120,48 @@ class OccurrenceCandidateResolver {
 
         val localTime =
             LocalTime.ofSecondOfDay(
-                minuteOfDay.toLong() * SECONDS_PER_MINUTE,
+                minuteOfDay.toLong() *
+                    SECONDS_PER_MINUTE,
             )
 
-        val scheduledAt =
-            LocalDateTime
-                .of(
-                    anchorDate,
-                    localTime,
-                )
-                .atZone(
-                    zoneId,
-                )
-                .toInstant()
-
-        if (scheduledAt.isBefore(definition.effectiveFrom)) {
-            return null
-        }
-
-        val effectiveUntil =
-            definition.effectiveUntil
+        val resolution =
+            localDateTimeResolver.resolve(
+                localDateTime =
+                    LocalDateTime.of(
+                        anchorDate,
+                        localTime,
+                    ),
+                zoneId = zoneId,
+            )
 
         if (
-            effectiveUntil != null &&
-            !scheduledAt.isBefore(effectiveUntil)
+            resolution.instant
+                .isBefore(definition.effectiveFrom)
         ) {
             return null
         }
 
+        val effectiveUntil = definition.effectiveUntil
+
+        if (
+            effectiveUntil != null &&
+            !resolution.instant.isBefore(effectiveUntil)
+        ) {
+            return null
+        }
+
+        val resolvedLocalTime =
+            resolution.resolvedLocalDateTime.toLocalTime()
+
         return OccurrenceCandidate(
-            localDate = anchorDate,
-            minuteOfDay = minuteOfDay,
+            localDate =
+                resolution.resolvedLocalDateTime.toLocalDate(),
+            minuteOfDay =
+                resolvedLocalTime.hour * MINUTES_PER_HOUR +
+                    resolvedLocalTime.minute,
             zoneId = definition.zoneId,
-            scheduledAt = scheduledAt,
+            scheduledAt = resolution.instant,
+            resolutionKind = resolution.kind,
         )
     }
 
@@ -134,34 +177,29 @@ class OccurrenceCandidateResolver {
                     schedulePattern
                         .representativeMinutesOfDay
                         .ifEmpty {
-                            listOf(
-                                fallbackMinuteOfDay,
-                            )
+                            listOf(fallbackMinuteOfDay)
                         }
 
                 is IntervalSchedule ->
                     schedulePattern
                         .representativeMinutesOfDay
             }
-                .filter {
-                    it in 0 until MINUTES_PER_DAY
+                .filter { minuteOfDay ->
+                    minuteOfDay in 0 until MINUTES_PER_DAY
                 }
                 .distinct()
                 .sorted()
 
         return when (schedulePattern) {
-            is FixedTimeSchedule ->
-                minutes
-
+            is FixedTimeSchedule -> minutes
             is IntervalSchedule ->
                 if (
                     startDate != null &&
                     anchorDate == startDate
                 ) {
-                    minutes.filter {
-                        it >=
-                                schedulePattern
-                                    .anchorMinuteOfDay
+                    minutes.filter { minuteOfDay ->
+                        minuteOfDay >=
+                            schedulePattern.anchorMinuteOfDay
                     }
                 } else {
                     minutes
@@ -181,6 +219,7 @@ class OccurrenceCandidateResolver {
 
     private companion object {
         const val SECONDS_PER_MINUTE = 60L
-        const val MINUTES_PER_DAY = 24 * 60
+        const val MINUTES_PER_HOUR = 60
+        const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
     }
 }

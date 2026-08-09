@@ -47,27 +47,6 @@ internal class InstrumentedPrivacyPreferenceStore(
                 )
     }
 
-    override suspend fun markDeletionInProgress() {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    deletionInProgress = true,
-                )
-    }
-
-    override suspend fun clearAllPreservingDeletionMarker() {
-        mutableState.value =
-            PrivacyPreferenceState(
-                includeRecipientName = false,
-                deletionInProgress = true,
-            )
-    }
-
-    override suspend fun completeDeletion() {
-        mutableState.value =
-            PrivacyPreferenceState()
-    }
 }
 
 internal class RecordingExternalIntentLauncher(
@@ -106,6 +85,7 @@ internal class RecordingTextShareGateway(
 
     override fun share(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): ShareTextResult {
         sharedTexts += text
 
@@ -114,6 +94,7 @@ internal class RecordingTextShareGateway(
 
     override fun copy(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): CopyTextResult {
         copiedTexts += text
 

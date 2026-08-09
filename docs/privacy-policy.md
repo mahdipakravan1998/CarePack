@@ -1,61 +1,11 @@
-# CarePack Farsi 1.0 Privacy Policy
+# CarePack Privacy Policy
 
-Publisher: Mahdi Pakravan  
-Contact: mahdipakravan1998@gmail.com
+CarePack stores care-recipient, medication, schedule, occurrence, and caregiver-report data locally on the device. CarePack does not provide an account, backend, cloud synchronization, analytics, advertising, or remote logging.
 
-## Summary
+Android backup is disabled and the backup/data-extraction rules exclude application files, databases, shared preferences, and external application data.
 
-CarePack Farsi is a local-only Android application for recording medication-related care information on the user's device.
+Reminder notifications are generic on both the lock screen and the private notification body. They do not display a recipient name, medication name, instruction, dose, or report action. CarePack does not use a full-screen notification intent. Detail is opened only after the device is unlocked and the occurrence identifier is validated against local storage.
 
-CarePack does not provide medical advice, does not verify medication consumption, and does not replace a doctor, pharmacist, or other qualified professional.
+Copy and share actions occur only after an explicit user action. Clipboard content is marked sensitive on supported Android versions. The Android share sheet sends the exact report text selected by the user to an application chosen by the user. Share chooser and clipboard labels contain only the CarePack report period.
 
-## Data stored on the device
-
-CarePack may store the following information locally on the device:
-
-- care recipient display name;
-- medication names;
-- medication instruction text entered by the caregiver;
-- schedule definitions;
-- generated occurrences;
-- caregiver report states;
-- reminder preference;
-- report name-inclusion preference;
-- setup state;
-- last observed timezone warning state.
-
-## No account or cloud sync
-
-CarePack does not create user accounts and does not sync data to a server.
-
-## No Internet permission
-
-CarePack does not declare the Android `INTERNET` permission.
-
-The app does not include analytics, advertising, remote logging, marketing trackers, or cloud synchronization.
-
-## Permissions
-
-CarePack may request Android notification permission so optional reminders can be shown.
-
-CarePack may use Android exact-alarm access when the user enables reminders and the device allows exact reminder scheduling.
-
-If these permissions are denied or unavailable, the main record-management features remain usable.
-
-## Sharing
-
-CarePack can generate a plain-text report for today.
-
-Sharing happens only after the user explicitly chooses to share. Once text is shared to another app, that destination app controls its own storage, transmission, and deletion behavior.
-
-## Deletion
-
-The Delete All Data action removes CarePack's local domain data, preferences, owned reminders, active CarePack notifications, and temporary files controlled by the app.
-
-CarePack cannot delete text already copied to the clipboard, stored by another app, or shared outside CarePack.
-
-## Contact
-
-For privacy questions about CarePack Farsi 1.0, contact:
-
-mahdipakravan1998@gmail.com
+Permanent medication deletion removes the selected medication graph, associated caregiver reports, alarms, snoozes, and notifications. Delete-all removes all CarePack domain data, preferences, temporary files, alarms, snoozes, and notifications through a resumable local operation. These operations must complete and be verified on the device before deletion can be described as successful.

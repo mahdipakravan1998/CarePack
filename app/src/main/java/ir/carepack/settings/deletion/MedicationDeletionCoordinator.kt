@@ -1,5 +1,7 @@
 package ir.carepack.settings.deletion
 
+import ir.carepack.core.error.SafeAppFailure
+
 enum class MedicationDeletionStage {
     LOADING_PREVIEW,
     CHECKING_PENDING_OPERATION,
@@ -11,50 +13,43 @@ enum class MedicationDeletionStage {
     CANCELLING_NOTIFICATIONS,
     DELETING_DATABASE_GRAPH,
     MARKING_DATABASE_DELETED,
-    CANCELLING_ALL_OWNED_REMINDERS,
     RECONCILING_REMAINING_REMINDERS,
-    MARKING_CHANGED_PREVIEW,
     CLEARING_RECOVERY_MARKER,
 }
 
 sealed interface MedicationDeletionPreviewResult {
-
     data class Available(
         val preview: MedicationDeletionPreview,
     ) : MedicationDeletionPreviewResult
 
-    data object NotFound :
-        MedicationDeletionPreviewResult
+    data object NotFound : MedicationDeletionPreviewResult
 
     data class Failed(
         val stage: MedicationDeletionStage =
-            MedicationDeletionStage
-                .LOADING_PREVIEW,
+            MedicationDeletionStage.LOADING_PREVIEW,
+        val failure: SafeAppFailure? = null,
     ) : MedicationDeletionPreviewResult
 }
 
 sealed interface MedicationDeletionResult {
-
     data class Completed(
         val counts: MedicationDeletionCounts?,
     ) : MedicationDeletionResult
 
-    data object AlreadyDeleted :
-        MedicationDeletionResult
+    data object AlreadyDeleted : MedicationDeletionResult
 
     data class ChangedSincePreview(
-        val latestPreview:
-        MedicationDeletionPreview,
+        val latestPreview: MedicationDeletionPreview,
     ) : MedicationDeletionResult
 
     data class Failed(
         val stage: MedicationDeletionStage,
         val databaseDeleted: Boolean,
+        val failure: SafeAppFailure? = null,
     ) : MedicationDeletionResult
 }
 
 sealed interface MedicationDeletionRecoveryResult {
-
     data object NoDeletionPending :
         MedicationDeletionRecoveryResult
 
@@ -62,14 +57,11 @@ sealed interface MedicationDeletionRecoveryResult {
         val medicationId: String,
     ) : MedicationDeletionRecoveryResult
 
-    data class AbortedChangedPreview(
-        val medicationId: String,
-    ) : MedicationDeletionRecoveryResult
-
     data class Failed(
-        val medicationId: String,
+        val medicationId: String?,
         val stage: MedicationDeletionStage,
         val databaseDeleted: Boolean,
+        val failure: SafeAppFailure? = null,
     ) : MedicationDeletionRecoveryResult
 }
 
@@ -80,10 +72,9 @@ interface MedicationDeletionCoordinator {
     ): MedicationDeletionPreviewResult
 
     suspend fun deleteMedication(
-        expectedPreview:
-        MedicationDeletionPreview,
+        expectedPreview: MedicationDeletionPreview,
     ): MedicationDeletionResult
 
     suspend fun resumeIncompleteDeletionIfNeeded():
-            MedicationDeletionRecoveryResult
+        MedicationDeletionRecoveryResult
 }

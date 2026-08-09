@@ -77,14 +77,14 @@ class RangeReportTextBuilderTest {
 
             خلاصه
             مجموع نوبت‌ها: ۳
-            مصرف شد: ۱
-            مصرف نشد: ۰
+            مراقب: داده شد: ۱
+            مراقب: داده نشد: ۰
             نامشخص: ۱
             ثبت نشده: ۱
 
             جزئیات
             پنجشنبه، ۳۰ اسفند ۱۴۰۳
-            ۱. ۰۸:۰۰ — داروی صبح — مصرف شد
+            ۱. ۰۸:۰۰ — داروی صبح — مراقب: داده شد
             نوع: قرص، مقدار ثبت‌شده: یک، واحد: عدد
             توضیح: بعد از غذا
 
@@ -214,10 +214,10 @@ class RangeReportTextBuilderTest {
             text.contains("مجموع نوبت‌ها: ۰"),
         )
         assertTrue(
-            text.contains("مصرف شد: ۰"),
+            text.contains("مراقب: داده شد: ۰"),
         )
         assertTrue(
-            text.contains("مصرف نشد: ۰"),
+            text.contains("مراقب: داده نشد: ۰"),
         )
         assertTrue(
             text.contains("نامشخص: ۰"),

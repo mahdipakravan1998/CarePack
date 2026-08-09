@@ -18,7 +18,7 @@ import ir.carepack.domain.report.RangeOccurrenceEntry
 import ir.carepack.domain.report.RangeOccurrenceReportState
 import ir.carepack.domain.report.RangeSummaryBuilder
 import ir.carepack.domain.report.ReportDateRange
-import ir.carepack.domain.report.RoomDateRangeSummaryService
+import ir.carepack.data.service.RoomDateRangeSummaryService
 import ir.carepack.feature.calendar.CalendarRoute
 import ir.carepack.feature.calendar.CalendarScreen
 import ir.carepack.feature.calendar.CalendarUiState

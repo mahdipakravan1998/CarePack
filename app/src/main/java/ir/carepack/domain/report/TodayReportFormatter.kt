@@ -1,6 +1,7 @@
 package ir.carepack.domain.report
 
 import ir.carepack.domain.calendar.JalaliPresentationDate
+import ir.carepack.domain.calendar.toPersianDigits
 import ir.carepack.domain.model.CaregiverReportState
 import java.time.LocalDate
 import java.time.LocalTime
@@ -100,11 +101,11 @@ internal class TodayReportTextBuilder {
         val summary =
             listOf(
                 SUMMARY_TITLE,
-                "$TOTAL_LABEL: ${orderedEntries.size}",
-                "$GIVEN_COUNT_LABEL: $givenCount",
-                "$NOT_GIVEN_COUNT_LABEL: $notGivenCount",
-                "$UNKNOWN_COUNT_LABEL: $unknownCount",
-                "$NO_REPORT_COUNT_LABEL: $noReportCount",
+                countLine(TOTAL_LABEL, orderedEntries.size),
+                countLine(GIVEN_COUNT_LABEL, givenCount),
+                countLine(NOT_GIVEN_COUNT_LABEL, notGivenCount),
+                countLine(UNKNOWN_COUNT_LABEL, unknownCount),
+                countLine(NO_REPORT_COUNT_LABEL, noReportCount),
             ).joinToString(
                 separator = "\n",
             )
@@ -145,12 +146,14 @@ internal class TodayReportTextBuilder {
         number: Int,
     ): String =
         buildString {
-            append(number)
+            append(
+                number.toString().toPersianDigits(),
+            )
             append(". ")
             append(
-                localTime.format(
-                    HOUR_MINUTE_FORMATTER,
-                ),
+                localTime
+                    .format(HOUR_MINUTE_FORMATTER)
+                    .toPersianDigits(),
             )
             append(" — ")
             append(medicationName)
@@ -210,16 +213,22 @@ internal class TodayReportTextBuilder {
             separator = "، ",
         )
 
+    private fun countLine(
+        label: String,
+        count: Int,
+    ): String =
+        "$label: ${count.toString().toPersianDigits()}"
+
     private fun reportStateText(
         state: CaregiverReportState?,
     ): String =
         when (state) {
             CaregiverReportState.GIVEN -> {
-                "مصرف شد"
+                "مراقب: داده شد"
             }
 
             CaregiverReportState.NOT_GIVEN -> {
-                "مصرف نشد"
+                "مراقب: داده نشد"
             }
 
             CaregiverReportState.UNKNOWN -> {
@@ -248,10 +257,10 @@ internal class TodayReportTextBuilder {
             "مجموع نوبت‌ها"
 
         const val GIVEN_COUNT_LABEL =
-            "مصرف شد"
+            "مراقب: داده شد"
 
         const val NOT_GIVEN_COUNT_LABEL =
-            "مصرف نشد"
+            "مراقب: داده نشد"
 
         const val UNKNOWN_COUNT_LABEL =
             "نامشخص"

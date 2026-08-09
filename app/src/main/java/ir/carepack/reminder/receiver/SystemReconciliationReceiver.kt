@@ -4,88 +4,84 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import ir.carepack.CarePackApplication
+import ir.carepack.app.AppReconciliationOutcome
 import ir.carepack.domain.reminder.ReconciliationReason
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 
-class SystemReconciliationReceiver :
-    BroadcastReceiver() {
+internal fun dispatchSystemReconciliationOutcome(
+    outcome: AppReconciliationOutcome,
+    onSuccessful: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    when (outcome) {
+        is AppReconciliationOutcome.Completed -> onSuccessful()
+        is AppReconciliationOutcome.Failed -> onRetry()
+    }
+}
+
+class SystemReconciliationReceiver : BroadcastReceiver() {
 
     override fun onReceive(
         context: Context,
         intent: Intent,
     ) {
         val reason =
-            intent.action
-                .toReconciliationReason()
+            intent.action.toReconciliationReason()
                 ?: return
 
         val application =
             context.applicationContext as?
-                    CarePackApplication
-                ?: return
+                CarePackApplication ?: return
 
-        val pendingResult =
-            goAsync()
+        val retryScheduler =
+            application.container
+                .systemReconciliationRetryScheduler
 
-        CoroutineScope(
-            SupervisorJob() +
-                    Dispatchers.IO,
-        ).launch {
-            try {
-                application
-                    .container
-                    .appReconciler
-                    .reconcile(
-                        reason = reason,
-                    )
-            } catch (_: Exception) {
-                Unit
-            } finally {
-                pendingResult.finish()
-            }
-        }
+        ReceiverExecutionBoundary().launch(
+            receiver = this,
+            operation = {
+                val outcome =
+                    application.container.appReconciler
+                        .reconcile(reason)
+
+                dispatchSystemReconciliationOutcome(
+                    outcome = outcome,
+                    onSuccessful =
+                        retryScheduler::markSuccessful,
+                    onRetry = {
+                        retryScheduler.scheduleNextRetry()
+                    },
+                )
+            },
+            onFailure = {
+                retryScheduler.scheduleNextRetry()
+            },
+        )
     }
 
-    private fun String?
-            .toReconciliationReason():
-            ReconciliationReason? {
-        return when (this) {
-            Intent.ACTION_BOOT_COMPLETED -> {
-                ReconciliationReason
-                    .BOOT_COMPLETED
-            }
-
-            Intent.ACTION_TIME_CHANGED -> {
-                ReconciliationReason
-                    .TIME_CHANGED
-            }
-
-            Intent.ACTION_TIMEZONE_CHANGED -> {
-                ReconciliationReason
-                    .TIMEZONE_CHANGED
-            }
-
-            Intent.ACTION_MY_PACKAGE_REPLACED -> {
-                ReconciliationReason
-                    .PACKAGE_REPLACED
-            }
-
-            ACTION_EXACT_ALARM_PERMISSION_CHANGED -> {
+    private fun String?.toReconciliationReason():
+        ReconciliationReason? =
+        when (this) {
+            Intent.ACTION_BOOT_COMPLETED ->
+                ReconciliationReason.BOOT_COMPLETED
+            Intent.ACTION_TIME_CHANGED ->
+                ReconciliationReason.TIME_CHANGED
+            Intent.ACTION_TIMEZONE_CHANGED ->
+                ReconciliationReason.TIMEZONE_CHANGED
+            Intent.ACTION_MY_PACKAGE_REPLACED ->
+                ReconciliationReason.PACKAGE_REPLACED
+            ACTION_EXACT_ALARM_PERMISSION_CHANGED ->
                 ReconciliationReason
                     .EXACT_ALARM_CAPABILITY_CHANGED
-            }
-
-            else -> {
-                null
-            }
+            ACTION_RETRY_RECONCILIATION ->
+                ReconciliationReason.MANUAL_RETRY
+            else -> null
         }
-    }
 
-    private companion object {
-        const val ACTION_EXACT_ALARM_PERMISSION_CHANGED =
+    companion object {
+        const val ACTION_RETRY_RECONCILIATION =
+            "ir.carepack.action.RETRY_RECONCILIATION"
+
+        private const val ACTION_EXACT_ALARM_PERMISSION_CHANGED =
             "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"
     }
 }

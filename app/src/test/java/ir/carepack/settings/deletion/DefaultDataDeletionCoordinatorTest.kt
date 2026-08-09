@@ -1,472 +1,245 @@
 package ir.carepack.settings.deletion
 
-import ir.carepack.data.preferences.PrivacyPreferenceState
-import ir.carepack.data.preferences.PrivacyPreferenceStore
+import ir.carepack.core.concurrency.AppOperationGate
+import ir.carepack.core.id.IdSource
 import ir.carepack.domain.reminder.AlarmFireResult
 import ir.carepack.domain.reminder.ReconciliationReason
+import ir.carepack.domain.reminder.RemindLaterOutcome
 import ir.carepack.domain.reminder.ReminderAvailability
 import ir.carepack.domain.reminder.ReminderCoordinator
-import ir.carepack.domain.reminder.ReminderNotification
 import ir.carepack.domain.reminder.ReminderReconciliationResult
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.reminder.notification.NotificationGateway
 import java.io.IOException
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-@OptIn(ExperimentalCoroutinesApi::class)
 class DefaultDataDeletionCoordinatorTest {
 
     @Test
-    fun deleteEverything_runsEveryStageInRequiredOrder() =
+    fun deleteEverything_runsStateMachineAndFinalVerificationInOrder() =
         runTest {
-            val events =
-                mutableListOf<String>()
-
-            val preferenceStore =
-                OrderedPrivacyPreferenceStore(
-                    events = events,
-                )
-
+            val events = mutableListOf<String>()
+            val markerStore = RecordingDataDeletionMarkerStore(events)
             val coordinator =
-                createCoordinator(
-                    preferenceStore =
-                        preferenceStore,
+                coordinator(
                     events = events,
-                    dispatcher =
-                        StandardTestDispatcher(
-                            testScheduler,
-                        ),
+                    markerStore = markerStore,
+                    dispatcher = StandardTestDispatcher(testScheduler),
                 )
 
-            val result =
-                coordinator
-                    .deleteEverything()
+            val result = coordinator.deleteEverything()
 
-            assertEquals(
-                DataDeletionResult.Completed,
-                result,
-            )
-
+            assertEquals(DataDeletionResult.Completed, result)
             assertEquals(
                 listOf(
-                    "mark",
-                    "reminders",
-                    "notifications",
-                    "domain",
-                    "preferences",
-                    "temporary",
-                    "complete",
+                    "marker-save:PLATFORM_CLEANUP_PENDING",
+                    "reminders-cancel-all",
+                    "notifications-cancel-all",
+                    "auxiliary-clear",
+                    "marker-stage:DOMAIN_DATA_PENDING",
+                    "domain-clear",
+                    "marker-stage:PREFERENCES_PENDING",
+                    "preferences-clear-preserving-markers",
+                    "marker-stage:TEMPORARY_DATA_PENDING",
+                    "temporary-clear",
+                    "marker-stage:FINAL_PLATFORM_VERIFICATION_PENDING",
+                    "reminders-cancel-all",
+                    "notifications-cancel-all",
+                    "auxiliary-clear",
+                    "marker-stage:COMPLETION_PENDING",
+                    "marker-clear",
                 ),
                 events,
             )
-
-            assertFalse(
-                preferenceStore
-                    .currentState
-                    .deletionInProgress,
-            )
-
-            assertFalse(
-                preferenceStore
-                    .currentState
-                    .includeRecipientName,
-            )
+            assertTrue(markerStore.state.first() is DataDeletionMarkerReadResult.Absent)
         }
 
     @Test
-    fun failedStage_keepsRecoveryMarkerAndStopsLaterStages() =
+    fun failureKeepsMarkerAtRetryableStageAndResumeContinuesIdempotently() =
         runTest {
-            val events =
-                mutableListOf<String>()
-
-            val preferenceStore =
-                OrderedPrivacyPreferenceStore(
-                    events = events,
-                )
-
+            val events = mutableListOf<String>()
+            val markerStore = RecordingDataDeletionMarkerStore(events)
+            var failTemporary = true
             val coordinator =
-                createCoordinator(
-                    preferenceStore =
-                        preferenceStore,
+                coordinator(
                     events = events,
-                    dispatcher =
-                        StandardTestDispatcher(
-                            testScheduler,
-                        ),
-                    temporaryFailure =
-                        IOException(
-                            "Temporary cleanup failed.",
-                        ),
+                    markerStore = markerStore,
+                    dispatcher = StandardTestDispatcher(testScheduler),
+                    temporaryCleaner =
+                        TemporaryDataCleaner {
+                            events += "temporary-clear"
+                            if (failTemporary) {
+                                throw IOException("raw temporary failure")
+                            }
+                        },
                 )
 
-            val result =
-                coordinator
-                    .deleteEverything()
+            val first = coordinator.deleteEverything()
 
+            assertTrue(first is DataDeletionResult.Failed)
             assertEquals(
-                DataDeletionResult.Failed(
-                    stage =
-                        DataDeletionStage
-                            .CLEARING_TEMPORARY_DATA,
-                ),
-                result,
+                DataDeletionMarkerStage.TEMPORARY_DATA_PENDING,
+                (markerStore.state.first() as DataDeletionMarkerReadResult.Valid)
+                    .marker.stage,
             )
 
-            assertEquals(
-                listOf(
-                    "mark",
-                    "reminders",
-                    "notifications",
-                    "domain",
-                    "preferences",
-                    "temporary",
-                ),
-                events,
-            )
+            failTemporary = false
+            val second = coordinator.resumeIncompleteDeletionIfNeeded()
 
-            assertTrue(
-                preferenceStore
-                    .currentState
-                    .deletionInProgress,
-            )
+            assertEquals(DataDeletionResult.Completed, second)
+            assertTrue(markerStore.state.first() is DataDeletionMarkerReadResult.Absent)
         }
 
     @Test
-    fun resumeWithoutMarker_returnsNoDeletionPending() =
+    fun corruptedMarker_failsClosedWithoutCleanupOrReconciliation() =
         runTest {
-            val events =
-                mutableListOf<String>()
-
-            val preferenceStore =
-                OrderedPrivacyPreferenceStore(
+            val events = mutableListOf<String>()
+            val markerStore =
+                RecordingDataDeletionMarkerStore(
                     events = events,
-                    initialState =
-                        PrivacyPreferenceState(
-                            includeRecipientName =
-                                true,
-                            deletionInProgress =
-                                false,
+                    initial =
+                        DataDeletionMarkerReadResult.Corrupted(
+                            DeletionMarkerCorruptionReason.CHECKSUM_MISMATCH,
                         ),
                 )
-
             val coordinator =
-                createCoordinator(
-                    preferenceStore =
-                        preferenceStore,
+                coordinator(
                     events = events,
-                    dispatcher =
-                        StandardTestDispatcher(
-                            testScheduler,
-                        ),
+                    markerStore = markerStore,
+                    dispatcher = StandardTestDispatcher(testScheduler),
                 )
 
-            val result =
-                coordinator
-                    .resumeIncompleteDeletionIfNeeded()
+            val result = coordinator.resumeIncompleteDeletionIfNeeded()
 
-            assertEquals(
-                DataDeletionResult
-                    .NoDeletionPending,
-                result,
-            )
-
-            assertTrue(
-                events.isEmpty(),
-            )
+            assertTrue(result is DataDeletionResult.Failed)
+            assertTrue(events.isEmpty())
         }
 
-    @Test
-    fun resumeWithMarker_repeatsCleanupWithoutMarkingAgain() =
-        runTest {
-            val events =
-                mutableListOf<String>()
-
-            val preferenceStore =
-                OrderedPrivacyPreferenceStore(
-                    events = events,
-                    initialState =
-                        PrivacyPreferenceState(
-                            includeRecipientName =
-                                true,
-                            deletionInProgress =
-                                true,
-                        ),
-                )
-
-            val coordinator =
-                createCoordinator(
-                    preferenceStore =
-                        preferenceStore,
-                    events = events,
-                    dispatcher =
-                        StandardTestDispatcher(
-                            testScheduler,
-                        ),
-                )
-
-            val result =
-                coordinator
-                    .resumeIncompleteDeletionIfNeeded()
-
-            assertEquals(
-                DataDeletionResult.Completed,
-                result,
-            )
-
-            assertEquals(
-                listOf(
-                    "reminders",
-                    "notifications",
-                    "domain",
-                    "preferences",
-                    "temporary",
-                    "complete",
-                ),
-                events,
-            )
-
-            assertFalse(
-                preferenceStore
-                    .currentState
-                    .deletionInProgress,
-            )
-        }
-
-    @Test
-    fun repeatedDeletion_isIdempotentAtCoordinatorBoundary() =
-        runTest {
-            val events =
-                mutableListOf<String>()
-
-            val preferenceStore =
-                OrderedPrivacyPreferenceStore(
-                    events = events,
-                )
-
-            val coordinator =
-                createCoordinator(
-                    preferenceStore =
-                        preferenceStore,
-                    events = events,
-                    dispatcher =
-                        StandardTestDispatcher(
-                            testScheduler,
-                        ),
-                )
-
-            assertEquals(
-                DataDeletionResult.Completed,
-                coordinator
-                    .deleteEverything(),
-            )
-
-            assertEquals(
-                DataDeletionResult.Completed,
-                coordinator
-                    .deleteEverything(),
-            )
-
-            assertEquals(
-                2,
-                events.count {
-                    it == "complete"
-                },
-            )
-
-            assertFalse(
-                preferenceStore
-                    .currentState
-                    .deletionInProgress,
-            )
-        }
-
-    private fun createCoordinator(
-        preferenceStore:
-        PrivacyPreferenceStore,
-        events:
-        MutableList<String>,
-        dispatcher:
-        CoroutineDispatcher,
-        temporaryFailure:
-        Throwable? = null,
+    private fun coordinator(
+        events: MutableList<String>,
+        markerStore: RecordingDataDeletionMarkerStore,
+        dispatcher: kotlinx.coroutines.CoroutineDispatcher,
+        temporaryCleaner: TemporaryDataCleaner =
+            TemporaryDataCleaner {
+                events += "temporary-clear"
+            },
     ): DefaultDataDeletionCoordinator =
         DefaultDataDeletionCoordinator(
-            privacyPreferenceStore =
-                preferenceStore,
-            reminderCoordinator =
-                OrderedReminderCoordinator(
-                    events = events,
-                ),
-            notificationGateway =
-                OrderedNotificationGateway(
-                    events = events,
-                ),
-            domainDataCleaner =
-                DomainDataCleaner {
-                    events +=
-                        "domain"
+            markerStore = markerStore,
+            reminderCoordinator = RecordingDeletionReminderCoordinator(events),
+            notificationGateway = RecordingDeletionNotificationGateway(events),
+            domainDataCleaner = DomainDataCleaner { events += "domain-clear" },
+            preferenceDataCleaner =
+                PreferenceDataCleaner {
+                    events += "preferences-clear-preserving-markers"
                 },
-            temporaryDataCleaner =
-                TemporaryDataCleaner {
-                    events +=
-                        "temporary"
-
-                    temporaryFailure
-                        ?.let {
-                            throw it
-                        }
+            temporaryDataCleaner = temporaryCleaner,
+            auxiliaryDeletionStateCleaner =
+                AuxiliaryDeletionStateCleaner {
+                    events += "auxiliary-clear"
                 },
-            ioDispatcher =
-                dispatcher,
+            operationGate = AppOperationGate(),
+            idSource = IdSource { "delete-all-operation" },
+            clock =
+                Clock.fixed(
+                    Instant.parse("2026-06-24T08:00:00Z"),
+                    ZoneOffset.UTC,
+                ),
+            ioDispatcher = dispatcher,
         )
 }
 
-private class OrderedPrivacyPreferenceStore(
-    private val events:
-    MutableList<String>,
-    initialState:
-    PrivacyPreferenceState =
-        PrivacyPreferenceState(),
-) : PrivacyPreferenceStore {
+private class RecordingDataDeletionMarkerStore(
+    private val events: MutableList<String>,
+    initial: DataDeletionMarkerReadResult = DataDeletionMarkerReadResult.Absent,
+) : DataDeletionMarkerStore {
+    private val mutableState = MutableStateFlow(initial)
+    override val state: Flow<DataDeletionMarkerReadResult> = mutableState
 
-    private val mutableState =
-        MutableStateFlow(
-            initialState,
-        )
+    override suspend fun save(marker: DataDeletionMarker) {
+        events += "marker-save:${marker.stage.name}"
+        mutableState.value = DataDeletionMarkerReadResult.Valid(marker)
+    }
 
-    override val state:
-            Flow<PrivacyPreferenceState> =
-        mutableState
-
-    val currentState:
-            PrivacyPreferenceState
-        get() =
-            mutableState.value
-
-    override suspend fun setIncludeRecipientName(
-        includeRecipientName: Boolean,
+    override suspend fun updateStage(
+        operationId: String,
+        stage: DataDeletionMarkerStage,
     ) {
+        events += "marker-stage:${stage.name}"
+        val current =
+            (mutableState.value as DataDeletionMarkerReadResult.Valid).marker
+        require(current.operationId == operationId)
         mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    includeRecipientName =
-                        includeRecipientName,
-                )
+            DataDeletionMarkerReadResult.Valid(current.withStage(stage))
     }
 
-    override suspend fun markDeletionInProgress() {
-        events +=
-            "mark"
-
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    deletionInProgress =
-                        true,
-                )
-    }
-
-    override suspend fun clearAllPreservingDeletionMarker() {
-        events +=
-            "preferences"
-
-        mutableState.value =
-            PrivacyPreferenceState(
-                includeRecipientName =
-                    false,
-                deletionInProgress =
-                    true,
-            )
-    }
-
-    override suspend fun completeDeletion() {
-        events +=
-            "complete"
-
-        mutableState.value =
-            PrivacyPreferenceState()
+    override suspend fun clear(operationId: String) {
+        events += "marker-clear"
+        val current =
+            (mutableState.value as DataDeletionMarkerReadResult.Valid).marker
+        require(current.operationId == operationId)
+        mutableState.value = DataDeletionMarkerReadResult.Absent
     }
 }
 
-private class OrderedReminderCoordinator(
-    private val events:
-    MutableList<String>,
+private class RecordingDeletionReminderCoordinator(
+    private val events: MutableList<String>,
 ) : ReminderCoordinator {
-
-    override suspend fun currentStatus():
-            ReminderStatus =
-        ReminderStatus(
-            remindersEnabled =
-                false,
-            notificationPermissionGranted =
-                true,
-            hasActiveSchedule =
-                false,
-            exactAlarmCapabilityGranted =
-                false,
-            availability =
-                ReminderAvailability.DISABLED,
-        )
+    override suspend fun currentStatus(): ReminderStatus = status()
 
     override suspend fun reconcile(
         reason: ReconciliationReason,
     ): ReminderReconciliationResult =
-        ReminderReconciliationResult
-            .Reconciled(
-                reason = reason,
-                status =
-                    currentStatus(),
-                scheduledCount =
-                    0,
-                cancelledCount =
-                    0,
-            )
+        ReminderReconciliationResult.Reconciled(
+            reason = reason,
+            status = status(),
+            scheduledCount = 0,
+            cancelledCount = 0,
+        )
 
     override suspend fun handleAlarmFired(
         occurrenceId: String,
-    ): AlarmFireResult {
-        error(
-            "Alarm firing is not used by this test.",
-        )
-    }
+    ): AlarmFireResult = error("Not used")
+
+    override suspend fun remindLater(
+        occurrenceId: String,
+        delayMinutes: Long,
+    ): RemindLaterOutcome = RemindLaterOutcome.SchedulingFailed
 
     override suspend fun cancelAllOwnedReminderState() {
-        events +=
-            "reminders"
+        events += "reminders-cancel-all"
     }
+
+    private fun status() =
+        ReminderStatus(
+            remindersEnabled = false,
+            notificationPermissionGranted = true,
+            hasActiveSchedule = false,
+            exactAlarmCapabilityGranted = true,
+            availability = ReminderAvailability.DISABLED,
+        )
 }
 
-private class OrderedNotificationGateway(
-    private val events:
-    MutableList<String>,
+private class RecordingDeletionNotificationGateway(
+    private val events: MutableList<String>,
 ) : NotificationGateway {
-
     override fun post(
-        notification:
-        ReminderNotification,
-    ) {
-        Unit
-    }
+        notification: ir.carepack.domain.reminder.ReminderNotification,
+    ) = Unit
 
-    override fun cancel(
-        occurrenceId: String,
-    ) {
-        Unit
-    }
+    override fun cancel(occurrenceId: String) = Unit
 
     override fun cancelAll() {
-        events +=
-            "notifications"
+        events += "notifications-cancel-all"
     }
 }

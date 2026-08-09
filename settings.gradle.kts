@@ -1,8 +1,17 @@
 import org.gradle.api.initialization.resolve.RepositoriesMode
 
 pluginManagement {
+    val useMavenLocal =
+        providers
+            .gradleProperty("carepackUseMavenLocal")
+            .map(String::toBooleanStrict)
+            .orElse(false)
+            .get()
+
     repositories {
-        mavenLocal()
+        if (useMavenLocal) {
+            mavenLocal()
+        }
 
         maven {
             name = "MyketMirror"
@@ -10,18 +19,24 @@ pluginManagement {
         }
 
         maven {
-            name = "IranMavenCentralMirror"
-            url = uri(
-                "https://archive.ito.gov.ir/gradle/maven-central"
-            )
+            name = "IranGradlePluginMirror"
+            url =
+                uri(
+                    "https://archive.ito.gov.ir/gradle/maven-plugin",
+                )
         }
 
         maven {
-            name = "IranGradlePluginMirror"
-            url = uri(
-                "https://archive.ito.gov.ir/gradle/maven-plugin"
-            )
+            name = "IranMavenCentralMirror"
+            url =
+                uri(
+                    "https://archive.ito.gov.ir/gradle/maven-central",
+                )
         }
+
+        gradlePluginPortal()
+        google()
+        mavenCentral()
     }
 
     resolutionStrategy {
@@ -36,7 +51,7 @@ pluginManagement {
                 "com.android.dynamic-feature" -> {
                     useModule(
                         "com.android.tools.build:" +
-                                "gradle:$pluginVersion"
+                                "gradle:$pluginVersion",
                     )
                 }
             }
@@ -44,13 +59,22 @@ pluginManagement {
     }
 }
 
+val useMavenLocal =
+    providers
+        .gradleProperty("carepackUseMavenLocal")
+        .map(String::toBooleanStrict)
+        .orElse(false)
+        .get()
+
 dependencyResolutionManagement {
     repositoriesMode.set(
-        RepositoriesMode.PREFER_SETTINGS
+        RepositoriesMode.FAIL_ON_PROJECT_REPOS,
     )
 
     repositories {
-        mavenLocal()
+        if (useMavenLocal) {
+            mavenLocal()
+        }
 
         maven {
             name = "MyketMirror"
@@ -59,17 +83,14 @@ dependencyResolutionManagement {
 
         maven {
             name = "IranMavenCentralMirror"
-            url = uri(
-                "https://archive.ito.gov.ir/gradle/maven-central"
-            )
+            url =
+                uri(
+                    "https://archive.ito.gov.ir/gradle/maven-central",
+                )
         }
 
-        maven {
-            name = "IranGradlePluginMirror"
-            url = uri(
-                "https://archive.ito.gov.ir/gradle/maven-plugin"
-            )
-        }
+        google()
+        mavenCentral()
     }
 }
 
