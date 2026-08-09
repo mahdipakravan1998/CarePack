@@ -1,5 +1,9 @@
 package ir.carepack.app
 
+import ir.carepack.core.concurrency.AppOperationGate
+import ir.carepack.core.error.AppOperationStage
+import ir.carepack.core.error.rethrowIfCancellation
+import ir.carepack.core.error.toSafeAppFailure
 import ir.carepack.domain.careplan.AddScheduleCommand
 import ir.carepack.domain.careplan.AddScheduleOutcome
 import ir.carepack.domain.careplan.ArchiveMedicationOutcome
@@ -22,307 +26,249 @@ import ir.carepack.domain.careplan.UpdateScheduleOutcome
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceStore
+import ir.carepack.domain.reminder.recoverableFailureOrNull
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.ReportChange
 import ir.carepack.domain.report.SetReportOutcome
 import ir.carepack.domain.report.UndoReportOutcome
-import kotlinx.coroutines.CancellationException
+import java.time.Clock
 import kotlinx.coroutines.flow.Flow
 
 class ReminderAwareCarePlanService(
     private val delegate: CarePlanService,
-    private val reminderCoordinator:
-    ReminderCoordinator,
+    private val reminderCoordinator: ReminderCoordinator,
+    private val reminderPreferenceStore: ReminderPreferenceStore,
+    private val operationGate: AppOperationGate,
+    private val clock: Clock,
 ) : CarePlanService {
 
     override suspend fun createRecipient(
         command: CreateRecipientCommand,
-    ): CreateRecipientOutcome {
-        return delegate.createRecipient(
-            command = command,
-        )
-    }
+    ): CreateRecipientOutcome =
+        operationGate.withGate {
+            delegate.createRecipient(command)
+        }
 
     override suspend fun updateRecipientName(
         command: UpdateRecipientNameCommand,
-    ): UpdateRecipientNameOutcome {
-        return delegate.updateRecipientName(
-            command = command,
-        )
-    }
+    ): UpdateRecipientNameOutcome =
+        operationGate.withGate {
+            delegate.updateRecipientName(command)
+        }
 
     override suspend fun createMedicationAndSchedule(
         command: CreateMedicationScheduleCommand,
-    ): CreateMedicationScheduleOutcome {
-        val outcome =
-            delegate
-                .createMedicationAndSchedule(
-                    command = command,
+    ): CreateMedicationScheduleOutcome =
+        operationGate.withGate {
+            val outcome =
+                delegate.createMedicationAndSchedule(command)
+            if (outcome is CreateMedicationScheduleOutcome.Created) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
                 )
-
-        if (
-            outcome is
-                    CreateMedicationScheduleOutcome
-                    .Created
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+            }
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun addSchedule(
         command: AddScheduleCommand,
-    ): AddScheduleOutcome {
-        val outcome =
-            delegate.addSchedule(
-                command = command,
-            )
-
-        if (
-            outcome is
-                    AddScheduleOutcome
-                    .Created
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+    ): AddScheduleOutcome =
+        operationGate.withGate {
+            val outcome = delegate.addSchedule(command)
+            if (outcome is AddScheduleOutcome.Created) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
+                )
+            }
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun updateMedicationText(
         command: UpdateMedicationTextCommand,
-    ): UpdateMedicationTextOutcome {
-        val outcome =
-            delegate.updateMedicationText(
-                command = command,
-            )
-
-        if (
-            outcome ==
-            UpdateMedicationTextOutcome
-                .Updated
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+    ): UpdateMedicationTextOutcome =
+        operationGate.withGate {
+            val outcome = delegate.updateMedicationText(command)
+            if (outcome == UpdateMedicationTextOutcome.Updated) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
+                )
+            }
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun updateSchedule(
         command: UpdateScheduleCommand,
-    ): UpdateScheduleOutcome {
-        val outcome =
-            delegate.updateSchedule(
-                command = command,
-            )
-
-        if (
-            outcome ==
-            UpdateScheduleOutcome
-                .Updated
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+    ): UpdateScheduleOutcome =
+        operationGate.withGate {
+            val outcome = delegate.updateSchedule(command)
+            if (outcome == UpdateScheduleOutcome.Updated) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
+                )
+            }
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun stopMedication(
         medicationId: String,
-    ): StopMedicationOutcome {
-        val outcome =
-            delegate.stopMedication(
-                medicationId =
-                    medicationId,
-            )
-
-        if (
-            outcome ==
-            StopMedicationOutcome.Stopped
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+    ): StopMedicationOutcome =
+        operationGate.withGate {
+            val outcome = delegate.stopMedication(medicationId)
+            if (outcome == StopMedicationOutcome.Stopped) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
+                )
+            }
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun archiveMedication(
         medicationId: String,
-    ): ArchiveMedicationOutcome {
-        val outcome =
-            delegate.archiveMedication(
-                medicationId =
-                    medicationId,
-            )
-
-        if (
-            outcome ==
-            ArchiveMedicationOutcome.Archived
-        ) {
-            reconcileAfterCommit(
-                reason =
-                    ReconciliationReason
-                        .CARE_PLAN_CHANGED,
-            )
+    ): ArchiveMedicationOutcome =
+        operationGate.withGate {
+            val outcome = delegate.archiveMedication(medicationId)
+            if (outcome == ArchiveMedicationOutcome.Archived) {
+                reconcileAfterCommit(
+                    ReconciliationReason.CARE_PLAN_CHANGED,
+                )
+            }
+            outcome
         }
 
-        return outcome
-    }
+    override suspend fun getSetupProgress(): SetupProgress =
+        delegate.getSetupProgress()
 
-    override suspend fun getSetupProgress():
-            SetupProgress {
-        return delegate.getSetupProgress()
-    }
-
-    override fun observeCarePlan():
-            Flow<CarePlanOverview?> {
-        return delegate.observeCarePlan()
-    }
+    override fun observeCarePlan(): Flow<CarePlanOverview?> =
+        delegate.observeCarePlan()
 
     override suspend fun getMedicationEditor(
         medicationId: String,
-    ): MedicationEditorSnapshot? {
-        return delegate.getMedicationEditor(
-            medicationId =
-                medicationId,
-        )
-    }
+    ): MedicationEditorSnapshot? =
+        delegate.getMedicationEditor(medicationId)
 
     override suspend fun getScheduleEditor(
         scheduleSeriesId: String,
-    ): ScheduleEditorSnapshot? {
-        return delegate.getScheduleEditor(
-            scheduleSeriesId =
-                scheduleSeriesId,
-        )
-    }
+    ): ScheduleEditorSnapshot? =
+        delegate.getScheduleEditor(scheduleSeriesId)
 
     private suspend fun reconcileAfterCommit(
         reason: ReconciliationReason,
     ) {
         try {
-            reminderCoordinator.reconcile(
-                reason = reason,
+            val result = reminderCoordinator.reconcile(reason)
+            val failure = result.recoverableFailureOrNull()
+
+            if (failure == null) {
+                reminderPreferenceStore.markHealthy()
+            } else {
+                reminderPreferenceStore.markFailure(
+                    failure = failure,
+                    failedAtEpochMillis =
+                        clock.instant().toEpochMilli(),
+                )
+            }
+        } catch (throwable: Throwable) {
+            throwable.rethrowIfCancellation()
+            reminderPreferenceStore.markFailure(
+                failure =
+                    throwable.toSafeAppFailure(
+                        AppOperationStage.RECONCILING_REMINDERS,
+                    ),
+                failedAtEpochMillis =
+                    clock.instant().toEpochMilli(),
             )
-        } catch (
-            cancellation:
-            CancellationException,
-        ) {
-            throw cancellation
-        } catch (_: Exception) {
-            Unit
         }
     }
 }
 
 class ReminderAwareCaregiverReportService(
-    private val delegate:
-    CaregiverReportService,
-    private val reminderCoordinator:
-    ReminderCoordinator,
+    private val delegate: CaregiverReportService,
+    private val reminderCoordinator: ReminderCoordinator,
+    private val reminderPreferenceStore: ReminderPreferenceStore,
+    private val operationGate: AppOperationGate,
+    private val clock: Clock,
 ) : CaregiverReportService {
 
     override suspend fun setReport(
         occurrenceId: String,
         newState: CaregiverReportState,
-    ): SetReportOutcome {
-        val outcome =
-            delegate.setReport(
-                occurrenceId =
-                    occurrenceId,
-                newState =
-                    newState,
-            )
+    ): SetReportOutcome =
+        operationGate.withGate {
+            val outcome =
+                delegate.setReport(
+                    occurrenceId = occurrenceId,
+                    newState = newState,
+                )
 
-        if (
-            outcome is
-                    SetReportOutcome.Changed
-        ) {
-            cancelReminderDelayAfterReport(
-                occurrenceId =
-                    outcome
-                        .change
-                        .occurrenceId,
-            )
+            if (outcome is SetReportOutcome.Changed) {
+                runAfterCommit {
+                    reminderCoordinator.cancelReminderDelay(
+                        outcome.change.occurrenceId,
+                    )
+                }
+                reconcileAfterCommit()
+            }
 
-            reconcileAfterCommit()
+            outcome
         }
-
-        return outcome
-    }
 
     override suspend fun restorePrevious(
         change: ReportChange,
-    ): UndoReportOutcome {
-        val outcome =
-            delegate.restorePrevious(
-                change = change,
-            )
-
-        if (
-            outcome is
-                    UndoReportOutcome.Restored
-        ) {
-            reconcileAfterCommit()
+    ): UndoReportOutcome =
+        operationGate.withGate {
+            val outcome = delegate.restorePrevious(change)
+            if (outcome is UndoReportOutcome.Restored) {
+                reconcileAfterCommit()
+            }
+            outcome
         }
-
-        return outcome
-    }
-
-    private suspend fun cancelReminderDelayAfterReport(
-        occurrenceId: String,
-    ) {
-        try {
-            reminderCoordinator
-                .cancelReminderDelay(
-                    occurrenceId =
-                        occurrenceId,
-                )
-        } catch (
-            cancellation:
-            CancellationException,
-        ) {
-            throw cancellation
-        } catch (_: Exception) {
-            Unit
-        }
-    }
 
     private suspend fun reconcileAfterCommit() {
         try {
-            reminderCoordinator.reconcile(
-                reason =
-                    ReconciliationReason
-                        .REPORT_CHANGED,
+            val result =
+                reminderCoordinator.reconcile(
+                    ReconciliationReason.REPORT_CHANGED,
+                )
+            val failure = result.recoverableFailureOrNull()
+
+            if (failure == null) {
+                reminderPreferenceStore.markHealthy()
+            } else {
+                reminderPreferenceStore.markFailure(
+                    failure = failure,
+                    failedAtEpochMillis =
+                        clock.instant().toEpochMilli(),
+                )
+            }
+        } catch (throwable: Throwable) {
+            throwable.rethrowIfCancellation()
+            reminderPreferenceStore.markFailure(
+                failure =
+                    throwable.toSafeAppFailure(
+                        AppOperationStage.RECONCILING_REMINDERS,
+                    ),
+                failedAtEpochMillis =
+                    clock.instant().toEpochMilli(),
             )
-        } catch (
-            cancellation:
-            CancellationException,
-        ) {
-            throw cancellation
-        } catch (_: Exception) {
-            Unit
+        }
+    }
+
+    private suspend fun runAfterCommit(
+        operation: suspend () -> Unit,
+    ) {
+        try {
+            operation()
+        } catch (throwable: Throwable) {
+            throwable.rethrowIfCancellation()
+            reminderPreferenceStore.markFailure(
+                failure =
+                    throwable.toSafeAppFailure(
+                        AppOperationStage.RECONCILING_REMINDERS,
+                    ),
+                failedAtEpochMillis =
+                    clock.instant().toEpochMilli(),
+            )
         }
     }
 }

@@ -11,15 +11,15 @@ import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
-import ir.carepack.domain.careplan.RoomCarePlanService
+import ir.carepack.data.service.RoomCarePlanService
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
-import ir.carepack.domain.occurrence.RoomOccurrenceGenerator
-import ir.carepack.domain.report.RoomCaregiverReportService
-import ir.carepack.domain.reminder.RoomReminderScheduleSource
+import ir.carepack.data.service.RoomOccurrenceGenerator
+import ir.carepack.data.service.RoomCaregiverReportService
+import ir.carepack.data.service.RoomReminderScheduleSource
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.SchedulePattern
-import ir.carepack.domain.today.RoomTodayQueryService
+import ir.carepack.data.service.RoomTodayQueryService
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -388,6 +388,9 @@ internal class CarePlanRoomTestFixture private constructor(
                     .inMemoryDatabaseBuilder(
                         context,
                         CarePackDatabase::class.java,
+                    )
+                    .addCallback(
+                        CarePackDatabase.invariantCallback,
                     )
                     .build()
 

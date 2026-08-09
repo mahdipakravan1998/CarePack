@@ -249,6 +249,41 @@ if errorlevel 1 (
 )
 
 echo.
+rem CAREPACK_POST_NOTIFICATIONS_TEST_GRANT
+echo.
+echo [5A/9] Granting Android notification permission...
+
+set "DEVICE_SDK_LEVEL="
+for /f "delims=" %%V in ('adb shell getprop ro.build.version.sdk 2^>nul') do set "DEVICE_SDK_LEVEL=%%V"
+
+if not defined DEVICE_SDK_LEVEL (
+    echo Unable to determine Android SDK level.
+    exit /b 1
+)
+
+if !DEVICE_SDK_LEVEL! GEQ 33 (
+    adb shell pm grant "%TARGET_PACKAGE%" android.permission.POST_NOTIFICATIONS >nul 2>&1
+
+    if errorlevel 1 (
+        echo Failed to grant POST_NOTIFICATIONS.
+        exit /b 1
+    )
+
+    adb shell appops set "%TARGET_PACKAGE%" POST_NOTIFICATION allow >nul 2>&1
+
+    adb shell dumpsys package "%TARGET_PACKAGE%" 2>nul ^
+        | findstr /C:"android.permission.POST_NOTIFICATIONS: granted=true" >nul
+
+    if errorlevel 1 (
+        echo POST_NOTIFICATIONS verification failed.
+        exit /b 1
+    )
+
+    echo POST_NOTIFICATIONS granted and verified.
+) else (
+    echo Runtime notification permission is not required on this Android version.
+)
+
 echo [6/9] Waiting for instrumentation registration...
 
 call :wait_for_instrumentation

@@ -337,27 +337,6 @@ private class ViewModelPrivacyPreferenceStore(
                 )
     }
 
-    override suspend fun markDeletionInProgress() {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    deletionInProgress = true,
-                )
-    }
-
-    override suspend fun clearAllPreservingDeletionMarker() {
-        mutableState.value =
-            PrivacyPreferenceState(
-                includeRecipientName = false,
-                deletionInProgress = true,
-            )
-    }
-
-    override suspend fun completeDeletion() {
-        mutableState.value =
-            PrivacyPreferenceState()
-    }
 }
 
 private class RecordingViewModelTextShareGateway :
@@ -371,6 +350,7 @@ private class RecordingViewModelTextShareGateway :
 
     override fun share(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): ShareTextResult {
         sharedTexts +=
             text
@@ -380,6 +360,7 @@ private class RecordingViewModelTextShareGateway :
 
     override fun copy(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): CopyTextResult {
         copiedTexts +=
             text

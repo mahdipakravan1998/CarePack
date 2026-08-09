@@ -45,6 +45,12 @@ class ReleaseManifestContractTest {
             ),
         )
 
+        assertFalse(
+            requestedPermissions.contains(
+                Manifest.permission.USE_FULL_SCREEN_INTENT,
+            ),
+        )
+
         val unapprovedPermissions =
             requestedPermissions
                 .filterNot { permission ->
@@ -188,7 +194,6 @@ class ReleaseManifestContractTest {
                 Manifest.permission.POST_NOTIFICATIONS,
                 Manifest.permission.SCHEDULE_EXACT_ALARM,
                 Manifest.permission.RECEIVE_BOOT_COMPLETED,
-                Manifest.permission.USE_FULL_SCREEN_INTENT,
                 Manifest.permission.VIBRATE,
             )
 

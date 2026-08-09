@@ -1,104 +1,47 @@
-# CarePack Farsi 1.0
+# CarePack
 
-CarePack Farsi is a local-only Android app for one caregiver supporting one care recipient.
+CarePack is an offline Android application for a caregiver to define medication schedules, receive local reminders, and record caregiver-reported outcomes. The application has no backend, account, cloud sync, analytics, advertising, remote logging, OCR, PDF generation, or medical validation.
 
-It helps the caregiver create medication schedules, view Today and Recent History, record caregiver reports, receive local reminders, share a plain-text Today Report, review privacy information inside the app, and delete all app data from the device.
+## Product contract
 
-CarePack is not a medical device and does not provide medical advice, diagnosis, dosage calculation, medication interaction checking, emergency guidance, or verification that medication was taken.
+- One local care recipient is supported.
+- A medication can have multiple fixed-time or interval schedules.
+- Occurrences preserve schedule-zone and medication-text snapshots.
+- Today, Jalali calendar, 7-day and 30-day reports use caregiver-reported wording. They do not prove medication consumption.
+- Simple Mode is a global presentation preference.
+- Stop, archive, permanent medication deletion, and delete-all are distinct operations.
+- Permanent medication deletion explicitly removes the target medication graph, its reports, alarms, snoozes, and notifications.
+- Delete-all removes Room data, preferences, temporary files, alarms, snoozes, and notifications through a resumable operation marker.
 
-## Product boundaries
+## Reminder and privacy contract
 
-CarePack Farsi 1.0 does not include accounts, backend services, cloud sync, analytics, advertising, OCR, camera capture, PDF generation, multiple care recipients, remote caregiver dashboards, or Internet permission.
+Reminder occurrence generation maintains a bounded sliding window through foreground, alarm, boot, time, timezone, package-replaced, and retry entry points. Normal operation must continue for at least 30 days without opening the application. Android force-stop and vendor power-management restrictions remain platform limitations and must be explained to users rather than hidden.
 
-The app stores domain data locally on the device. Room is the source of truth for care-plan, occurrence, and caregiver-report data. DataStore Preferences stores local app preferences.
+CarePack does not use a full-screen intent. `MainActivity` is not shown over the lock screen and does not turn the screen on. Reminder notifications use private visibility with a generic public version. The notification itself contains no medication name, recipient name, instruction, dose, or report action. Occurrence detail is validated and displayed only after the device is unlocked.
 
-CarePack 1.0 uses one final Room database schema version.
+## Build prerequisites
 
-## Privacy model
+- JDK 17
+- Android SDK with API 36
+- The committed Gradle wrapper, including `gradlew`, `gradlew.bat`, `gradle-wrapper.properties`, and the tool-generated `gradle-wrapper.jar`
 
-CarePack is local-only.
+`mavenLocal()` is disabled by default. It can be enabled only for explicit local development:
 
-The app does not request Internet permission and does not send care-plan, medication, report, reminder, or recipient data to a server.
+```text
+-PcarepackUseMavenLocal=true
+```
 
-Privacy information is available inside the app and in:
+Release signing reads these environment variables and requires the keystore path to be outside the repository:
 
-- `docs/privacy-policy.md`
+```text
+CAREPACK_KEYSTORE_PATH
+CAREPACK_KEYSTORE_PASSWORD
+CAREPACK_KEY_ALIAS
+CAREPACK_KEY_PASSWORD
+```
 
-Publisher:
+No signing value is read from a repository file or printed by the build.
 
-Mahdi Pakravan
+## Verification
 
-Contact:
-
-mahdipakravan1998@gmail.com
-
-## Tech stack
-
-- Kotlin
-- Native Android
-- Jetpack Compose Material 3
-- Room
-- Coroutines and Flow
-- DataStore Preferences
-- AlarmManager
-- Android notifications
-- Manual dependency injection
-
-## Build and verification
-
-Run JVM checks from the repository root:
-
-    gradlew.bat clean
-    gradlew.bat testDebugUnitTest --stacktrace
-    gradlew.bat lintDebug --stacktrace
-    gradlew.bat assembleDebug --stacktrace
-
-On the Xiaomi physical device, run instrumented tests only through the Xiaomi runner. Do not invoke `connectedDebugAndroidTest` directly, because MIUI can block repeated APK installation and background test windows.
-
-Run the current CarePack feature-verification suite:
-
-    tools\run-xiaomi-android-tests.cmd --core-workflows
-
-Run the complete instrumented suite:
-
-    tools\run-xiaomi-android-tests.cmd
-
-Run one class:
-
-    tools\run-xiaomi-android-tests.cmd "ir.carepack.reporting.RangeReportingIntegrationTest"
-
-Run one Compose class:
-
-    tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.JalaliDatePickerComposeTest"
-
-Run one method:
-
-    tools\run-xiaomi-android-tests.cmd "ir.carepack.ui.RangeReportComposeTest#defaultSevenDayReportCanSwitchToThirtyDays"
-
-The Xiaomi runner builds and installs the target and test APKs once, grants the required Xiaomi background-window access, prepares the device, and then starts instrumentation.
-
-Release builds require a local signing key and `keystore.properties`, which must not be committed.
-
-    gradlew.bat assembleRelease
-    gradlew.bat bundleRelease
-
-## Release signing
-
-Create `keystore.properties` in the repository root using local secret values:
-
-    storeFile=C:\\Users\\mahdi\\AndroidStudioProjects\\CarePack\\release\\carepack-release.jks
-    storePassword=your-local-keystore-password
-    keyAlias=carepack-release
-    keyPassword=your-local-key-password
-
-The keystore and passwords must remain outside Git.
-
-## Documentation
-
-The repository keeps only the minimum project documentation:
-
-- `CONTEXT.md` — domain glossary.
-- `docs/CarePack-1.0-Release-Contract.md` — product and release contract.
-- `docs/privacy-policy.md` — privacy policy text.
-
-Store-specific listing text, screenshots, panel-only materials, and release evidence are kept outside the repository.
+Run the commands in `docs/CarePack-1.0-Release-Contract.md`. Any statement that a build, test, signature, secret purge, device behavior, or score is successful must be supported by evidence from an actual execution and independent re-audit.

@@ -70,6 +70,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -139,6 +140,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -209,6 +211,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -276,6 +279,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -321,6 +325,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -379,6 +384,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -445,6 +451,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -496,6 +503,7 @@ class ReminderComposeTest {
                     onReviewSchedules = {},
                     onScheduleTestReminder = {},
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }
@@ -553,6 +561,7 @@ class ReminderComposeTest {
                         scheduleCount.incrementAndGet()
                     },
                     onRetry = {},
+                    onRetryHealth = {},
                 )
             }
         }

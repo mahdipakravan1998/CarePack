@@ -5,7 +5,7 @@ import ir.carepack.domain.careplan.UpdateMedicationTextCommand
 import ir.carepack.domain.careplan.UpdateMedicationTextOutcome
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.report.ReportDateRange
-import ir.carepack.domain.report.RoomDateRangeSummaryService
+import ir.carepack.data.service.RoomDateRangeSummaryService
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.Instant
 import java.time.LocalDate

@@ -1,5 +1,7 @@
 package ir.carepack.domain.reminder
 
+
+import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
 import ir.carepack.testing.MutableExactAlarmCapabilityGateway
 import ir.carepack.testing.MutableNotificationPermissionGateway
@@ -325,7 +327,7 @@ class DefaultReminderTestCoordinatorTest {
                     ZoneOffset.UTC,
                 ),
             operationLock =
-                ReminderOperationLock(),
+                AppOperationGate(),
         )
 
     private companion object {

@@ -1046,6 +1046,31 @@ private class FakeReminderPreferenceStore(
                         null,
                 )
     }
+
+    override suspend fun markHealthy() {
+        mutableState.value = mutableState.value.copy(
+            health = ir.carepack.domain.reminder.ReminderHealth.Healthy,
+        )
+    }
+
+    override suspend fun markFailure(
+        failure: ir.carepack.core.error.SafeAppFailure,
+        failedAtEpochMillis: Long,
+    ) {
+        mutableState.value = mutableState.value.copy(
+            health = if (failure.retryable) {
+                ir.carepack.domain.reminder.ReminderHealth.PendingRetry(
+                    failure = failure,
+                    failedAtEpochMillis = failedAtEpochMillis,
+                )
+            } else {
+                ir.carepack.domain.reminder.ReminderHealth.Unavailable(
+                    failure = failure,
+                    failedAtEpochMillis = failedAtEpochMillis,
+                )
+            },
+        )
+    }
 }
 
 private class FakeSnoozedReminderStore :

@@ -87,6 +87,7 @@ import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.settings.deletion.DataDeletionCoordinator
 import ir.carepack.settings.deletion.MedicationDeletionCoordinator
 import java.time.Clock
+
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
@@ -206,113 +207,6 @@ private val primaryDestinations =
         ),
     )
 
-sealed interface AppLaunchState {
-    data object Loading : AppLaunchState
-
-    data class Ready(
-        val startRoute: String,
-    ) : AppLaunchState
-
-    data class Error(
-        val message: String,
-    ) : AppLaunchState
-}
-
-class AppViewModel(
-    private val carePlanService: CarePlanService,
-    private val setupPreferenceStore: SetupPreferenceStore,
-) : ViewModel() {
-
-    private val mutableState =
-        MutableStateFlow<AppLaunchState>(
-            AppLaunchState.Loading,
-        )
-
-    val state =
-        mutableState.asStateFlow()
-
-    init {
-        refresh()
-    }
-
-    fun refresh() {
-        viewModelScope.launch {
-            mutableState.value =
-                AppLaunchState.Loading
-
-            mutableState.value =
-                try {
-                    val setupCompleted =
-                        setupPreferenceStore
-                            .isInitialSetupComplete()
-                            .first()
-
-                    val progress =
-                        carePlanService
-                            .getSetupProgress()
-
-                    AppLaunchState.Ready(
-                        startRoute =
-                            routeFor(
-                                setupCompleted =
-                                    setupCompleted,
-                                progress =
-                                    progress,
-                            ),
-                    )
-                } catch (_: Exception) {
-                    AppLaunchState.Error(
-                        message =
-                            "راه‌اندازی برنامه انجام نشد.",
-                    )
-                }
-        }
-    }
-
-    private fun routeFor(
-        setupCompleted: Boolean,
-        progress: SetupProgress,
-    ): String {
-        return when {
-            setupCompleted &&
-                    progress == SetupProgress.Complete -> {
-                Routes.Today
-            }
-
-            progress is SetupProgress.RecipientOnly -> {
-                Routes.medicationSchedule(
-                    recipientId =
-                        progress.recipientId,
-                )
-            }
-
-            progress == SetupProgress.Complete -> {
-                Routes.Today
-            }
-
-            else -> {
-                Routes.Onboarding
-            }
-        }
-    }
-
-    companion object {
-        fun factory(
-            carePlanService: CarePlanService,
-            setupPreferenceStore: SetupPreferenceStore,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
-                    AppViewModel(
-                        carePlanService =
-                            carePlanService,
-                        setupPreferenceStore =
-                            setupPreferenceStore,
-                    )
-                }
-            }
-    }
-}
 
 @Composable
 fun CarePackApp(
@@ -371,6 +265,8 @@ fun CarePackApp(
         is AppLaunchState.Ready -> {
             CarePackNavigation(
                 startRoute = state.startRoute,
+                onInitialSetupCompleted =
+                    appViewModel::completeInitialSetup,
                 carePlanService = carePlanService,
                 todayQueryService = todayQueryService,
                 caregiverReportService = caregiverReportService,
@@ -460,6 +356,7 @@ private fun LaunchErrorScreen(
 @Composable
 private fun CarePackNavigation(
     startRoute: String,
+    onInitialSetupCompleted: () -> Unit,
     carePlanService: CarePlanService,
     todayQueryService: TodayQueryService,
     caregiverReportService: CaregiverReportService,
@@ -485,6 +382,7 @@ private fun CarePackNavigation(
 ) {
     val navController =
         rememberNavController()
+
 
     val backStackEntry by
     navController
@@ -724,6 +622,9 @@ private fun CarePackNavigation(
                             launchSingleTop = true
                         }
                     },
+                    onCompletionModeSelected = { _ ->
+                        onInitialSetupCompleted()
+                    },
                     onOpenReminderSettings = {
                         navController.navigate(
                             Routes.ReminderSettings,
@@ -945,6 +846,7 @@ private fun CarePackNavigation(
                                     notificationPermissionGateway,
                                 userExperiencePreferenceStore =
                                     userExperiencePreferenceStore,
+                                clock = clock,
                             ),
                     )
 

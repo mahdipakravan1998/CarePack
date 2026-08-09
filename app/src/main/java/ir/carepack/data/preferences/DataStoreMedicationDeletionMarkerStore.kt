@@ -1,14 +1,13 @@
 package ir.carepack.data.preferences
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.emptyPreferences
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.core.stringSetPreferencesKey
+import ir.carepack.settings.deletion.DeletionMarkerCorruptionReason
 import ir.carepack.settings.deletion.MedicationDeletionMarker
+import ir.carepack.settings.deletion.MedicationDeletionMarkerReadResult
 import ir.carepack.settings.deletion.MedicationDeletionMarkerStage
 import ir.carepack.settings.deletion.MedicationDeletionMarkerStore
 import ir.carepack.settings.deletion.MedicationDeletionPreview
@@ -17,72 +16,50 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 
-class DataStoreMedicationDeletionMarkerStore(
-    context: Context,
+class DataStoreMedicationDeletionMarkerStore internal constructor(
+    private val dataStore: DataStore<Preferences>,
 ) : MedicationDeletionMarkerStore {
 
-    private val applicationContext =
-        context.applicationContext
+    constructor(context: Context) :
+        this(
+            dataStore =
+                context.applicationContext
+                    .carePackDataStore,
+        )
 
-    override val marker:
-            Flow<MedicationDeletionMarker?> =
-        applicationContext
-            .carePackDataStore
+    override val state:
+        Flow<MedicationDeletionMarkerReadResult> =
+        dataStore
             .data
+            .map(
+                ::decodeMarker,
+            )
             .catch { throwable ->
                 if (throwable is IOException) {
                     emit(
-                        emptyPreferences(),
+                        MedicationDeletionMarkerReadResult
+                            .Corrupted(
+                                reason =
+                                    DeletionMarkerCorruptionReason
+                                        .STORAGE_READ_FAILURE,
+                            ),
                     )
                 } else {
                     throw throwable
                 }
             }
-            .map(
-                ::decodeMarker,
-            )
 
     override suspend fun save(
         marker: MedicationDeletionMarker,
     ) {
-        applicationContext
-            .carePackDataStore
+        require(marker.hasValidChecksum())
+
+        dataStore
             .edit { preferences ->
-                val preview =
-                    marker.expectedPreview
-
-                preferences[MEDICATION_ID] =
-                    preview.medicationId
-
-                preferences[MEDICATION_NAME] =
-                    preview.medicationName
-
-                preferences[MEDICATION_UPDATED_AT] =
-                    preview.medicationUpdatedAtEpochMillis
-
-                preferences[SCHEDULE_SERIES_COUNT] =
-                    preview.scheduleSeriesCount
-
-                preferences[SCHEDULE_VERSION_COUNT] =
-                    preview.scheduleVersionCount
-
-                preferences[SCHEDULE_TIME_COUNT] =
-                    preview.scheduleTimeCount
-
-                preferences[OCCURRENCE_COUNT] =
-                    preview.occurrenceCount
-
-                preferences[CAREGIVER_REPORT_COUNT] =
-                    preview.caregiverReportCount
-
-                preferences[SCHEDULE_SERIES_IDS] =
-                    marker.scheduleSeriesIds
-
-                preferences[MARKER_STAGE] =
-                    marker.stage.name
-
-                preferences[STARTED_AT] =
-                    marker.startedAtEpochMillis
+                writeMarker(
+                    preferences = preferences,
+                    marker = marker,
+                )
             }
     }
 
@@ -90,43 +67,47 @@ class DataStoreMedicationDeletionMarkerStore(
         medicationId: String,
         stage: MedicationDeletionMarkerStage,
     ) {
-        val trimmedMedicationId =
-            medicationId.trim()
+        val target = medicationId.trim()
+        require(target.isNotBlank())
 
-        require(trimmedMedicationId.isNotBlank())
-
-        applicationContext
-            .carePackDataStore
+        dataStore
             .edit { preferences ->
-                val storedMedicationId =
-                    preferences[MEDICATION_ID]
+                val readResult =
+                    decodeMarker(preferences)
+
+                val marker =
+                    (readResult as?
+                        MedicationDeletionMarkerReadResult.Valid)
+                        ?.marker
+                        ?: error(
+                            "Medication deletion marker is not valid.",
+                        )
 
                 check(
-                    storedMedicationId ==
-                            trimmedMedicationId,
-                ) {
-                    "Medication deletion marker target changed unexpectedly."
-                }
+                    marker.expectedPreview.medicationId ==
+                        target,
+                )
 
-                preferences[MARKER_STAGE] =
-                    stage.name
+                writeMarker(
+                    preferences = preferences,
+                    marker = marker.withStage(stage),
+                )
             }
     }
 
     override suspend fun clear(
         medicationId: String,
     ) {
-        val trimmedMedicationId =
-            medicationId.trim()
+        val target = medicationId.trim()
+        require(target.isNotBlank())
 
-        require(trimmedMedicationId.isNotBlank())
-
-        applicationContext
-            .carePackDataStore
+        dataStore
             .edit { preferences ->
                 if (
-                    preferences[MEDICATION_ID] ==
-                    trimmedMedicationId
+                    preferences[
+                        MedicationDeletionPreferenceKeys
+                            .medicationId
+                    ] == target
                 ) {
                     removeMarkerKeys(
                         preferences = preferences,
@@ -137,169 +118,257 @@ class DataStoreMedicationDeletionMarkerStore(
 
     private fun decodeMarker(
         preferences: Preferences,
-    ): MedicationDeletionMarker? {
-        val medicationId =
-            preferences[MEDICATION_ID]
-                ?.trim()
-                .orEmpty()
+    ): MedicationDeletionMarkerReadResult {
+        val keys = preferences.asMap().keys
+        val markerKeys = medicationMarkerKeys()
 
-        val medicationName =
-            preferences[MEDICATION_NAME]
-                ?.trim()
-                .orEmpty()
-
-        val medicationUpdatedAt =
-            preferences[MEDICATION_UPDATED_AT]
-
-        val scheduleSeriesCount =
-            preferences[SCHEDULE_SERIES_COUNT]
-
-        val scheduleVersionCount =
-            preferences[SCHEDULE_VERSION_COUNT]
-
-        val scheduleTimeCount =
-            preferences[SCHEDULE_TIME_COUNT]
-
-        val occurrenceCount =
-            preferences[OCCURRENCE_COUNT]
-
-        val caregiverReportCount =
-            preferences[CAREGIVER_REPORT_COUNT]
-
-        val scheduleSeriesIds =
-            preferences[SCHEDULE_SERIES_IDS]
-
-        val stage =
-            preferences[MARKER_STAGE]
-                ?.let { storedStage ->
-                    runCatching {
-                        MedicationDeletionMarkerStage
-                            .valueOf(
-                                storedStage,
-                            )
-                    }.getOrNull()
-                }
-
-        val startedAt =
-            preferences[STARTED_AT]
-
-        if (
-            medicationId.isBlank() ||
-            medicationName.isBlank() ||
-            medicationUpdatedAt == null ||
-            scheduleSeriesCount == null ||
-            scheduleVersionCount == null ||
-            scheduleTimeCount == null ||
-            occurrenceCount == null ||
-            caregiverReportCount == null ||
-            scheduleSeriesIds == null ||
-            stage == null ||
-            startedAt == null
-        ) {
-            return null
+        if (keys.none { it in markerKeys }) {
+            return MedicationDeletionMarkerReadResult.Absent
         }
 
-        return runCatching {
-            MedicationDeletionMarker(
-                expectedPreview =
-                    MedicationDeletionPreview(
-                        medicationId = medicationId,
-                        medicationName = medicationName,
-                        medicationUpdatedAtEpochMillis =
-                            medicationUpdatedAt,
-                        scheduleSeriesCount =
-                            scheduleSeriesCount,
-                        scheduleVersionCount =
-                            scheduleVersionCount,
-                        scheduleTimeCount =
-                            scheduleTimeCount,
-                        occurrenceCount =
-                            occurrenceCount,
-                        caregiverReportCount =
-                            caregiverReportCount,
-                    ),
-                scheduleSeriesIds =
-                    scheduleSeriesIds,
-                stage = stage,
-                startedAtEpochMillis =
-                    startedAt,
+        if (!keys.containsAll(markerKeys)) {
+            return MedicationDeletionMarkerReadResult
+                .Corrupted(
+                    reason =
+                        DeletionMarkerCorruptionReason
+                            .PARTIAL_MARKER,
+                )
+        }
+
+        val version =
+            preferences[
+                MedicationDeletionPreferenceKeys.version
+            ] ?: return corruptedPartial()
+
+        if (
+            version !=
+            MedicationDeletionMarker.CURRENT_VERSION
+        ) {
+            return MedicationDeletionMarkerReadResult
+                .Corrupted(
+                    reason =
+                        DeletionMarkerCorruptionReason
+                            .UNKNOWN_VERSION,
+                )
+        }
+
+        val stage =
+            preferences[
+                MedicationDeletionPreferenceKeys.stage
+            ]
+                ?.let { storedStage ->
+                    MedicationDeletionMarkerStage.entries
+                        .firstOrNull { candidate ->
+                            candidate.name == storedStage
+                        }
+                }
+                ?: return MedicationDeletionMarkerReadResult
+                    .Corrupted(
+                        reason =
+                            DeletionMarkerCorruptionReason
+                                .INVALID_STAGE,
+                    )
+
+        val marker =
+            runCatching {
+                MedicationDeletionMarker(
+                    version = version,
+                    expectedPreview =
+                        MedicationDeletionPreview(
+                            medicationId =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .medicationId
+                                    ],
+                                ),
+                            medicationName =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .medicationName
+                                    ],
+                                ),
+                            medicationUpdatedAtEpochMillis =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .medicationUpdatedAt
+                                    ],
+                                ),
+                            scheduleSeriesCount =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .scheduleSeriesCount
+                                    ],
+                                ),
+                            scheduleVersionCount =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .scheduleVersionCount
+                                    ],
+                                ),
+                            scheduleTimeCount =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .scheduleTimeCount
+                                    ],
+                                ),
+                            occurrenceCount =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .occurrenceCount
+                                    ],
+                                ),
+                            caregiverReportCount =
+                                checkNotNull(
+                                    preferences[
+                                        MedicationDeletionPreferenceKeys
+                                            .caregiverReportCount
+                                    ],
+                                ),
+                        ),
+                    scheduleSeriesIds =
+                        checkNotNull(
+                            preferences[
+                                MedicationDeletionPreferenceKeys
+                                    .scheduleSeriesIds
+                            ],
+                        ),
+                    occurrenceIds =
+                        checkNotNull(
+                            preferences[
+                                MedicationDeletionPreferenceKeys
+                                    .occurrenceIds
+                            ],
+                        ),
+                    stage = stage,
+                    startedAtEpochMillis =
+                        checkNotNull(
+                            preferences[
+                                MedicationDeletionPreferenceKeys
+                                    .startedAt
+                            ],
+                        ),
+                    checksum =
+                        checkNotNull(
+                            preferences[
+                                MedicationDeletionPreferenceKeys
+                                    .checksum
+                            ],
+                        ),
+                )
+            }.getOrElse {
+                return MedicationDeletionMarkerReadResult
+                    .Corrupted(
+                        reason =
+                            DeletionMarkerCorruptionReason
+                                .INVALID_VALUE,
+                    )
+            }
+
+        if (!marker.hasValidChecksum()) {
+            return MedicationDeletionMarkerReadResult
+                .Corrupted(
+                    reason =
+                        DeletionMarkerCorruptionReason
+                            .CHECKSUM_MISMATCH,
+                )
+        }
+
+        return MedicationDeletionMarkerReadResult
+            .Valid(
+                marker = marker,
             )
-        }.getOrNull()
+    }
+
+    private fun writeMarker(
+        preferences: MutablePreferences,
+        marker: MedicationDeletionMarker,
+    ) {
+        val preview = marker.expectedPreview
+
+        preferences[
+            MedicationDeletionPreferenceKeys.version
+        ] = marker.version
+        preferences[
+            MedicationDeletionPreferenceKeys.medicationId
+        ] = preview.medicationId
+        preferences[
+            MedicationDeletionPreferenceKeys.medicationName
+        ] = preview.medicationName
+        preferences[
+            MedicationDeletionPreferenceKeys.medicationUpdatedAt
+        ] = preview.medicationUpdatedAtEpochMillis
+        preferences[
+            MedicationDeletionPreferenceKeys.scheduleSeriesCount
+        ] = preview.scheduleSeriesCount
+        preferences[
+            MedicationDeletionPreferenceKeys.scheduleVersionCount
+        ] = preview.scheduleVersionCount
+        preferences[
+            MedicationDeletionPreferenceKeys.scheduleTimeCount
+        ] = preview.scheduleTimeCount
+        preferences[
+            MedicationDeletionPreferenceKeys.occurrenceCount
+        ] = preview.occurrenceCount
+        preferences[
+            MedicationDeletionPreferenceKeys.caregiverReportCount
+        ] = preview.caregiverReportCount
+        preferences[
+            MedicationDeletionPreferenceKeys.scheduleSeriesIds
+        ] = marker.scheduleSeriesIds
+        preferences[
+            MedicationDeletionPreferenceKeys.occurrenceIds
+        ] = marker.occurrenceIds
+        preferences[
+            MedicationDeletionPreferenceKeys.stage
+        ] = marker.stage.name
+        preferences[
+            MedicationDeletionPreferenceKeys.startedAt
+        ] = marker.startedAtEpochMillis
+        preferences[
+            MedicationDeletionPreferenceKeys.checksum
+        ] = marker.checksum
     }
 
     private fun removeMarkerKeys(
-        preferences:
-        androidx.datastore.preferences.core.MutablePreferences,
+        preferences: MutablePreferences,
     ) {
-        preferences.remove(MEDICATION_ID)
-        preferences.remove(MEDICATION_NAME)
-        preferences.remove(MEDICATION_UPDATED_AT)
-        preferences.remove(SCHEDULE_SERIES_COUNT)
-        preferences.remove(SCHEDULE_VERSION_COUNT)
-        preferences.remove(SCHEDULE_TIME_COUNT)
-        preferences.remove(OCCURRENCE_COUNT)
-        preferences.remove(CAREGIVER_REPORT_COUNT)
-        preferences.remove(SCHEDULE_SERIES_IDS)
-        preferences.remove(MARKER_STAGE)
-        preferences.remove(STARTED_AT)
+        medicationMarkerKeys().forEach { key ->
+            preferences.remove(key)
+        }
     }
 
-    private companion object {
-
-        val MEDICATION_ID =
-            stringPreferencesKey(
-                "medication_deletion_target_id",
+    private fun corruptedPartial():
+        MedicationDeletionMarkerReadResult =
+        MedicationDeletionMarkerReadResult
+            .Corrupted(
+                reason =
+                    DeletionMarkerCorruptionReason
+                        .PARTIAL_MARKER,
             )
 
-        val MEDICATION_NAME =
-            stringPreferencesKey(
-                "medication_deletion_target_name",
-            )
-
-        val MEDICATION_UPDATED_AT =
-            longPreferencesKey(
-                "medication_deletion_expected_updated_at",
-            )
-
-        val SCHEDULE_SERIES_COUNT =
-            intPreferencesKey(
-                "medication_deletion_schedule_series_count",
-            )
-
-        val SCHEDULE_VERSION_COUNT =
-            intPreferencesKey(
-                "medication_deletion_schedule_version_count",
-            )
-
-        val SCHEDULE_TIME_COUNT =
-            intPreferencesKey(
-                "medication_deletion_schedule_time_count",
-            )
-
-        val OCCURRENCE_COUNT =
-            intPreferencesKey(
-                "medication_deletion_occurrence_count",
-            )
-
-        val CAREGIVER_REPORT_COUNT =
-            intPreferencesKey(
-                "medication_deletion_caregiver_report_count",
-            )
-
-        val SCHEDULE_SERIES_IDS =
-            stringSetPreferencesKey(
-                "medication_deletion_schedule_series_ids",
-            )
-
-        val MARKER_STAGE =
-            stringPreferencesKey(
-                "medication_deletion_stage",
-            )
-
-        val STARTED_AT =
-            longPreferencesKey(
-                "medication_deletion_started_at",
-            )
-
-    }
+    private fun medicationMarkerKeys():
+        Set<Preferences.Key<*>> =
+        setOf(
+            MedicationDeletionPreferenceKeys.version,
+            MedicationDeletionPreferenceKeys.medicationId,
+            MedicationDeletionPreferenceKeys.medicationName,
+            MedicationDeletionPreferenceKeys.medicationUpdatedAt,
+            MedicationDeletionPreferenceKeys.scheduleSeriesCount,
+            MedicationDeletionPreferenceKeys.scheduleVersionCount,
+            MedicationDeletionPreferenceKeys.scheduleTimeCount,
+            MedicationDeletionPreferenceKeys.occurrenceCount,
+            MedicationDeletionPreferenceKeys.caregiverReportCount,
+            MedicationDeletionPreferenceKeys.scheduleSeriesIds,
+            MedicationDeletionPreferenceKeys.occurrenceIds,
+            MedicationDeletionPreferenceKeys.stage,
+            MedicationDeletionPreferenceKeys.startedAt,
+            MedicationDeletionPreferenceKeys.checksum,
+        )
 }

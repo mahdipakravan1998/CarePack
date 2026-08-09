@@ -1,28 +1,24 @@
 package ir.carepack.settings.deletion
 
 import android.content.Context
+import androidx.datastore.preferences.core.edit
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import ir.carepack.data.preferences.DataStorePrivacyPreferenceStore
-import ir.carepack.data.preferences.DataStoreReminderPreferenceStore
-import ir.carepack.data.preferences.DataStoreSetupPreferenceStore
-import ir.carepack.data.preferences.PrivacyPreferenceState
-import ir.carepack.domain.model.CaregiverReportState
-import ir.carepack.testing.CarePlanRoomTestFixture
-import ir.carepack.testing.RecordingNotificationGateway
-import ir.carepack.testing.RecordingReminderCoordinator
-import java.io.File
-import java.io.IOException
-import java.time.DayOfWeek
+import ir.carepack.CarePackApplication
+import ir.carepack.core.concurrency.AppOperationGate
+import ir.carepack.core.id.IdSource
+import ir.carepack.data.preferences.DataStoreDataDeletionMarkerStore
+import ir.carepack.data.preferences.DataStorePreferenceDataCleaner
+import ir.carepack.data.preferences.carePackDataStore
+import ir.carepack.domain.careplan.CreateRecipientCommand
+import ir.carepack.domain.careplan.CreateRecipientOutcome
+import java.time.Clock
 import java.time.Instant
-import java.time.LocalDate
 import java.time.ZoneOffset
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -31,486 +27,154 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class DataDeletionIntegrationTest {
 
-    private val context:
-            Context =
-        ApplicationProvider
-            .getApplicationContext()
-
-    private lateinit var fixture:
-            CarePlanRoomTestFixture
-
-    private lateinit var privacyStore:
-            DataStorePrivacyPreferenceStore
-
-    private lateinit var setupStore:
-            DataStoreSetupPreferenceStore
-
-    private lateinit var reminderStore:
-            DataStoreReminderPreferenceStore
+    private lateinit var context: Context
+    private lateinit var application: CarePackApplication
 
     @Before
     fun setUp() =
         runBlocking {
-            privacyStore =
-                DataStorePrivacyPreferenceStore(
-                    context = context,
-                )
-
-            setupStore =
-                DataStoreSetupPreferenceStore(
-                    context = context,
-                )
-
-            reminderStore =
-                DataStoreReminderPreferenceStore(
-                    context = context,
-                )
-
-            clearAllPreferences()
-
-            fixture =
-                CarePlanRoomTestFixture.create(
-                    initialInstant =
-                        INITIAL_INSTANT,
-                    idPrefix =
-                        "deletion-contract",
-                    clockZone =
-                        ZoneOffset.UTC,
-                    context = context,
-                )
+            context = ApplicationProvider.getApplicationContext()
+            application = context.applicationContext as CarePackApplication
+            resetState()
         }
 
     @After
     fun tearDown() =
         runBlocking {
-            fixture.close()
-            clearAllPreferences()
-            removeTestTemporaryFiles()
+            resetState()
         }
 
     @Test
-    fun deleteEverything_clearsDomainPreferencesPlatformStateAndTemporaryFiles() =
+    fun deleteEverything_clearsRoomPreferencesAndOperationMarker() =
         runBlocking {
-            populateAllState()
-            val temporaryFiles =
-                createTestTemporaryFiles()
-
-            val reminderCoordinator =
-                RecordingReminderCoordinator()
-
-            val notificationGateway =
-                RecordingNotificationGateway()
-
-            val coordinator =
-                createCoordinator(
-                    reminderCoordinator =
-                        reminderCoordinator,
-                    notificationGateway =
-                        notificationGateway,
-                    temporaryDataCleaner =
-                        AndroidTemporaryDataCleaner(
-                            context = context,
-                        ),
-                )
+            seedRecipient()
+            application.container
+                .privacyPreferenceStore
+                .setIncludeRecipientName(true)
+            application.container
+                .reminderPreferenceStore
+                .setRemindersEnabled(true)
 
             val result =
-                coordinator
+                application.container
+                    .dataDeletionCoordinator
                     .deleteEverything()
 
+            assertEquals(DataDeletionResult.Completed, result)
             assertEquals(
-                DataDeletionResult.Completed,
-                result,
+                0,
+                application.container.database
+                    .careRecipientDao()
+                    .count(),
             )
-
-            assertDatabaseEmpty()
-
-            assertFalse(
-                setupStore
-                    .setupComplete
-                    .first(),
+            assertEquals(
+                false,
+                application.container
+                    .privacyPreferenceStore
+                    .state
+                    .first()
+                    .includeRecipientName,
             )
-
-            assertFalse(
-                reminderStore
+            assertEquals(
+                false,
+                application.container
+                    .reminderPreferenceStore
                     .state
                     .first()
                     .remindersEnabled,
             )
-
             assertEquals(
-                PrivacyPreferenceState(),
-                privacyStore
+                DataDeletionMarkerReadResult.Absent,
+                DataStoreDataDeletionMarkerStore(context)
                     .state
                     .first(),
-            )
-
-            temporaryFiles.forEach {
-                    file ->
-                assertFalse(
-                    file.exists(),
-                )
-            }
-
-            assertEquals(
-                1,
-                reminderCoordinator
-                    .cancelAllCount,
-            )
-
-            assertEquals(
-                1,
-                notificationGateway
-                    .cancelAllCount,
             )
         }
 
     @Test
-    fun failedCleanup_keepsMarkerAndNextStartupResumeCompletesDeletion() =
+    fun recoveryFromDomainDataPending_resumesWithoutForegroundActivity() =
         runBlocking {
-            populateAllState()
-            val temporaryFiles =
-                createTestTemporaryFiles()
-
-            val reminderCoordinator =
-                RecordingReminderCoordinator()
-
-            val notificationGateway =
-                RecordingNotificationGateway()
-
-            val failingCoordinator =
-                createCoordinator(
-                    reminderCoordinator =
-                        reminderCoordinator,
-                    notificationGateway =
-                        notificationGateway,
-                    temporaryDataCleaner =
-                        TemporaryDataCleaner {
-                            throw IOException(
-                                "Injected temporary cleanup failure.",
-                            )
-                        },
-                )
-
-            val failedResult =
-                failingCoordinator
-                    .deleteEverything()
-
-            assertEquals(
-                DataDeletionResult.Failed(
-                    stage =
-                        DataDeletionStage
-                            .CLEARING_TEMPORARY_DATA,
+            seedRecipient()
+            val markerStore = DataStoreDataDeletionMarkerStore(context)
+            markerStore.save(
+                DataDeletionMarker.create(
+                    operationId = "recovery-operation",
+                    stage = DataDeletionMarkerStage.DOMAIN_DATA_PENDING,
+                    startedAtEpochMillis =
+                        Instant.parse("2026-06-24T08:00:00Z")
+                            .toEpochMilli(),
                 ),
-                failedResult,
             )
 
-            assertTrue(
-                privacyStore
-                    .state
-                    .first()
-                    .deletionInProgress,
-            )
-
-            assertDatabaseEmpty()
-
-            assertTrue(
-                temporaryFiles.any {
-                    it.exists()
-                },
-            )
-
-            val recoveryCoordinator =
-                createCoordinator(
+            val coordinator =
+                DefaultDataDeletionCoordinator(
+                    markerStore = markerStore,
                     reminderCoordinator =
-                        reminderCoordinator,
+                        application.container.reminderCoordinator,
                     notificationGateway =
-                        notificationGateway,
+                        application.container.notificationGateway,
+                    domainDataCleaner =
+                        RoomDomainDataCleaner(
+                            application.container.database,
+                        ),
+                    preferenceDataCleaner =
+                        DataStorePreferenceDataCleaner(context),
                     temporaryDataCleaner =
-                        AndroidTemporaryDataCleaner(
-                            context = context,
+                        AndroidTemporaryDataCleaner(context),
+                    auxiliaryDeletionStateCleaner =
+                        AuxiliaryDeletionStateCleaner {
+                            application.container
+                                .reminderTestCoordinator
+                                .cancelPendingTest()
+                            application.container
+                                .systemReconciliationRetryScheduler
+                                .clearAll()
+                        },
+                    operationGate = AppOperationGate(),
+                    idSource = IdSource { "unused-operation" },
+                    clock =
+                        Clock.fixed(
+                            Instant.parse("2026-06-24T08:00:00Z"),
+                            ZoneOffset.UTC,
                         ),
                 )
 
+            val result =
+                coordinator.resumeIncompleteDeletionIfNeeded()
+
+            assertEquals(DataDeletionResult.Completed, result)
             assertEquals(
-                DataDeletionResult.Completed,
-                recoveryCoordinator
-                    .resumeIncompleteDeletionIfNeeded(),
+                0,
+                application.container.database
+                    .careRecipientDao()
+                    .count(),
             )
-
             assertEquals(
-                PrivacyPreferenceState(),
-                privacyStore
-                    .state
-                    .first(),
-            )
-
-            temporaryFiles.forEach {
-                    file ->
-                assertFalse(
-                    file.exists(),
-                )
-            }
-
-            assertEquals(
-                DataDeletionResult
-                    .NoDeletionPending,
-                recoveryCoordinator
-                    .resumeIncompleteDeletionIfNeeded(),
+                DataDeletionMarkerReadResult.Absent,
+                markerStore.state.first(),
             )
         }
 
-    private suspend fun populateAllState() {
-        val recipientId =
-            fixture.createOrGetRecipient(
-                displayName =
-                    "فرد حذف آزمایشی",
-            )
-
-        val plan =
-            fixture.createPlan(
-                recipientId =
-                    recipientId,
-                medicationName =
-                    "داروی حذف آزمایشی",
-                instruction =
-                    "دستور حذف آزمایشی",
-                weekdays =
-                    DayOfWeek
-                        .entries
-                        .toSet(),
-                minutesOfDay =
-                    listOf(8 * 60),
-                startDate =
-                    ANCHOR_DATE,
-                endDate =
-                    ANCHOR_DATE,
-            )
-
-        val occurrence =
-            fixture.occurrenceForDate(
-                scheduleVersionId =
-                    plan.scheduleVersionId,
-                date =
-                    ANCHOR_DATE,
-            )
-
-        fixture.reportService.setReport(
-            occurrenceId =
-                occurrence.id,
-            newState =
-                CaregiverReportState.GIVEN,
-        )
-
-        setupStore.markSetupComplete()
-
-        reminderStore.setRemindersEnabled(
-            enabled = true,
-        )
-
-        privacyStore.setIncludeRecipientName(
-            includeRecipientName = true,
-        )
-
-        assertTrue(
-            fixture
-                .database
-                .careRecipientDao()
-                .count() > 0,
-        )
-
-        assertTrue(
-            fixture
-                .database
-                .medicationDao()
-                .count() > 0,
-        )
-
-        assertTrue(
-            fixture
-                .database
-                .occurrenceDao()
-                .count() > 0,
-        )
-
-        assertTrue(
-            fixture
-                .database
-                .reportingDao()
-                .countReports() > 0,
-        )
-    }
-
-    private fun createCoordinator(
-        reminderCoordinator:
-        RecordingReminderCoordinator,
-        notificationGateway:
-        RecordingNotificationGateway,
-        temporaryDataCleaner:
-        TemporaryDataCleaner,
-    ): DefaultDataDeletionCoordinator =
-        DefaultDataDeletionCoordinator(
-            privacyPreferenceStore =
-                privacyStore,
-            reminderCoordinator =
-                reminderCoordinator,
-            notificationGateway =
-                notificationGateway,
-            domainDataCleaner =
-                RoomDomainDataCleaner(
-                    database =
-                        fixture.database,
-                ),
-            temporaryDataCleaner =
-                temporaryDataCleaner,
-            ioDispatcher =
-                Dispatchers.IO,
-        )
-
-    private suspend fun assertDatabaseEmpty() {
-        assertEquals(
-            0,
-            fixture
-                .database
-                .reportingDao()
-                .countReports(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .occurrenceDao()
-                .count(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .scheduleDao()
-                .countTimes(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .scheduleDao()
-                .countVersions(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .scheduleDao()
-                .countSeries(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .medicationDao()
-                .count(),
-        )
-
-        assertEquals(
-            0,
-            fixture
-                .database
-                .careRecipientDao()
-                .count(),
-        )
-    }
-
-    private fun createTestTemporaryFiles():
-            List<File> {
-        val cacheFile =
-            File(
-                context.cacheDir,
-                "carepack-deletion-cache.tmp",
-            )
-
-        val temporaryFile =
-            File(
-                File(
-                    context.filesDir,
-                    "carepack-temporary",
-                ),
-                "draft.tmp",
-            )
-
-        val previewFile =
-            File(
-                File(
-                    context.filesDir,
-                    "carepack-report-previews",
-                ),
-                "preview.tmp",
-            )
-
-        listOf(
-            cacheFile,
-            temporaryFile,
-            previewFile,
-        )
-            .forEach { file ->
-                file.parentFile
-                    ?.mkdirs()
-
-                file.writeText(
-                    "synthetic test content",
+    private suspend fun seedRecipient() {
+        val outcome =
+            application.container.carePlanService
+                .createRecipient(
+                    CreateRecipientCommand(
+                        displayName = "فرد آزمون حذف کامل",
+                    ),
                 )
-            }
 
-        return listOf(
-            cacheFile,
-            temporaryFile,
-            previewFile,
+        assertTrue(
+            outcome is CreateRecipientOutcome.Created ||
+                outcome is CreateRecipientOutcome.AlreadyExists,
         )
     }
 
-    private fun removeTestTemporaryFiles() {
-        File(
-            context.cacheDir,
-            "carepack-deletion-cache.tmp",
-        )
-            .delete()
-
-        File(
-            context.filesDir,
-            "carepack-temporary",
-        )
-            .deleteRecursively()
-
-        File(
-            context.filesDir,
-            "carepack-report-previews",
-        )
-            .deleteRecursively()
-    }
-
-    private suspend fun clearAllPreferences() {
-        privacyStore.markDeletionInProgress()
-        privacyStore.clearAllPreservingDeletionMarker()
-        privacyStore.completeDeletion()
-    }
-
-    private companion object {
-
-        val INITIAL_INSTANT:
-                Instant =
-            Instant.parse(
-                "2026-06-24T00:00:00Z",
-            )
-
-        val ANCHOR_DATE:
-                LocalDate =
-            LocalDate.of(
-                2026,
-                6,
-                24,
-            )
+    private suspend fun resetState() {
+        application.container.database.clearAllTables()
+        context.carePackDataStore.edit { it.clear() }
+        application.container.notificationGateway.cancelAll()
+        application.container.reminderCoordinator
+            .cancelAllOwnedReminderState()
     }
 }

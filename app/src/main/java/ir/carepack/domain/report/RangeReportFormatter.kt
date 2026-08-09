@@ -265,10 +265,10 @@ class RangeReportTextBuilder {
     ): String =
         when (state) {
             RangeOccurrenceReportState.GIVEN ->
-                "مصرف شد"
+                "مراقب: داده شد"
 
             RangeOccurrenceReportState.NOT_GIVEN ->
-                "مصرف نشد"
+                "مراقب: داده نشد"
 
             RangeOccurrenceReportState.UNKNOWN ->
                 "نامشخص"
@@ -294,10 +294,10 @@ class RangeReportTextBuilder {
             "مجموع نوبت‌ها"
 
         const val GIVEN_LABEL =
-            "مصرف شد"
+            "مراقب: داده شد"
 
         const val NOT_GIVEN_LABEL =
-            "مصرف نشد"
+            "مراقب: داده نشد"
 
         const val UNKNOWN_LABEL =
             "نامشخص"

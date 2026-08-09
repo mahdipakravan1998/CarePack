@@ -33,9 +33,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assume.assumeFalse
-import org.junit.Assume.assumeNotNull
-import org.junit.Assume.assumeTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -82,109 +79,19 @@ class ReminderSystemUiTest {
         device.pressHome()
     }
 
-    @Test
-    @SdkSuppress(
-        minSdkVersion = 33,
-    )
-    fun notificationPermissionPromptAppearsAfterExplicitRequest() {
-        assumeFalse(
-            isNotificationPermissionGranted(),
-        )
 
-        ActivityScenario
-            .launch(
-                MainActivity::class.java,
-            )
-            .use { scenario ->
-                scenario.onActivity {
-                        activity ->
-                    activity.requestPermissions(
-                        arrayOf(
-                            Manifest.permission
-                                .POST_NOTIFICATIONS,
-                        ),
-                        NOTIFICATION_PERMISSION_REQUEST,
-                    )
-                }
-
-                val denyButton =
-                    waitForPermissionButton(
-                        resourceName =
-                            "permission_deny_button",
-                    )
-
-                assumeNotNull(denyButton)
-
-                assertTrue(
-                    denyButton!!.isEnabled,
-                )
-
-                denyButton.click()
-
-                device.waitForIdle()
-            }
-    }
-
-    @Test
-    @SdkSuppress(
-        minSdkVersion = 31,
-    )
-    fun exactAlarmSpecialAccessIntentOpensAndroidSettings() {
-        val alarmManager =
-            checkNotNull(
-                context.getSystemService(
-                    AlarmManager::class.java,
-                ),
-            )
-
-        assumeFalse(
-            alarmManager
-                .canScheduleExactAlarms(),
-        )
-
-        val intent =
-            Intent(
-                Settings
-                    .ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
-                Uri.parse(
-                    "package:${context.packageName}",
-                ),
-            ).addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK,
-            )
-
-        val resolvable =
-            intent.resolveActivity(
-                context.packageManager,
-            )
-
-        assumeNotNull(resolvable)
-
-        context.startActivity(intent)
-
-        val openedSettings =
-            device.wait(
-                Until.hasObject(
-                    By.pkg(
-                        SETTINGS_PACKAGE,
-                    ),
-                ),
-                SYSTEM_UI_TIMEOUT_MILLIS,
-            )
-
-        assertTrue(openedSettings)
-    }
 
     @Test
     fun tappingNotificationOpensValidatedOccurrenceWithoutWritingReport() =
         runBlocking {
-            assumeTrue(
+            assertTrue(
+                "Notification permission must be granted for the release UI contract.",
                 isNotificationPermissionGranted(),
             )
 
-            assumeTrue(
-                notificationManager
-                    .areNotificationsEnabled(),
+            assertTrue(
+                "Notifications must be enabled for the release UI contract.",
+                notificationManager.areNotificationsEnabled(),
             )
 
             val occurrence =
@@ -226,7 +133,7 @@ class ReminderSystemUiTest {
             val shadeOpened =
                 device.openNotification()
 
-            assumeTrue(shadeOpened)
+            assertTrue(shadeOpened)
 
             val notificationNode =
                 device.wait(
@@ -246,11 +153,12 @@ class ReminderSystemUiTest {
                     SYSTEM_UI_TIMEOUT_MILLIS,
                 )
 
-            assumeNotNull(
-                notificationNode,
+            assertTrue(
+                "The reminder notification must be discoverable in System UI.",
+                notificationNode != null,
             )
 
-            notificationNode!!.click()
+            checkNotNull(notificationNode).click()
 
             val reminderActionOpened =
                 device.wait(

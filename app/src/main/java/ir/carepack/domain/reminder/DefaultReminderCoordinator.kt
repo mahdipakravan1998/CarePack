@@ -1,5 +1,6 @@
 package ir.carepack.domain.reminder
 
+import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
 import ir.carepack.reminder.alarm.AlarmGateway
 import ir.carepack.reminder.alarm.AlarmRequest
@@ -31,8 +32,8 @@ class DefaultReminderCoordinator(
     ReminderDiagnosticSink =
         NoOpReminderDiagnosticSink,
     private val operationLock:
-    ReminderOperationLock =
-        ReminderOperationLock(),
+    AppOperationGate =
+        AppOperationGate(),
 ) : ReminderCoordinator {
 
     override suspend fun currentStatus():
@@ -51,7 +52,7 @@ class DefaultReminderCoordinator(
     override suspend fun reconcile(
         reason: ReconciliationReason,
     ): ReminderReconciliationResult {
-        return operationLock.withLock {
+        return operationLock.withGate {
             reconcileLocked(
                 reason = reason,
             )
@@ -63,7 +64,7 @@ class DefaultReminderCoordinator(
     ): AlarmFireResult {
         require(occurrenceId.isNotBlank())
 
-        return operationLock.withLock {
+        return operationLock.withGate {
             handleAlarmFiredLocked(
                 occurrenceId =
                     occurrenceId,
@@ -77,7 +78,7 @@ class DefaultReminderCoordinator(
     ): RemindLaterOutcome {
         require(occurrenceId.isNotBlank())
 
-        return operationLock.withLock {
+        return operationLock.withGate {
             remindLaterLocked(
                 occurrenceId =
                     occurrenceId,
@@ -92,7 +93,7 @@ class DefaultReminderCoordinator(
     ) {
         require(occurrenceId.isNotBlank())
 
-        operationLock.withLock {
+        operationLock.withGate {
             recordDiagnostic(
                 type =
                     ReminderDiagnosticEventType
@@ -122,7 +123,7 @@ class DefaultReminderCoordinator(
     }
 
     override suspend fun cancelAllOwnedReminderState() {
-        operationLock.withLock {
+        operationLock.withGate {
             val scheduleAlarmKeys =
                 scheduleSource
                     .getAllScheduleSeriesIds()

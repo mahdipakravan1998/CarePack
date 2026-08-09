@@ -37,11 +37,13 @@ import ir.carepack.reminder.permission.NotificationPermissionGateway
 import ir.carepack.reporting.share.CopyTextResult
 import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.reporting.share.TextShareGateway
+import ir.carepack.settings.deletion.DeletionMarkerCorruptionReason
 import ir.carepack.settings.deletion.MedicationDeletionCoordinator
 import ir.carepack.settings.deletion.MedicationDeletionCounts
 import ir.carepack.settings.deletion.MedicationDeletionDataSource
 import ir.carepack.settings.deletion.MedicationDeletionGraph
 import ir.carepack.settings.deletion.MedicationDeletionMarker
+import ir.carepack.settings.deletion.MedicationDeletionMarkerReadResult
 import ir.carepack.settings.deletion.MedicationDeletionMarkerStage
 import ir.carepack.settings.deletion.MedicationDeletionMarkerStore
 import ir.carepack.settings.deletion.MedicationDeletionPreview
@@ -212,28 +214,6 @@ class InMemoryPrivacyPreferenceStore(
         }
     }
 
-    override suspend fun markDeletionInProgress() {
-        mutableState.update { current ->
-            current.copy(
-                deletionInProgress = true,
-            )
-        }
-    }
-
-    override suspend fun clearAllPreservingDeletionMarker() {
-        mutableState.value =
-            PrivacyPreferenceState(
-                deletionInProgress = true,
-            )
-    }
-
-    override suspend fun completeDeletion() {
-        mutableState.update { current ->
-            current.copy(
-                deletionInProgress = false,
-            )
-        }
-    }
 }
 
 class RecordingTextShareGateway(
@@ -251,6 +231,7 @@ class RecordingTextShareGateway(
 
     override fun share(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): ShareTextResult {
         sharedTexts += text
         return shareResult
@@ -258,6 +239,7 @@ class RecordingTextShareGateway(
 
     override fun copy(
         text: String,
+        descriptor: ir.carepack.reporting.share.ShareDescriptor,
     ): CopyTextResult {
         copiedTexts += text
         return copyResult
@@ -380,16 +362,36 @@ data class RangeReportRequest(
 )
 
 class InMemoryMedicationDeletionMarkerStore(
-    initialMarker:
-    MedicationDeletionMarker? = null,
+    initialMarker: MedicationDeletionMarker? = null,
+    initialCorruption:
+        DeletionMarkerCorruptionReason? = null,
 ) : MedicationDeletionMarkerStore {
 
-    private val mutableMarker =
-        MutableStateFlow(initialMarker)
+    private val mutableState =
+        MutableStateFlow<MedicationDeletionMarkerReadResult>(
+            when {
+                initialCorruption != null ->
+                    MedicationDeletionMarkerReadResult.Corrupted(
+                        initialCorruption,
+                    )
+                initialMarker != null ->
+                    MedicationDeletionMarkerReadResult.Valid(
+                        initialMarker,
+                    )
+                else ->
+                    MedicationDeletionMarkerReadResult.Absent
+            },
+        )
 
-    override val marker:
-            Flow<MedicationDeletionMarker?> =
-        mutableMarker
+    override val state:
+        Flow<MedicationDeletionMarkerReadResult> =
+        mutableState
+
+    val marker: Flow<MedicationDeletionMarker?> =
+        state.map { result ->
+            (result as? MedicationDeletionMarkerReadResult.Valid)
+                ?.marker
+        }
 
     val savedMarkers =
         mutableListOf<MedicationDeletionMarker>()
@@ -401,9 +403,7 @@ class InMemoryMedicationDeletionMarkerStore(
         mutableListOf<String>()
 
     var saveFailure: Throwable? = null
-
     var updateFailure: Throwable? = null
-
     var clearFailure: Throwable? = null
 
     override suspend fun save(
@@ -411,7 +411,8 @@ class InMemoryMedicationDeletionMarkerStore(
     ) {
         saveFailure?.let { throw it }
         savedMarkers += marker
-        mutableMarker.value = marker
+        mutableState.value =
+            MedicationDeletionMarkerReadResult.Valid(marker)
     }
 
     override suspend fun updateStage(
@@ -421,14 +422,19 @@ class InMemoryMedicationDeletionMarkerStore(
         updateFailure?.let { throw it }
         stageUpdates += medicationId to stage
 
-        val current = mutableMarker.value
+        val current =
+            (mutableState.value as?
+                MedicationDeletionMarkerReadResult.Valid)
+                ?.marker
+
         if (
             current != null &&
-            current.expectedPreview.medicationId ==
-            medicationId
+            current.expectedPreview.medicationId == medicationId
         ) {
-            mutableMarker.value =
-                current.copy(stage = stage)
+            mutableState.value =
+                MedicationDeletionMarkerReadResult.Valid(
+                    current.withStage(stage),
+                )
         }
     }
 
@@ -438,12 +444,14 @@ class InMemoryMedicationDeletionMarkerStore(
         clearFailure?.let { throw it }
         clearedMedicationIds += medicationId
 
-        if (
-            mutableMarker.value
-                ?.expectedPreview
-                ?.medicationId == medicationId
-        ) {
-            mutableMarker.value = null
+        val current =
+            (mutableState.value as?
+                MedicationDeletionMarkerReadResult.Valid)
+                ?.marker
+
+        if (current?.expectedPreview?.medicationId == medicationId) {
+            mutableState.value =
+                MedicationDeletionMarkerReadResult.Absent
         }
     }
 }

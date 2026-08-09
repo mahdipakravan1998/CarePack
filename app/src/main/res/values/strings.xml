@@ -66,8 +66,8 @@
     <string name="today_item_due">زمان ثبت این نوبت رسیده است.</string>
     <string name="today_item_upcoming">هنوز زمان ثبت این نوبت نرسیده است.</string>
     <string name="today_item_recording_passed">زمان ثبت این نوبت گذشته است.</string>
-    <string name="today_item_recorded_given">برای این نوبت، مصرف شد ثبت شده است.</string>
-    <string name="today_item_recorded_not_given">برای این نوبت، مصرف نشد ثبت شده است.</string>
+    <string name="today_item_recorded_given">برای این نوبت، مراقب: داده شد ثبت شده است.</string>
+    <string name="today_item_recorded_not_given">برای این نوبت، مراقب: داده نشد ثبت شده است.</string>
     <string name="today_item_recorded_unknown">برای این نوبت، نامشخص ثبت شده است.</string>
     <string name="today_item_cancelled">این نوبت لغو شده است.</string>
     <string name="manage_care_plan">مدیریت برنامه مراقبت</string>
@@ -101,20 +101,20 @@
     <string name="cancel">انصراف</string>
 
     <string name="report_not_recorded">ثبت نشده</string>
-    <string name="report_given">مصرف شد</string>
+    <string name="report_given">مراقب: داده شد</string>
 
     <string name="detail_title">جزئیات نوبت</string>
     <string name="scheduled_time">زمان برنامه‌ریزی‌شده</string>
     <string name="instruction">دستور</string>
-    <string name="record_given">مصرف شد</string>
-    <string name="record_not_given">مصرف نشد</string>
+    <string name="record_given">مراقب: داده شد</string>
+    <string name="record_not_given">مراقب: داده نشد</string>
     <string name="record_unknown">نامشخص</string>
     <string name="reminder_action_title">ثبت نوبت یادآوری</string>
     <string name="reminder_action_primary_actions">اقدام‌های اصلی</string>
     <string name="reminder_action_summary">برای این نوبت یکی از گزینه‌ها را انتخاب کنید. اگر الان آماده نیستید، می‌توانید یادآوری بعدی را ثبت کنید.</string>
     <string name="occurrence_detail_more_details">جزئیات نوبت</string>
-    <string name="already_given">این مورد به‌عنوان مصرف شد ثبت شده است.</string>
-    <string name="already_not_given">این مورد به‌عنوان مصرف نشد ثبت شده است.</string>
+    <string name="already_given">این مورد به‌عنوان مراقب: داده شد ثبت شده است.</string>
+    <string name="already_not_given">این مورد به‌عنوان مراقب: داده نشد ثبت شده است.</string>
     <string name="already_unknown">این مورد به‌عنوان نامشخص ثبت شده است.</string>
     <string name="report_saved">ثبت شد.</string>
     <string name="undo">واگرد</string>
@@ -145,4 +145,14 @@
     <string name="wednesday">چهارشنبه</string>
     <string name="thursday">پنجشنبه</string>
     <string name="friday">جمعه</string>
+    <string name="reminder_health_pending_retry">تغییر ذخیره شد، اما هماهنگ‌سازی یادآوری کامل نشد. برای بازیابی دوباره تلاش کنید.</string>
+    <string name="reminder_health_unavailable">تغییر ذخیره شد، اما یادآوری اکنون در دسترس نیست. تنظیمات سیستم را بررسی کنید و دوباره تلاش کنید.</string>
+    <string name="startup_recovery_corruption_title">بازیابی خودکار ایمن نیست</string>
+    <string name="startup_recovery_corruption_body">وضعیت بازیابی محلی ناقص یا ناسازگار است. برای جلوگیری از بازسازی یادآوری روی داده نامطمئن، برنامه تا رفع این وضعیت ادامه نمی‌دهد. تلاش تکراری خودکار انجام نمی‌شود.</string>
+    <string name="startup_recovery_reset_action">بازنشانی کامل داده‌های محلی</string>
+    <string name="startup_recovery_reset_confirm_title">بازنشانی کامل CarePack؟</string>
+    <string name="startup_recovery_reset_confirm_body">این مسیر تمام داده‌های محلی CarePack را حذف می‌کند. فقط زمانی ادامه دهید که بازیابی معمولی ممکن نیست و می‌خواهید از ابتدا شروع کنید.</string>
+    <string name="startup_recovery_reset_final_title">تأیید نهایی حذف داده‌های محلی</string>
+    <string name="startup_recovery_reset_final_body">پس از بازکردن تنظیمات برنامه، گزینه پاک‌کردن فضای ذخیره‌سازی/داده را انتخاب کنید. این عمل قابل واگرد نیست.</string>
+    <string name="startup_recovery_open_settings">بازکردن تنظیمات برنامه</string>
 </resources>

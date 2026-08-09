@@ -1,5 +1,9 @@
 package ir.carepack.domain.reminder
 
+import ir.carepack.core.error.AppFailureKind
+import ir.carepack.core.error.AppOperationStage
+import ir.carepack.core.error.SafeAppFailure
+
 import java.security.MessageDigest
 import java.time.Instant
 import java.time.LocalDate
@@ -189,6 +193,18 @@ sealed interface ReminderReconciliationResult {
         }
     }
 }
+
+fun ReminderReconciliationResult.recoverableFailureOrNull():
+        SafeAppFailure? =
+    when (this) {
+        is ReminderReconciliationResult.Reconciled -> null
+        is ReminderReconciliationResult.PartialFailure ->
+            SafeAppFailure(
+                kind = AppFailureKind.PLATFORM,
+                stage = AppOperationStage.RECONCILING_REMINDERS,
+                retryable = true,
+            )
+    }
 
 enum class AlarmFireIgnoreReason {
     REMINDERS_DISABLED,

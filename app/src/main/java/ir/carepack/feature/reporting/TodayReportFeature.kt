@@ -45,6 +45,8 @@ import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.report.TodayReportFormatter
 import ir.carepack.reporting.share.CopyTextResult
+import ir.carepack.reporting.share.ShareDescriptor
+import ir.carepack.reporting.share.ShareReportKind
 import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.ui.accessibility.carePackHeading
@@ -125,7 +127,11 @@ class TodayReportViewModel(
 
         val result =
             textShareGateway.copy(
-                reportText,
+                text = reportText,
+                descriptor =
+                    ShareDescriptor(
+                        ShareReportKind.TODAY,
+                    ),
             )
 
         mutableState.update { current ->
@@ -186,7 +192,11 @@ class TodayReportViewModel(
             try {
                 val result =
                     textShareGateway.share(
-                        reportText,
+                        text = reportText,
+                        descriptor =
+                            ShareDescriptor(
+                                ShareReportKind.TODAY,
+                            ),
                     )
 
                 mutableState.update { current ->
@@ -514,7 +524,7 @@ private fun TodayReportScreen(
                     ),
             )
 
-            IncludeRecipientNameToggle(
+            TodayIncludeRecipientNameToggle(
                 checked =
                     state.includeRecipientName,
                 enabled =
@@ -578,7 +588,7 @@ private fun TodayReportScreen(
 }
 
 @Composable
-private fun IncludeRecipientNameToggle(
+private fun TodayIncludeRecipientNameToggle(
     checked: Boolean,
     enabled: Boolean,
     onCheckedChange:

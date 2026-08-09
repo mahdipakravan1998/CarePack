@@ -3,7 +3,7 @@ package ir.carepack.reporting
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.domain.careplan.UpdateScheduleCommand
 import ir.carepack.domain.model.CaregiverReportState
-import ir.carepack.domain.report.RoomTodayReportFormatter
+import ir.carepack.data.service.RoomTodayReportFormatter
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.testing.CarePlanRoomTestFixture
 import java.time.DayOfWeek
@@ -114,25 +114,25 @@ class ReportingIntegrationTest {
 
                 assertTrue(
                     report.contains(
-                        "08:00",
+                        "۰۸:۰۰",
                     ),
                 )
 
                 assertTrue(
                     report.contains(
-                        "20:00",
+                        "۲۰:۰۰",
                     ),
                 )
 
                 assertTrue(
                     report.contains(
-                        "مصرف شد",
+                        "مراقب: داده شد",
                     ),
                 )
 
                 assertTrue(
                     report.contains(
-                        "مصرف نشد",
+                        "مراقب: داده نشد",
                     ),
                 )
 
@@ -265,13 +265,13 @@ class ReportingIntegrationTest {
 
                 assertTrue(
                     report.contains(
-                        "08:00",
+                        "۰۸:۰۰",
                     ),
                 )
 
                 assertTrue(
                     report.contains(
-                        "مصرف شد",
+                        "مراقب: داده شد",
                     ),
                 )
             }

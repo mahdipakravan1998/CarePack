@@ -718,7 +718,7 @@ interface OccurrenceDao {
     @Query(
         """
         SELECT
-            version.scheduleSeriesId AS scheduleSeriesId,
+            series.id AS scheduleSeriesId,
             occurrence.id AS occurrenceId,
             occurrence.localEpochDay AS localEpochDay,
             occurrence.minuteOfDay AS minuteOfDay,
@@ -727,51 +727,36 @@ interface OccurrenceDao {
                 AS scheduledAtEpochMillis,
             occurrence.medicationNameSnapshot
                 AS medicationNameSnapshot
-        FROM occurrences AS occurrence
-        INNER JOIN schedule_versions AS version
-            ON version.id = occurrence.scheduleVersionId
-        INNER JOIN schedule_series AS series
-            ON series.id = version.scheduleSeriesId
+        FROM schedule_series AS series
+        INNER JOIN occurrences AS occurrence
+            ON occurrence.id = (
+                SELECT candidate.id
+                FROM occurrences AS candidate
+                INNER JOIN schedule_versions AS candidateVersion
+                    ON candidateVersion.id =
+                        candidate.scheduleVersionId
+                WHERE candidateVersion.scheduleSeriesId =
+                        series.id
+                  AND candidate.lifecycle = 'ACTIVE'
+                  AND candidate.scheduledAtEpochMillis >
+                        :nowEpochMillis
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM caregiver_reports AS candidateReport
+                      WHERE candidateReport.occurrenceId =
+                            candidate.id
+                  )
+                ORDER BY
+                    candidate.scheduledAtEpochMillis,
+                    candidate.id
+                LIMIT 1
+            )
         INNER JOIN medications AS medication
             ON medication.id = occurrence.medicationId
-        WHERE occurrence.lifecycle = 'ACTIVE'
-          AND occurrence.scheduledAtEpochMillis > :nowEpochMillis
-          AND medication.stoppedAtEpochMillis IS NULL
+        WHERE medication.stoppedAtEpochMillis IS NULL
           AND medication.archivedAtEpochMillis IS NULL
-          AND NOT EXISTS (
-              SELECT 1
-              FROM caregiver_reports AS report
-              WHERE report.occurrenceId = occurrence.id
-          )
-          AND NOT EXISTS (
-              SELECT 1
-              FROM occurrences AS earlierOccurrence
-              INNER JOIN schedule_versions AS earlierVersion
-                  ON earlierVersion.id = earlierOccurrence.scheduleVersionId
-              WHERE earlierVersion.scheduleSeriesId =
-                    version.scheduleSeriesId
-                AND earlierOccurrence.lifecycle = 'ACTIVE'
-                AND earlierOccurrence.scheduledAtEpochMillis >
-                    :nowEpochMillis
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM caregiver_reports AS earlierReport
-                    WHERE earlierReport.occurrenceId =
-                        earlierOccurrence.id
-                )
-                AND (
-                    earlierOccurrence.scheduledAtEpochMillis <
-                        occurrence.scheduledAtEpochMillis
-                    OR (
-                        earlierOccurrence.scheduledAtEpochMillis =
-                            occurrence.scheduledAtEpochMillis
-                        AND earlierOccurrence.id <
-                            occurrence.id
-                    )
-                )
-          )
         ORDER BY
-            version.scheduleSeriesId,
+            series.id,
             occurrence.scheduledAtEpochMillis,
             occurrence.id
         """,

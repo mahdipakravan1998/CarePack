@@ -1,4 +1,4 @@
-package ir.carepack.domain.occurrence
+package ir.carepack.data.service
 
 import androidx.room.withTransaction
 import ir.carepack.core.id.IdSource
@@ -7,6 +7,13 @@ import ir.carepack.data.local.OccurrenceEntity
 import ir.carepack.data.local.ScheduleDefinitionRow
 import ir.carepack.domain.model.OccurrenceLifecycle
 import ir.carepack.domain.model.ScheduleDefinition
+import ir.carepack.domain.occurrence.GenerationSummary
+import ir.carepack.domain.occurrence.GuaranteedOccurrence
+import ir.carepack.domain.occurrence.OccurrenceCandidate
+import ir.carepack.domain.occurrence.OccurrenceCandidateResolver
+import ir.carepack.domain.occurrence.OccurrenceGenerationDateWindow
+import ir.carepack.domain.occurrence.OccurrenceGenerationWindow
+import ir.carepack.domain.occurrence.OccurrenceGenerator
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.IntervalSchedule
 import ir.carepack.domain.schedule.SchedulePattern
@@ -18,47 +25,64 @@ class RoomOccurrenceGenerator(
     private val database: CarePackDatabase,
     private val idSource: IdSource,
     private val candidateResolver:
-    OccurrenceCandidateResolver,
+        OccurrenceCandidateResolver,
 ) : OccurrenceGenerator {
 
     override suspend fun guaranteeWindowForSchedule(
         scheduleVersionId: String,
         anchorDate: LocalDate,
         now: Instant,
-    ): GenerationSummary {
-        return database.withTransaction {
+    ): GenerationSummary =
+        database.withTransaction {
             generateVersionInCurrentTransaction(
-                scheduleVersionId =
-                    scheduleVersionId,
-                anchorDate = anchorDate,
+                scheduleVersionId = scheduleVersionId,
+                window =
+                    OccurrenceGenerationWindow.around(
+                        anchorDate,
+                    ),
                 now = now,
             )
         }
-    }
 
     override suspend fun guaranteeWindowForAll(
         anchorDate: LocalDate,
         now: Instant,
-    ): GenerationSummary {
-        return database.withTransaction {
+    ): GenerationSummary =
+        guaranteeWindowForAll(
+            window =
+                OccurrenceGenerationWindow.around(
+                    anchorDate,
+                ),
+            now = now,
+        )
+
+    override suspend fun guaranteeMaintenanceWindowForAll(
+        anchorDate: LocalDate,
+        now: Instant,
+    ): GenerationSummary =
+        guaranteeWindowForAll(
+            window =
+                OccurrenceGenerationWindow.maintenance(
+                    anchorDate,
+                ),
+            now = now,
+        )
+
+    private suspend fun guaranteeWindowForAll(
+        window: OccurrenceGenerationDateWindow,
+        now: Instant,
+    ): GenerationSummary =
+        database.withTransaction {
             val broadWindowStart =
-                anchorDate
-                    .minusDays(
-                        OccurrenceGenerationWindow.RADIUS_DAYS + 1,
-                    )
-                    .atStartOfDay(
-                        ZoneOffset.UTC,
-                    )
+                window.firstDate
+                    .minusDays(2L)
+                    .atStartOfDay(ZoneOffset.UTC)
                     .toInstant()
 
             val broadWindowEndExclusive =
-                anchorDate
-                    .plusDays(
-                        OccurrenceGenerationWindow.RADIUS_DAYS + 2,
-                    )
-                    .atStartOfDay(
-                        ZoneOffset.UTC,
-                    )
+                window.lastDate
+                    .plusDays(3L)
+                    .atStartOfDay(ZoneOffset.UTC)
                     .toInstant()
 
             val versionIds =
@@ -66,8 +90,7 @@ class RoomOccurrenceGenerator(
                     .scheduleDao()
                     .getGenerationVersionIds(
                         windowStartEpochMillis =
-                            broadWindowStart
-                                .toEpochMilli(),
+                            broadWindowStart.toEpochMilli(),
                         windowEndExclusiveEpochMillis =
                             broadWindowEndExclusive
                                 .toEpochMilli(),
@@ -75,23 +98,18 @@ class RoomOccurrenceGenerator(
 
             val guaranteed =
                 mutableListOf<GuaranteedOccurrence>()
-
             var skipped = 0
 
             versionIds.forEach { versionId ->
                 val summary =
                     generateVersionInCurrentTransaction(
-                        scheduleVersionId =
-                            versionId,
-                        anchorDate = anchorDate,
+                        scheduleVersionId = versionId,
+                        window = window,
                         now = now,
                     )
 
-                guaranteed +=
-                    summary.occurrences
-
-                skipped +=
-                    summary.skippedCandidateCount
+                guaranteed += summary.occurrences
+                skipped += summary.skippedCandidateCount
             }
 
             GenerationSummary(
@@ -99,11 +117,10 @@ class RoomOccurrenceGenerator(
                 skippedCandidateCount = skipped,
             )
         }
-    }
 
     private suspend fun generateVersionInCurrentTransaction(
         scheduleVersionId: String,
-        anchorDate: LocalDate,
+        window: OccurrenceGenerationDateWindow,
         now: Instant,
     ): GenerationSummary {
         val definitions =
@@ -112,42 +129,34 @@ class RoomOccurrenceGenerator(
                 .getDefinitionsForVersion(
                     scheduleVersionId,
                 )
-                .map(
-                    ScheduleDefinitionRow::toDomain,
-                )
+                .map(ScheduleDefinitionRow::toDomain)
 
         val guaranteed =
             mutableListOf<GuaranteedOccurrence>()
-
         var skipped = 0
 
-        OccurrenceGenerationWindow
-            .around(
-                anchorDate,
-            )
-            .dates()
-            .forEach { date ->
-                definitions.forEach { definition ->
-                    val candidate =
-                        candidateResolver.resolve(
-                            definition = definition,
-                            anchorDate = date,
-                        )
+        window.dates().forEach { date ->
+            definitions.forEach { definition ->
+                val candidates =
+                    candidateResolver.resolveAll(
+                        definition = definition,
+                        anchorDate = date,
+                    )
 
-                    if (candidate == null) {
-                        skipped += 1
-                    } else {
+                if (candidates.isEmpty()) {
+                    skipped += 1
+                } else {
+                    candidates.forEach { candidate ->
                         guaranteed +=
                             guaranteeCandidate(
-                                definition =
-                                    definition,
-                                candidate =
-                                    candidate,
+                                definition = definition,
+                                candidate = candidate,
                                 now = now,
                             )
                     }
                 }
             }
+        }
 
         return GenerationSummary(
             occurrences = guaranteed,
@@ -160,60 +169,44 @@ class RoomOccurrenceGenerator(
         candidate: OccurrenceCandidate,
         now: Instant,
     ): GuaranteedOccurrence {
-        val proposedId =
-            idSource.nextId()
+        val proposedId = idSource.nextId()
 
         val proposed =
             OccurrenceEntity(
                 id = proposedId,
                 scheduleVersionId =
-                    definition
-                        .scheduleVersionId,
+                    definition.scheduleVersionId,
                 medicationId =
                     definition.medicationId,
                 localEpochDay =
-                    candidate
-                        .localDate
-                        .toEpochDay(),
+                    candidate.localDate.toEpochDay(),
                 minuteOfDay =
                     candidate.minuteOfDay,
                 zoneIdSnapshot =
                     candidate.zoneId,
                 scheduledAtEpochMillis =
-                    candidate
-                        .scheduledAt
-                        .toEpochMilli(),
+                    candidate.scheduledAt.toEpochMilli(),
                 medicationNameSnapshot =
-                    definition
-                        .medicationNameSnapshot,
+                    definition.medicationNameSnapshot,
                 instructionSnapshot =
-                    definition
-                        .medicationInstructionSnapshot,
+                    definition.medicationInstructionSnapshot,
                 medicationTypeSnapshot =
-                    definition
-                        .medicationTypeSnapshot,
+                    definition.medicationTypeSnapshot,
                 dosageTextSnapshot =
-                    definition
-                        .dosageTextSnapshot,
+                    definition.dosageTextSnapshot,
                 doseUnitSnapshot =
-                    definition
-                        .doseUnitSnapshot,
+                    definition.doseUnitSnapshot,
                 lifecycle =
-                    OccurrenceLifecycle
-                        .ACTIVE
-                        .name,
+                    OccurrenceLifecycle.ACTIVE.name,
                 cancelledAtEpochMillis = null,
                 cancellationReason = null,
-                createdAtEpochMillis =
-                    now.toEpochMilli(),
+                createdAtEpochMillis = now.toEpochMilli(),
             )
 
         val insertResult =
             database
                 .occurrenceDao()
-                .insertIgnoringLogicalConflict(
-                    proposed,
-                )
+                .insertIgnoringLogicalConflict(proposed)
 
         val persisted =
             if (insertResult == -1L) {
@@ -222,12 +215,9 @@ class RoomOccurrenceGenerator(
                         .occurrenceDao()
                         .getByLogicalKey(
                             scheduleVersionId =
-                                definition
-                                    .scheduleVersionId,
+                                definition.scheduleVersionId,
                             localEpochDay =
-                                candidate
-                                    .localDate
-                                    .toEpochDay(),
+                                candidate.localDate.toEpochDay(),
                             minuteOfDay =
                                 candidate.minuteOfDay,
                         ),
@@ -236,9 +226,7 @@ class RoomOccurrenceGenerator(
                 checkNotNull(
                     database
                         .occurrenceDao()
-                        .getById(
-                            proposedId,
-                        ),
+                        .getById(proposedId),
                 )
             }
 
@@ -249,8 +237,7 @@ class RoomOccurrenceGenerator(
 
         return GuaranteedOccurrence(
             occurrenceId = persisted.id,
-            wasCreated =
-                insertResult != -1L,
+            wasCreated = insertResult != -1L,
         )
     }
 
@@ -258,116 +245,69 @@ class RoomOccurrenceGenerator(
         expected: OccurrenceEntity,
         actual: OccurrenceEntity,
     ) {
-        check(
-            actual.scheduleVersionId ==
-                    expected.scheduleVersionId,
-        )
-
-        check(
-            actual.medicationId ==
-                    expected.medicationId,
-        )
-
-        check(
-            actual.localEpochDay ==
-                    expected.localEpochDay,
-        )
-
-        check(
-            actual.minuteOfDay ==
-                    expected.minuteOfDay,
-        )
-
-        check(
-            actual.zoneIdSnapshot ==
-                    expected.zoneIdSnapshot,
-        )
-
+        check(actual.scheduleVersionId == expected.scheduleVersionId)
+        check(actual.medicationId == expected.medicationId)
+        check(actual.localEpochDay == expected.localEpochDay)
+        check(actual.minuteOfDay == expected.minuteOfDay)
+        check(actual.zoneIdSnapshot == expected.zoneIdSnapshot)
         check(
             actual.scheduledAtEpochMillis ==
-                    expected.scheduledAtEpochMillis,
+                expected.scheduledAtEpochMillis,
         )
-
         check(
             actual.medicationNameSnapshot ==
-                    expected.medicationNameSnapshot,
+                expected.medicationNameSnapshot,
         )
-
         check(
             actual.instructionSnapshot ==
-                    expected.instructionSnapshot,
+                expected.instructionSnapshot,
         )
-
         check(
             actual.medicationTypeSnapshot ==
-                    expected.medicationTypeSnapshot,
+                expected.medicationTypeSnapshot,
         )
-
         check(
             actual.dosageTextSnapshot ==
-                    expected.dosageTextSnapshot,
+                expected.dosageTextSnapshot,
         )
-
         check(
             actual.doseUnitSnapshot ==
-                    expected.doseUnitSnapshot,
+                expected.doseUnitSnapshot,
         )
     }
-
 }
 
-private fun ScheduleDefinitionRow.toDomain():
-        ScheduleDefinition {
-    return ScheduleDefinition(
-        scheduleVersionId =
-            scheduleVersionId,
-        scheduleSeriesId =
-            scheduleSeriesId,
-        medicationId =
-            medicationId,
-        weekdayMask =
-            weekdayMask,
-        minuteOfDay =
-            minuteOfDay,
+private fun ScheduleDefinitionRow.toDomain(): ScheduleDefinition =
+    ScheduleDefinition(
+        scheduleVersionId = scheduleVersionId,
+        scheduleSeriesId = scheduleSeriesId,
+        medicationId = medicationId,
+        weekdayMask = weekdayMask,
+        minuteOfDay = minuteOfDay,
         schedulePattern =
             toSchedulePattern(
                 patternType = patternType,
                 intervalHours = intervalHours,
-                anchorMinuteOfDay =
-                    anchorMinuteOfDay,
-                fallbackMinuteOfDay =
-                    minuteOfDay,
+                anchorMinuteOfDay = anchorMinuteOfDay,
+                fallbackMinuteOfDay = minuteOfDay,
             ),
-        zoneId =
-            zoneId,
+        zoneId = zoneId,
         effectiveFrom =
-            Instant.ofEpochMilli(
-                effectiveFromEpochMillis,
-            ),
+            Instant.ofEpochMilli(effectiveFromEpochMillis),
         effectiveUntil =
             effectiveUntilEpochMillis?.let(
                 Instant::ofEpochMilli,
             ),
         startDate =
-            startEpochDay?.let(
-                LocalDate::ofEpochDay,
-            ),
+            startEpochDay?.let(LocalDate::ofEpochDay),
         endDate =
-            endEpochDay?.let(
-                LocalDate::ofEpochDay,
-            ),
-        medicationNameSnapshot =
-            medicationNameSnapshot,
-        medicationInstructionSnapshot =
-            instructionSnapshot,
-        medicationTypeSnapshot =
-            medicationTypeSnapshot,
-        dosageTextSnapshot =
-            dosageTextSnapshot,
-        doseUnitSnapshot =
-            doseUnitSnapshot,
+            endEpochDay?.let(LocalDate::ofEpochDay),
+        medicationNameSnapshot = medicationNameSnapshot,
+        medicationInstructionSnapshot = instructionSnapshot,
+        medicationTypeSnapshot = medicationTypeSnapshot,
+        dosageTextSnapshot = dosageTextSnapshot,
+        doseUnitSnapshot = doseUnitSnapshot,
     )
-}
 
 private fun toSchedulePattern(
     patternType: String,
@@ -378,8 +318,7 @@ private fun toSchedulePattern(
     when (patternType) {
         PATTERN_TYPE_INTERVAL ->
             IntervalSchedule(
-                intervalHours =
-                    checkNotNull(intervalHours),
+                intervalHours = checkNotNull(intervalHours),
                 anchorMinuteOfDay =
                     checkNotNull(anchorMinuteOfDay),
             )
@@ -387,9 +326,7 @@ private fun toSchedulePattern(
         else ->
             FixedTimeSchedule(
                 minutesOfDay =
-                    listOf(
-                        fallbackMinuteOfDay,
-                    ),
+                    listOf(fallbackMinuteOfDay),
             )
     }
 

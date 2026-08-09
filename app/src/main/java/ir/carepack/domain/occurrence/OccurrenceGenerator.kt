@@ -9,21 +9,14 @@ data class GuaranteedOccurrence(
 )
 
 data class GenerationSummary(
-    val occurrences:
-    List<GuaranteedOccurrence>,
+    val occurrences: List<GuaranteedOccurrence>,
     val skippedCandidateCount: Int,
 ) {
     val insertedCount: Int
-        get() =
-            occurrences.count {
-                it.wasCreated
-            }
+        get() = occurrences.count { it.wasCreated }
 
     val existingCount: Int
-        get() =
-            occurrences.count {
-                !it.wasCreated
-            }
+        get() = occurrences.count { !it.wasCreated }
 }
 
 interface OccurrenceGenerator {
@@ -35,6 +28,11 @@ interface OccurrenceGenerator {
     ): GenerationSummary
 
     suspend fun guaranteeWindowForAll(
+        anchorDate: LocalDate,
+        now: Instant,
+    ): GenerationSummary
+
+    suspend fun guaranteeMaintenanceWindowForAll(
         anchorDate: LocalDate,
         now: Instant,
     ): GenerationSummary

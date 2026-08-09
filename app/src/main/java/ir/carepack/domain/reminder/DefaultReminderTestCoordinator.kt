@@ -1,5 +1,6 @@
 package ir.carepack.domain.reminder
 
+import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
 import ir.carepack.reminder.alarm.ReminderTestAlarmGateway
 import ir.carepack.reminder.alarm.ReminderTestAlarmRequest
@@ -21,7 +22,7 @@ class DefaultReminderTestCoordinator(
     ReminderTestNotificationGateway,
     private val clock: Clock,
     private val operationLock:
-    ReminderOperationLock,
+    AppOperationGate,
 ) : ReminderTestCoordinator {
 
     override suspend fun scheduleTestReminder(
@@ -29,7 +30,7 @@ class DefaultReminderTestCoordinator(
     ): ReminderTestScheduleResult {
         require(delaySeconds > 0L)
 
-        return operationLock.withLock {
+        return operationLock.withGate {
             try {
                 cancelExistingTestLocked()
 
@@ -37,7 +38,7 @@ class DefaultReminderTestCoordinator(
                     !notificationPermissionGateway
                         .isPermissionGranted()
                 ) {
-                    return@withLock ReminderTestScheduleResult
+                    return@withGate ReminderTestScheduleResult
                         .NotificationPermissionRequired
                 }
 
@@ -64,7 +65,7 @@ class DefaultReminderTestCoordinator(
                         preferredMode =
                             preferredMode,
                     )
-                        ?: return@withLock ReminderTestScheduleResult
+                        ?: return@withGate ReminderTestScheduleResult
                             .SchedulingUnavailable
 
                 ReminderTestScheduleResult.Scheduled(
@@ -92,12 +93,12 @@ class DefaultReminderTestCoordinator(
 
     override suspend fun handleTestAlarmFired():
             ReminderTestFireResult =
-        operationLock.withLock {
+        operationLock.withGate {
             if (
                 !notificationPermissionGateway
                     .isPermissionGranted()
             ) {
-                return@withLock ReminderTestFireResult
+                return@withGate ReminderTestFireResult
                     .NotificationPermissionUnavailable
             }
 
@@ -122,7 +123,7 @@ class DefaultReminderTestCoordinator(
         }
 
     override suspend fun cancelPendingTest() {
-        operationLock.withLock {
+        operationLock.withGate {
             cancelExistingTestLocked()
         }
     }
