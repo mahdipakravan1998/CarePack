@@ -9,70 +9,55 @@ import androidx.core.content.ContextCompat
 
 interface NotificationPermissionGateway {
 
-    fun isPermissionGranted():
-            Boolean
+    fun isPermissionGranted(): Boolean
 
-    fun requiresRuntimePermission():
-            Boolean
+    fun requiresRuntimePermission(): Boolean
 }
 
 class AndroidNotificationPermissionGateway(
     context: Context,
 ) : NotificationPermissionGateway {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    override fun isPermissionGranted():
-            Boolean {
+    override fun isPermissionGranted(): Boolean {
         if (!requiresRuntimePermission()) {
             return true
         }
 
-        return ContextCompat
-            .checkSelfPermission(
+        return ContextCompat.checkSelfPermission(
                 applicationContext,
-                Manifest.permission
-                    .POST_NOTIFICATIONS,
-            ) ==
-                PackageManager
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager
                     .PERMISSION_GRANTED
     }
 
-    override fun requiresRuntimePermission():
-            Boolean {
-        return Build.VERSION.SDK_INT >=
-                Build.VERSION_CODES.TIRAMISU
+    override fun requiresRuntimePermission(): Boolean {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
     }
 }
 
 interface ExactAlarmCapabilityGateway {
 
-    fun canScheduleExactAlarms():
-            Boolean
+    fun canScheduleExactAlarms(): Boolean
 }
 
 class AndroidExactAlarmCapabilityGateway(
     context: Context,
 ) : ExactAlarmCapabilityGateway {
 
-    private val alarmManager =
-        checkNotNull(
-            context
-                .applicationContext
+    private val alarmManager = checkNotNull(
+            context.applicationContext
                 .getSystemService(
                     AlarmManager::class.java,
                 ),
         )
 
-    override fun canScheduleExactAlarms():
-            Boolean {
+    override fun canScheduleExactAlarms(): Boolean {
         return if (
-            Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.S
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         ) {
-            alarmManager
-                .canScheduleExactAlarms()
+            alarmManager.canScheduleExactAlarms()
         } else {
             true
         }

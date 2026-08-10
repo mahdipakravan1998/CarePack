@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.app.CarePackApp
+import ir.carepack.app.CarePackUiDependencies
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.experience.SeniorMode
@@ -490,58 +491,61 @@ class OnboardingComposeTest {
                         .seniorMode,
             ) {
                 CarePackApp(
-                    carePlanService =
-                        fixture.carePlanService,
-                    todayQueryService =
-                        fixture.todayQueryService,
-                    caregiverReportService =
-                        fixture.reportService,
-                    setupPreferenceStore =
-                        setupPreferenceStore,
-                    reminderPreferenceStore =
-                        OnboardingReminderPreferenceStore(),
-                    reminderCoordinator =
-                        OnboardingReminderCoordinator(),
-                    reminderTestCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedReminderTestCoordinator(),
-                    notificationPermissionGateway =
-                        OnboardingNotificationPermissionGateway(),
-                    todayReportFormatter =
-                        RoomTodayReportFormatter(
-                            database =
-                                fixture.database,
+                    dependencies =
+                        CarePackUiDependencies(
+                            carePlanService =
+                                fixture.carePlanService,
+                            todayQueryService =
+                                fixture.todayQueryService,
+                            caregiverReportService =
+                                fixture.reportService,
+                            setupPreferenceStore =
+                                setupPreferenceStore,
+                            reminderPreferenceStore =
+                                OnboardingReminderPreferenceStore(),
+                            reminderCoordinator =
+                                OnboardingReminderCoordinator(),
+                            reminderTestCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedReminderTestCoordinator(),
+                            notificationPermissionGateway =
+                                OnboardingNotificationPermissionGateway(),
+                            todayReportFormatter =
+                                RoomTodayReportFormatter(
+                                    database =
+                                        fixture.database,
+                                ),
+                            dateRangeSummaryService =
+                                ir.carepack.data.service.RoomDateRangeSummaryService(
+                                        database =
+                                            fixture.database,
+                                    ),
+                            rangeReportFormatter =
+                                ir.carepack.data.service.RoomRangeReportFormatter(
+                                        database =
+                                            fixture.database,
+                                        summaryService =
+                                            ir.carepack.data.service.RoomDateRangeSummaryService(
+                                                    database =
+                                                        fixture.database,
+                                                ),
+                                    ),
+                            privacyPreferenceStore =
+                                InstrumentedPrivacyPreferenceStore(),
+                            userExperiencePreferenceStore =
+                                userExperiencePreferenceStore,
+                            textShareGateway =
+                                RecordingTextShareGateway(),
+                            dataDeletionCoordinator =
+                                RecordingDataDeletionCoordinator(),
+                            medicationDeletionCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedMedicationDeletionCoordinator(),
+                            clock =
+                                fixture.clock,
+                            zoneProvider =
+                                zoneProvider,
                         ),
-                    dateRangeSummaryService =
-                        ir.carepack.data.service.RoomDateRangeSummaryService(
-                                database =
-                                    fixture.database,
-                            ),
-                    rangeReportFormatter =
-                        ir.carepack.data.service.RoomRangeReportFormatter(
-                                database =
-                                    fixture.database,
-                                summaryService =
-                                    ir.carepack.data.service.RoomDateRangeSummaryService(
-                                            database =
-                                                fixture.database,
-                                        ),
-                            ),
-                    privacyPreferenceStore =
-                        InstrumentedPrivacyPreferenceStore(),
-                    userExperiencePreferenceStore =
-                        userExperiencePreferenceStore,
-                    textShareGateway =
-                        RecordingTextShareGateway(),
-                    dataDeletionCoordinator =
-                        RecordingDataDeletionCoordinator(),
-                    medicationDeletionCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedMedicationDeletionCoordinator(),
-                    clock =
-                        fixture.clock,
-                    zoneProvider =
-                        zoneProvider,
                 )
             }
         }

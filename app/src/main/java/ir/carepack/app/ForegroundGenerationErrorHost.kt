@@ -23,48 +23,38 @@ fun ForegroundGenerationErrorHost(
     onRetry: () -> Unit,
     content: @Composable () -> Unit,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Box(
-        modifier =
-            Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     ) {
         content()
 
         if (errorMessage != null) {
             Snackbar(
-                modifier =
-                    Modifier
+                modifier = Modifier
                         .align(
                             Alignment.BottomCenter,
-                        )
-                        .navigationBarsPadding()
+                        ).navigationBarsPadding()
                         .padding(
-                            horizontal =
-                                experience
+                            horizontal = experience
                                     .screenHorizontalPadding,
-                            vertical =
-                                experience
+                            vertical = experience
                                     .compactSpacing,
-                        )
-                        .carePackPoliteLiveRegion()
+                        ).carePackPoliteLiveRegion()
                         .testTag(
                             "foreground_generation_error",
                         ),
                 action = {
                     TextButton(
                         onClick = onRetry,
-                        modifier =
-                            Modifier
-                                .carePackInteractiveControl()
-                                .testTag(
+                        modifier = Modifier
+                                .carePackInteractiveControl().testTag(
                                     "foreground_generation_retry",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
+                            text = stringResource(
                                     R.string.retry_action,
                                 ),
                         )

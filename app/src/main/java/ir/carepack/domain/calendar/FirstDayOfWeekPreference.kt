@@ -15,8 +15,7 @@ object FirstDayOfWeekPolicy {
         preference: FirstDayOfWeekPreference,
         zoneId: ZoneId,
         locale: Locale,
-    ): DayOfWeek =
-        when (preference) {
+    ): DayOfWeek = when (preference) {
             FirstDayOfWeekPreference.SATURDAY ->
                 DayOfWeek.SATURDAY
 
@@ -34,13 +33,11 @@ object FirstDayOfWeekPolicy {
     private fun usesIranianWeekStart(
         zoneId: ZoneId,
         locale: Locale,
-    ): Boolean =
-        zoneId.id == IRAN_ZONE_ID ||
+    ): Boolean = zoneId.id == IRAN_ZONE_ID ||
                 locale.country.equals(
                     IRAN_COUNTRY_CODE,
                     ignoreCase = true,
-                ) ||
-                locale.language.equals(
+                ) || locale.language.equals(
                     PERSIAN_LANGUAGE_CODE,
                     ignoreCase = true,
                 )

@@ -45,10 +45,8 @@ data class ScheduleDefinition(
     val medicationId: String,
     val weekdayMask: Int,
     val minuteOfDay: Int,
-    val schedulePattern: SchedulePattern =
-        FixedTimeSchedule(
-            minutesOfDay =
-                listOf(
+    val schedulePattern: SchedulePattern = FixedTimeSchedule(
+            minutesOfDay = listOf(
                     minuteOfDay,
                 ),
         ),
@@ -73,8 +71,7 @@ data class TodayItem(
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val scheduledAt: Instant = Instant.EPOCH,
-    val temporalStatus: TemporalStatus =
-        TemporalStatus.UPCOMING,
+    val temporalStatus: TemporalStatus = TemporalStatus.UPCOMING,
     val isOverdue: Boolean = false,
     val medicationType: String = "",
     val dosageText: String = "",
@@ -97,11 +94,9 @@ data class OccurrenceDetail(
     val lifecycle: OccurrenceLifecycle,
     val reportState: CaregiverReportState?,
     val zoneId: String = "UTC",
-    val temporalStatus: TemporalStatus =
-        TemporalStatus.UPCOMING,
+    val temporalStatus: TemporalStatus = TemporalStatus.UPCOMING,
     val isOverdue: Boolean = false,
-    val cancellationReason:
-    OccurrenceCancellationReason? = null,
+    val cancellationReason: OccurrenceCancellationReason? = null,
     val medicationType: String = "",
     val dosageText: String = "",
     val doseUnit: String = "",

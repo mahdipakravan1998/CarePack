@@ -1,60 +1,15 @@
 package ir.carepack.feature.reminder
 
-import android.Manifest
-import android.content.Intent
-import android.net.Uri
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import android.os.Build
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import ir.carepack.R
 import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ExactAlarmReadiness
-import ir.carepack.domain.reminder.ManufacturerGuidance
 import ir.carepack.domain.reminder.NotificationPermissionReadiness
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
@@ -65,19 +20,11 @@ import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.reminder.recoverableFailureOrNull
 import ir.carepack.domain.reminder.ReminderReadiness
 import ir.carepack.domain.reminder.ReminderReadinessPolicy
-import ir.carepack.domain.reminder.ReminderReadinessStatus
 import ir.carepack.domain.reminder.ReminderStatus
 import ir.carepack.domain.reminder.ReminderTestCoordinator
 import ir.carepack.domain.reminder.ReminderTestScheduleResult
-import ir.carepack.reminder.permission.AndroidBatteryOptimizationGateway
 import ir.carepack.reminder.permission.BatteryOptimizationState
 import ir.carepack.reminder.permission.NotificationPermissionGateway
-import ir.carepack.ui.accessibility.carePackHeading
-import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
-import ir.carepack.ui.accessibility.carePackPrimaryAction
-import ir.carepack.ui.experience.CarePackExperience
-import ir.carepack.ui.experience.LocalCarePackExperience
-import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
@@ -109,84 +56,61 @@ data class ReminderSettingsUiState(
     val isLoading: Boolean = true,
     val isApplying: Boolean = false,
     val remindersEnabled: Boolean = false,
-    val notificationPermissionState:
-    NotificationPermissionUiState =
+    val notificationPermissionState: NotificationPermissionUiState =
         NotificationPermissionUiState.DENIED,
-    val notificationRuntimePermissionRequired:
-    Boolean = false,
+    val notificationRuntimePermissionRequired: Boolean = false,
     val hasActiveSchedule: Boolean = false,
-    val exactAlarmCapabilityGranted:
-    Boolean = false,
-    val availability: ReminderAvailability =
-        ReminderAvailability.DISABLED,
+    val exactAlarmCapabilityGranted: Boolean = false,
+    val availability: ReminderAvailability = ReminderAvailability.DISABLED,
     val readiness: ReminderReadiness? = null,
-    val showNotificationRationale:
-    Boolean = false,
-    val showExactAlarmRationale:
-    Boolean = false,
-    val showOemGuidance:
-    Boolean = true,
+    val showNotificationRationale: Boolean = false,
+    val showExactAlarmRationale: Boolean = false,
+    val showOemGuidance: Boolean = true,
     val seniorMode: SeniorMode = SeniorMode.STANDARD,
     val health: ReminderHealth = ReminderHealth.Healthy,
     val isSchedulingTest: Boolean = false,
-    val reminderTestStatus:
-    ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
+    val reminderTestStatus: ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
     val reminderTestScheduledAt: Instant? = null,
     val errorMessage: String? = null,
 )
 
 private data class ReminderSettingsTransientState(
     val isApplying: Boolean = false,
-    val showNotificationRationale:
-    Boolean = false,
-    val showExactAlarmRationale:
-    Boolean = false,
-    val showOemGuidance:
-    Boolean = true,
+    val showNotificationRationale: Boolean = false,
+    val showExactAlarmRationale: Boolean = false,
+    val showOemGuidance: Boolean = true,
     val isSchedulingTest: Boolean = false,
-    val reminderTestStatus:
-    ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
+    val reminderTestStatus: ReminderTestUiStatus = ReminderTestUiStatus.IDLE,
     val reminderTestScheduledAt: Instant? = null,
     val errorMessage: String? = null,
 )
 
 class ReminderSettingsViewModel(
-    private val preferenceStore:
-    ReminderPreferenceStore,
-    private val reminderCoordinator:
-    ReminderCoordinator,
-    private val reminderTestCoordinator:
-    ReminderTestCoordinator,
-    private val notificationPermissionGateway:
-    NotificationPermissionGateway,
-    private val userExperiencePreferenceStore:
-    UserExperiencePreferenceStore,
+    private val preferenceStore: ReminderPreferenceStore,
+    private val reminderCoordinator: ReminderCoordinator,
+    private val reminderTestCoordinator: ReminderTestCoordinator,
+    private val notificationPermissionGateway: NotificationPermissionGateway,
+    private val userExperiencePreferenceStore: UserExperiencePreferenceStore,
     private val clock: Clock = Clock.systemUTC(),
-    private val batteryOptimizationState:
-        () -> BatteryOptimizationState = {
+    private val batteryOptimizationState: () -> BatteryOptimizationState = {
         BatteryOptimizationState.UNKNOWN
     },
-    private val manufacturer:
-        () -> String? = {
+    private val manufacturer: () -> String? = {
         Build.MANUFACTURER
     },
 ) : ViewModel() {
 
-    private val operationMutex =
-        Mutex()
+    private val operationMutex = Mutex()
 
-    private val mutableStatus =
-        MutableStateFlow<ReminderStatus?>(
+    private val mutableStatus = MutableStateFlow<ReminderStatus?>(
             null,
         )
 
-    private val mutableTransientState =
-        MutableStateFlow(
+    private val mutableTransientState = MutableStateFlow(
             ReminderSettingsTransientState(),
         )
 
-    val state =
-        combine(
+    val state = combine(
             preferenceStore.state,
             mutableStatus,
             mutableTransientState,
@@ -196,112 +120,74 @@ class ReminderSettingsViewModel(
                 status,
                 transientState,
                 userExperienceState ->
-            val runtimePermissionRequired =
-                notificationPermissionGateway
+            val runtimePermissionRequired = notificationPermissionGateway
                     .requiresRuntimePermission()
 
-            val permissionUiState =
-                permissionUiStateFor(
-                    runtimePermissionRequired =
-                        runtimePermissionRequired,
-                    status =
-                        status,
+            val permissionUiState = permissionUiStateFor(
+                    runtimePermissionRequired = runtimePermissionRequired,
+                    status = status,
                 )
 
-            val readiness =
-                status?.let {
+            val readiness = status?.let {
                         currentStatus ->
                     ReminderReadinessPolicy.evaluate(
-                        remindersEnabled =
-                            preferenceState
+                        remindersEnabled = preferenceState
                                 .remindersEnabled,
-                        hasActiveSchedule =
-                            currentStatus
+                        hasActiveSchedule = currentStatus
                                 .hasActiveSchedule,
-                        notificationRuntimePermissionRequired =
-                            runtimePermissionRequired,
-                        notificationPermissionGranted =
-                            currentStatus
+                        notificationRuntimePermissionRequired = runtimePermissionRequired,
+                        notificationPermissionGranted = currentStatus
                                 .notificationPermissionGranted,
-                        canScheduleExactAlarms =
-                            currentStatus
+                        canScheduleExactAlarms = currentStatus
                                 .exactAlarmCapabilityGranted,
-                        exactAlarmRelevant =
-                            currentStatus
-                                .hasActiveSchedule &&
-                                    preferenceState
+                        exactAlarmRelevant = currentStatus
+                                .hasActiveSchedule && preferenceState
                                         .remindersEnabled,
-                        batteryOptimizationState =
-                            batteryOptimizationState(),
-                        manufacturer =
-                            manufacturer(),
+                        batteryOptimizationState = batteryOptimizationState(),
+                        manufacturer = manufacturer(),
                     )
                 }
 
             ReminderSettingsUiState(
-                isLoading =
-                    status == null,
-                isApplying =
-                    transientState
+                isLoading = status == null,
+                isApplying = transientState
                         .isApplying,
-                remindersEnabled =
-                    preferenceState
+                remindersEnabled = preferenceState
                         .remindersEnabled,
-                notificationPermissionState =
-                    permissionUiState,
-                notificationRuntimePermissionRequired =
-                    runtimePermissionRequired,
-                hasActiveSchedule =
-                    status
-                        ?.hasActiveSchedule
-                        ?: false,
-                exactAlarmCapabilityGranted =
-                    status
-                        ?.exactAlarmCapabilityGranted
-                        ?: false,
-                availability =
-                    status
-                        ?.availability
-                        ?: ReminderAvailability
+                notificationPermissionState = permissionUiState,
+                notificationRuntimePermissionRequired = runtimePermissionRequired,
+                hasActiveSchedule = status
+                        ?.hasActiveSchedule ?: false,
+                exactAlarmCapabilityGranted = status
+                        ?.exactAlarmCapabilityGranted ?: false,
+                availability = status
+                        ?.availability ?: ReminderAvailability
                             .DISABLED,
-                readiness =
-                    readiness,
-                showNotificationRationale =
-                    transientState
+                readiness = readiness,
+                showNotificationRationale = transientState
                         .showNotificationRationale,
-                showExactAlarmRationale =
-                    transientState
+                showExactAlarmRationale = transientState
                         .showExactAlarmRationale,
-                showOemGuidance =
-                    transientState
+                showOemGuidance = transientState
                         .showOemGuidance,
-                seniorMode =
-                    userExperienceState
+                seniorMode = userExperienceState
                         .seniorMode,
-                health =
-                    preferenceState
+                health = preferenceState
                         .health,
-                isSchedulingTest =
-                    transientState
+                isSchedulingTest = transientState
                         .isSchedulingTest,
-                reminderTestStatus =
-                    transientState
+                reminderTestStatus = transientState
                         .reminderTestStatus,
-                reminderTestScheduledAt =
-                    transientState
+                reminderTestScheduledAt = transientState
                         .reminderTestScheduledAt,
-                errorMessage =
-                    transientState
+                errorMessage = transientState
                         .errorMessage,
             )
         }.stateIn(
             scope = viewModelScope,
-            started =
-                SharingStarted.Eagerly,
-            initialValue =
-                ReminderSettingsUiState(
-                    notificationRuntimePermissionRequired =
-                        notificationPermissionGateway
+            started = SharingStarted.Eagerly,
+            initialValue = ReminderSettingsUiState(
+                    notificationRuntimePermissionRequired = notificationPermissionGateway
                             .requiresRuntimePermission(),
                 ),
         )
@@ -314,46 +200,32 @@ class ReminderSettingsViewModel(
         enabled: Boolean,
     ) {
         runOperation {
-            preferenceStore
-                .setRemindersEnabled(
+            preferenceStore.setRemindersEnabled(
                     enabled = enabled,
                 )
 
-            val status =
-                reconcileAndRecordHealth(
-                    reason =
-                        ReconciliationReason
+            val status = reconcileAndRecordHealth(
+                    reason = ReconciliationReason
                             .REMINDER_PREFERENCE_CHANGED,
                 )
 
-            mutableStatus.value =
-                status
+            mutableStatus.value = status
 
-            val readiness =
-                currentReadinessFor(
-                    remindersEnabled =
-                        enabled,
-                    status =
-                        status,
+            val readiness = currentReadinessFor(
+                    remindersEnabled = enabled,
+                    status = status,
                 )
 
             mutableTransientState.update {
                     transient ->
                 transient.copy(
-                    showNotificationRationale =
-                        enabled &&
-                                readiness
-                                    .notificationPermission ==
-                                NotificationPermissionReadiness
-                                    .DENIED,
-                    showExactAlarmRationale =
-                        enabled &&
-                                readiness
-                                    .exactAlarm ==
-                                ExactAlarmReadiness
-                                    .UNAVAILABLE,
-                    showOemGuidance =
-                        true,
+                    showNotificationRationale = enabled &&
+                                readiness.notificationPermission ==
+                                NotificationPermissionReadiness.DENIED,
+                    showExactAlarmRationale = enabled &&
+                                readiness.exactAlarm ==
+                                ExactAlarmReadiness.UNAVAILABLE,
+                    showOemGuidance = true,
                 )
             }
         }
@@ -365,8 +237,7 @@ class ReminderSettingsViewModel(
                 mutableTransientState.update { transient ->
                     transient.copy(
                         isSchedulingTest = true,
-                        reminderTestStatus =
-                            ReminderTestUiStatus.IDLE,
+                        reminderTestStatus = ReminderTestUiStatus.IDLE,
                         reminderTestScheduledAt = null,
                         errorMessage = null,
                     )
@@ -374,61 +245,49 @@ class ReminderSettingsViewModel(
 
                 try {
                     when (
-                        val result =
-                            reminderTestCoordinator
-                                .scheduleTestReminder()
-                    ) {
+                        val result = reminderTestCoordinator
+                                .scheduleTestReminder()) {
                         is ReminderTestScheduleResult.Scheduled -> {
                             mutableTransientState.update { transient ->
                                 transient.copy(
-                                    reminderTestStatus =
-                                        when (result.deliveryMode) {
+                                    reminderTestStatus = when (result.deliveryMode) {
                                             ReminderDeliveryMode.EXACT ->
-                                                ReminderTestUiStatus
-                                                    .SCHEDULED_EXACT
+                                                ReminderTestUiStatus.SCHEDULED_EXACT
 
                                             ReminderDeliveryMode.APPROXIMATE ->
-                                                ReminderTestUiStatus
-                                                    .SCHEDULED_APPROXIMATE
+                                                ReminderTestUiStatus.SCHEDULED_APPROXIMATE
                                         },
-                                    reminderTestScheduledAt =
-                                        result.triggerAt,
+                                    reminderTestScheduledAt = result.triggerAt,
                                 )
                             }
                         }
 
-                        ReminderTestScheduleResult
-                            .NotificationPermissionRequired -> {
+                        ReminderTestScheduleResult.NotificationPermissionRequired -> {
                             mutableTransientState.update { transient ->
                                 transient.copy(
-                                    reminderTestStatus =
-                                        ReminderTestUiStatus
+                                    reminderTestStatus = ReminderTestUiStatus
                                             .NOTIFICATION_PERMISSION_REQUIRED,
                                 )
                             }
                         }
 
-                        ReminderTestScheduleResult
-                            .SchedulingUnavailable -> {
+                        ReminderTestScheduleResult.SchedulingUnavailable -> {
                             mutableTransientState.update { transient ->
                                 transient.copy(
-                                    reminderTestStatus =
-                                        ReminderTestUiStatus
+                                    reminderTestStatus = ReminderTestUiStatus
                                             .SCHEDULING_UNAVAILABLE,
                                 )
                             }
                         }
                     }
                 } catch (
-                    cancellationException:
-                    CancellationException,
+                    cancellationException: CancellationException,
                 ) {
                     throw cancellationException
                 } catch (_: Exception) {
                     mutableTransientState.update { transient ->
                         transient.copy(
-                            reminderTestStatus =
-                                ReminderTestUiStatus
+                            reminderTestStatus = ReminderTestUiStatus
                                     .SCHEDULING_UNAVAILABLE,
                         )
                     }
@@ -444,14 +303,11 @@ class ReminderSettingsViewModel(
     }
 
     fun showNotificationPermissionExplanation() {
-        val currentState =
-            state.value
+        val currentState = state.value
 
         if (
-            !currentState.remindersEnabled ||
-            currentState
-                .notificationPermissionState !=
-            NotificationPermissionUiState.DENIED
+            !currentState.remindersEnabled || currentState
+                .notificationPermissionState != NotificationPermissionUiState.DENIED
         ) {
             return
         }
@@ -459,8 +315,7 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showNotificationRationale =
-                    true,
+                showNotificationRationale = true,
                 errorMessage = null,
             )
         }
@@ -470,8 +325,7 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showNotificationRationale =
-                    false,
+                showNotificationRationale = false,
             )
         }
     }
@@ -480,30 +334,21 @@ class ReminderSettingsViewModel(
         dismissNotificationPermissionExplanation()
 
         reconcilePlatformState(
-            reason =
-                ReconciliationReason
+            reason = ReconciliationReason
                     .NOTIFICATION_PERMISSION_CHANGED,
         )
     }
 
     fun showExactAlarmExplanation() {
-        val currentState =
-            state.value
+        val currentState = state.value
 
-        val canRequest =
-            currentState
-                .remindersEnabled &&
-                    currentState
-                        .notificationPermissionState !=
-                    NotificationPermissionUiState
-                        .DENIED &&
-                    currentState
-                        .hasActiveSchedule &&
-                    currentState
-                        .readiness
-                        ?.exactAlarm ==
-                    ExactAlarmReadiness
-                        .UNAVAILABLE
+        val canRequest = currentState
+                .remindersEnabled && currentState
+                        .notificationPermissionState != NotificationPermissionUiState
+                        .DENIED && currentState
+                        .hasActiveSchedule && currentState
+                        .readiness?.exactAlarm ==
+                    ExactAlarmReadiness.UNAVAILABLE
 
         if (!canRequest) {
             return
@@ -512,8 +357,7 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showExactAlarmRationale =
-                    true,
+                showExactAlarmRationale = true,
                 errorMessage = null,
             )
         }
@@ -523,8 +367,7 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showExactAlarmRationale =
-                    false,
+                showExactAlarmRationale = false,
             )
         }
     }
@@ -533,32 +376,28 @@ class ReminderSettingsViewModel(
         dismissExactAlarmExplanation()
 
         reconcilePlatformState(
-            reason =
-                ReconciliationReason
+            reason = ReconciliationReason
                     .EXACT_ALARM_CAPABILITY_CHANGED,
         )
     }
 
     fun onNotificationSettingsReturned() {
         reconcilePlatformState(
-            reason =
-                ReconciliationReason
+            reason = ReconciliationReason
                     .NOTIFICATION_PERMISSION_CHANGED,
         )
     }
 
     fun refreshPlatformState() {
         reconcilePlatformState(
-            reason =
-                ReconciliationReason
+            reason = ReconciliationReason
                     .MANUAL_RETRY,
         )
     }
 
     fun retryReminderHealth() {
         reconcilePlatformState(
-            reason =
-                ReconciliationReason
+            reason = ReconciliationReason
                     .MANUAL_RETRY,
         )
     }
@@ -567,10 +406,8 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showNotificationRationale =
-                    false,
-                showExactAlarmRationale =
-                    false,
+                showNotificationRationale = false,
+                showExactAlarmRationale = false,
                 errorMessage = null,
             )
         }
@@ -580,8 +417,7 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showOemGuidance =
-                    true,
+                showOemGuidance = true,
             )
         }
     }
@@ -590,12 +426,9 @@ class ReminderSettingsViewModel(
         mutableTransientState.update {
                 transient ->
             transient.copy(
-                showNotificationRationale =
-                    false,
-                showExactAlarmRationale =
-                    false,
-                errorMessage =
-                    "باز کردن تنظیمات اندروید انجام نشد.",
+                showNotificationRationale = false,
+                showExactAlarmRationale = false,
+                errorMessage = "باز کردن تنظیمات اندروید انجام نشد.",
             )
         }
     }
@@ -611,8 +444,7 @@ class ReminderSettingsViewModel(
 
     private fun loadInitialStatus() {
         runOperation {
-            mutableStatus.value =
-                reminderCoordinator
+            mutableStatus.value = reminderCoordinator
                     .currentStatus()
         }
     }
@@ -621,8 +453,7 @@ class ReminderSettingsViewModel(
         reason: ReconciliationReason,
     ) {
         runOperation {
-            mutableStatus.value =
-                reconcileAndRecordHealth(reason)
+            mutableStatus.value = reconcileAndRecordHealth(reason)
         }
     }
 
@@ -637,8 +468,7 @@ class ReminderSettingsViewModel(
         } else {
             preferenceStore.markFailure(
                 failure = failure,
-                failedAtEpochMillis =
-                    clock.instant().toEpochMilli(),
+                failedAtEpochMillis = clock.instant().toEpochMilli(),
             )
         }
 
@@ -650,24 +480,16 @@ class ReminderSettingsViewModel(
         status: ReminderStatus,
     ): ReminderReadiness {
         return ReminderReadinessPolicy.evaluate(
-            remindersEnabled =
-                remindersEnabled,
-            hasActiveSchedule =
-                status.hasActiveSchedule,
-            notificationRuntimePermissionRequired =
-                notificationPermissionGateway
+            remindersEnabled = remindersEnabled,
+            hasActiveSchedule = status.hasActiveSchedule,
+            notificationRuntimePermissionRequired = notificationPermissionGateway
                     .requiresRuntimePermission(),
-            notificationPermissionGranted =
-                status.notificationPermissionGranted,
-            canScheduleExactAlarms =
-                status.exactAlarmCapabilityGranted,
-            exactAlarmRelevant =
-                remindersEnabled &&
+            notificationPermissionGranted = status.notificationPermissionGranted,
+            canScheduleExactAlarms = status.exactAlarmCapabilityGranted,
+            exactAlarmRelevant = remindersEnabled &&
                         status.hasActiveSchedule,
-            batteryOptimizationState =
-                batteryOptimizationState(),
-            manufacturer =
-                manufacturer(),
+            batteryOptimizationState = batteryOptimizationState(),
+            manufacturer = manufacturer(),
         )
     }
 
@@ -687,16 +509,14 @@ class ReminderSettingsViewModel(
                 try {
                     operation()
                 } catch (
-                    cancellation:
-                    CancellationException,
+                    cancellation: CancellationException,
                 ) {
                     throw cancellation
                 } catch (_: Exception) {
                     mutableTransientState.update {
                             transient ->
                         transient.copy(
-                            errorMessage =
-                                "به‌روزرسانی تنظیمات یادآور انجام نشد.",
+                            errorMessage = "به‌روزرسانی تنظیمات یادآور انجام نشد.",
                         )
                     }
                 } finally {
@@ -713,34 +533,22 @@ class ReminderSettingsViewModel(
 
     companion object {
         fun factory(
-            preferenceStore:
-            ReminderPreferenceStore,
-            reminderCoordinator:
-            ReminderCoordinator,
-            reminderTestCoordinator:
-            ReminderTestCoordinator,
-            notificationPermissionGateway:
-            NotificationPermissionGateway,
-            userExperiencePreferenceStore:
-            UserExperiencePreferenceStore,
+            preferenceStore: ReminderPreferenceStore,
+            reminderCoordinator: ReminderCoordinator,
+            reminderTestCoordinator: ReminderTestCoordinator,
+            notificationPermissionGateway: NotificationPermissionGateway,
+            userExperiencePreferenceStore: UserExperiencePreferenceStore,
             clock: Clock = Clock.systemUTC(),
         ): ViewModelProvider.Factory {
-            return viewModelFactory {
-                initializer {
+            return carePackViewModelFactory {
                     ReminderSettingsViewModel(
-                        preferenceStore =
-                            preferenceStore,
-                        reminderCoordinator =
-                            reminderCoordinator,
-                        reminderTestCoordinator =
-                            reminderTestCoordinator,
-                        notificationPermissionGateway =
-                            notificationPermissionGateway,
-                        userExperiencePreferenceStore =
-                            userExperiencePreferenceStore,
+                        preferenceStore = preferenceStore,
+                        reminderCoordinator = reminderCoordinator,
+                        reminderTestCoordinator = reminderTestCoordinator,
+                        notificationPermissionGateway = notificationPermissionGateway,
+                        userExperiencePreferenceStore = userExperiencePreferenceStore,
                         clock = clock,
                     )
-                }
             }
         }
     }
@@ -750,22 +558,17 @@ class ReminderSettingsViewModel(
 private fun permissionUiStateFor(
     runtimePermissionRequired: Boolean,
     status: ReminderStatus?,
-): NotificationPermissionUiState =
-    when {
+): NotificationPermissionUiState = when {
         !runtimePermissionRequired -> {
-            NotificationPermissionUiState
-                .NOT_REQUIRED
+            NotificationPermissionUiState.NOT_REQUIRED
         }
 
-        status
-            ?.notificationPermissionGranted ==
+        status?.notificationPermissionGranted ==
                 true -> {
-            NotificationPermissionUiState
-                .GRANTED
+            NotificationPermissionUiState.GRANTED
         }
 
         else -> {
-            NotificationPermissionUiState
-                .DENIED
+            NotificationPermissionUiState.DENIED
         }
     }

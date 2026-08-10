@@ -78,8 +78,7 @@ fun JalaliDatePickerDialog(
         )
     }
 
-    val model =
-        remember(
+    val model = remember(
             displayedMonth,
             today,
             workingSelection,
@@ -88,83 +87,62 @@ fun JalaliDatePickerDialog(
             JalaliMonthModelFactory.create(
                 displayedMonth = displayedMonth,
                 today = today,
-                selectedDate =
-                    workingSelection ?: today,
+                selectedDate = workingSelection ?: today,
                 firstDayOfWeek = firstDayOfWeek,
             )
         }
 
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Dialog(
         onDismissRequest = onDismissRequest,
-        properties =
-            DialogProperties(
+        properties = DialogProperties(
                 usePlatformDefaultWidth = false,
             ),
     ) {
         Surface(
-            shape =
-                MaterialTheme
-                    .shapes
-                    .extraLarge,
+            shape = MaterialTheme
+                    .shapes.extraLarge,
             tonalElevation = 6.dp,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal =
-                            experience
+            modifier = Modifier
+                    .fillMaxWidth().padding(
+                        horizontal = experience
                                 .dialogHorizontalPadding,
                         vertical = 24.dp,
-                    )
-                    .testTag(
+                    ).testTag(
                         "jalali_date_picker_dialog",
                     ),
         ) {
             Column(
-                modifier =
-                    Modifier.padding(
+                modifier = Modifier.padding(
                         horizontal = 16.dp,
                         vertical = 20.dp,
                     ),
-                verticalArrangement =
-                    Arrangement.spacedBy(
+                verticalArrangement = Arrangement.spacedBy(
                         experience.itemSpacing,
                     ),
             ) {
                 Text(
                     text = title,
-                    style =
-                        MaterialTheme
-                            .typography
-                            .headlineSmall,
-                    modifier =
-                        Modifier
-                            .carePackHeading()
-                            .testTag(
+                    style = MaterialTheme
+                            .typography.headlineSmall,
+                    modifier = Modifier
+                            .carePackHeading().testTag(
                                 "jalali_date_picker_title",
                             ),
                 )
 
-                workingSelection
-                    ?.let { date ->
+                workingSelection?.let { date ->
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .jalali_date_picker_selected_date,
+                            text = stringResource(
+                                    R.string.jalali_date_picker_selected_date,
                                     PersianDateText.formatFull(
                                         date,
                                     ),
                                 ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .bodyLarge,
-                            modifier =
-                                Modifier.testTag(
+                            style = MaterialTheme
+                                    .typography.bodyLarge,
+                            modifier = Modifier.testTag(
                                     "jalali_date_picker_selection",
                                 ),
                         )
@@ -173,18 +151,15 @@ fun JalaliDatePickerDialog(
                 JalaliDatePickerMonthHeader(
                     displayedMonth = displayedMonth,
                     onPrevious = {
-                        displayedMonth =
-                            displayedMonth.previous()
+                        displayedMonth = displayedMonth.previous()
                     },
                     onNext = {
-                        displayedMonth =
-                            displayedMonth.next()
+                        displayedMonth = displayedMonth.next()
                     },
                 )
 
-                JalaliDatePickerWeekdayHeader(
-                    weekdayOrder =
-                        model.weekdayOrder,
+                JalaliWeekdayHeader(
+                    weekdayOrder = model.weekdayOrder,
                 )
 
                 JalaliDatePickerMonthGrid(
@@ -193,50 +168,40 @@ fun JalaliDatePickerDialog(
                     onDateSelected = { date ->
                         workingSelection = date
 
-                        val selectedMonth =
-                            JalaliYearMonth.from(
+                        val selectedMonth = JalaliYearMonth.from(
                                 date,
                             )
 
                         if (
-                            selectedMonth !=
-                            displayedMonth
+                            selectedMonth != displayedMonth
                         ) {
-                            displayedMonth =
-                                selectedMonth
+                            displayedMonth = selectedMonth
                         }
                     },
                 )
 
                 Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(
                             experience.compactSpacing,
                         ),
                 ) {
                     OutlinedButton(
                         onClick = {
                             workingSelection = today
-                            displayedMonth =
-                                JalaliYearMonth.from(
+                            displayedMonth = JalaliYearMonth.from(
                                     today,
                                 )
                         },
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .carePackInteractiveControl()
+                        modifier = Modifier
+                                .weight(1f).carePackInteractiveControl()
                                 .testTag(
                                     "jalali_date_picker_today",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .jalali_date_picker_today,
+                            text = stringResource(
+                                    R.string.jalali_date_picker_today,
                                 ),
                         )
                     }
@@ -246,23 +211,18 @@ fun JalaliDatePickerDialog(
                             onClick = {
                                 workingSelection = null
                             },
-                            modifier =
-                                Modifier
-                                    .weight(1f)
-                                    .carePackInteractiveControl()
+                            modifier = Modifier
+                                    .weight(1f).carePackInteractiveControl()
                                     .testTag(
                                         "jalali_date_picker_clear",
                                     ),
                         ) {
                             Text(
-                                text =
-                                    stringResource(
+                                text = stringResource(
                                         if (clearAsNoEndDate) {
-                                            R.string
-                                                .jalali_date_picker_no_end_date
+                                            R.string.jalali_date_picker_no_end_date
                                         } else {
-                                            R.string
-                                                .jalali_date_picker_clear
+                                            R.string.jalali_date_picker_clear
                                         },
                                     ),
                             )
@@ -271,28 +231,22 @@ fun JalaliDatePickerDialog(
                 }
 
                 Row(
-                    modifier =
-                        Modifier.fillMaxWidth(),
-                    horizontalArrangement =
-                        Arrangement.spacedBy(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(
                             experience.compactSpacing,
                         ),
                 ) {
                     TextButton(
                         onClick = onDismissRequest,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .carePackInteractiveControl()
+                        modifier = Modifier
+                                .weight(1f).carePackInteractiveControl()
                                 .testTag(
                                     "jalali_date_picker_cancel",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .jalali_date_picker_cancel,
+                            text = stringResource(
+                                    R.string.jalali_date_picker_cancel,
                                 ),
                         )
                     }
@@ -303,22 +257,17 @@ fun JalaliDatePickerDialog(
                                 workingSelection,
                             )
                         },
-                        enabled =
-                            workingSelection != null ||
+                        enabled = workingSelection != null ||
                                     allowClear,
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .carePackPrimaryAction()
+                        modifier = Modifier
+                                .weight(1f).carePackPrimaryAction()
                                 .testTag(
                                     "jalali_date_picker_confirm",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .jalali_date_picker_confirm,
+                            text = stringResource(
+                                    R.string.jalali_date_picker_confirm,
                                 ),
                         )
                     }
@@ -335,48 +284,34 @@ private fun JalaliDatePickerMonthHeader(
     onNext: () -> Unit,
 ) {
     Row(
-        modifier =
-            Modifier.fillMaxWidth(),
-        horizontalArrangement =
-            Arrangement.SpaceBetween,
-        verticalAlignment =
-            Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         TextButton(
             onClick = onPrevious,
-            modifier =
-                Modifier
-                    .carePackInteractiveControl()
-                    .testTag(
+            modifier = Modifier
+                    .carePackInteractiveControl().testTag(
                         "jalali_date_picker_previous_month",
                     ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .jalali_date_picker_previous_month,
+                text = stringResource(
+                        R.string.jalali_date_picker_previous_month,
                     ),
             )
         }
 
         Text(
-            text =
-                PersianDateText.formatMonthYear(
-                    year =
-                        displayedMonth.year,
-                    month =
-                        displayedMonth.month,
+            text = PersianDateText.formatMonthYear(
+                    year = displayedMonth.year,
+                    month = displayedMonth.month,
                 ),
-            style =
-                MaterialTheme
-                    .typography
-                    .titleLarge,
+            style = MaterialTheme
+                    .typography.titleLarge,
             textAlign = TextAlign.Center,
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .carePackHeading()
+            modifier = Modifier
+                    .weight(1f).carePackHeading()
                     .testTag(
                         "jalali_date_picker_month_title",
                     ),
@@ -384,49 +319,15 @@ private fun JalaliDatePickerMonthHeader(
 
         TextButton(
             onClick = onNext,
-            modifier =
-                Modifier
-                    .carePackInteractiveControl()
-                    .testTag(
+            modifier = Modifier
+                    .carePackInteractiveControl().testTag(
                         "jalali_date_picker_next_month",
                     ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .jalali_date_picker_next_month,
+                text = stringResource(
+                        R.string.jalali_date_picker_next_month,
                     ),
-            )
-        }
-    }
-}
-
-@Composable
-private fun JalaliDatePickerWeekdayHeader(
-    weekdayOrder: List<DayOfWeek>,
-) {
-    Row(
-        modifier =
-            Modifier.fillMaxWidth(),
-    ) {
-        weekdayOrder.forEach { dayOfWeek ->
-            Text(
-                text =
-                    PersianDateText.shortWeekdayName(
-                        dayOfWeek,
-                    ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .labelLarge,
-                textAlign = TextAlign.Center,
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .padding(
-                            vertical = 4.dp,
-                        ),
             )
         }
     }
@@ -438,46 +339,37 @@ private fun JalaliDatePickerMonthGrid(
     selectedDate: LocalDate?,
     onDateSelected: (LocalDate) -> Unit,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "jalali_date_picker_month_grid",
                 ),
-        verticalArrangement =
-            Arrangement.spacedBy(
+        verticalArrangement = Arrangement.spacedBy(
                 4.dp,
             ),
     ) {
         model.weeks.forEach { week ->
             Row(
-                modifier =
-                    Modifier.fillMaxWidth(),
-                horizontalArrangement =
-                    Arrangement.spacedBy(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(
                         4.dp,
                     ),
             ) {
                 week.forEach { cell ->
                     JalaliDatePickerDayCell(
                         cell = cell,
-                        isSelected =
-                            cell.localDate ==
+                        isSelected = cell.localDate ==
                                     selectedDate,
-                        minHeight =
-                            experience
+                        minHeight = experience
                                 .controlMinHeight,
                         onClick = {
                             onDateSelected(
                                 cell.localDate,
                             )
                         },
-                        modifier =
-                            Modifier.weight(1f),
+                        modifier = Modifier.weight(1f),
                     )
                 }
             }
@@ -493,8 +385,7 @@ private fun JalaliDatePickerDayCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val description =
-        buildString {
+    val description = buildString {
             append(
                 PersianDateText.formatFull(
                     cell.localDate,
@@ -505,8 +396,7 @@ private fun JalaliDatePickerDayCell(
                 append("، ")
                 append(
                     stringResource(
-                        R.string
-                            .jalali_date_picker_today_description,
+                        R.string.jalali_date_picker_today_description,
                     ),
                 )
             }
@@ -515,109 +405,81 @@ private fun JalaliDatePickerDayCell(
                 append("، ")
                 append(
                     stringResource(
-                        R.string
-                            .jalali_date_picker_selected_description,
+                        R.string.jalali_date_picker_selected_description,
                     ),
                 )
             }
         }
 
-    val border =
-        when {
+    val border = when {
             isSelected ->
                 BorderStroke(
                     width = 2.dp,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .primary,
+                    color = MaterialTheme
+                            .colorScheme.primary,
                 )
 
             cell.isToday ->
                 BorderStroke(
                     width = 1.dp,
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .outline,
+                    color = MaterialTheme
+                            .colorScheme.outline,
                 )
 
             else -> null
         }
 
     Surface(
-        color =
-            if (isSelected) {
-                MaterialTheme
-                    .colorScheme
+        color = if (isSelected) {
+                MaterialTheme.colorScheme
                     .primaryContainer
             } else {
-                MaterialTheme
-                    .colorScheme
+                MaterialTheme.colorScheme
                     .surface
             },
         border = border,
-        shape =
-            MaterialTheme
-                .shapes
-                .medium,
-        modifier =
-            modifier
+        shape = MaterialTheme
+                .shapes.medium,
+        modifier = modifier
                 .sizeIn(
                     minHeight = minHeight,
-                )
-                .alpha(
+                ).alpha(
                     if (
-                        cell
-                            .belongsToDisplayedMonth
+                        cell.belongsToDisplayedMonth
                     ) {
                         1f
                     } else {
                         0.55f
                     },
-                )
-                .selectable(
+                ).selectable(
                     selected = isSelected,
                     role = Role.RadioButton,
                     onClick = onClick,
-                )
-                .semantics {
-                    contentDescription =
-                        description
+                ).semantics {
+                    contentDescription = description
                     selected = isSelected
-                }
-                .testTag(
+                }.testTag(
                     "jalali_date_picker_day_${cell.localDate.toEpochDay()}",
                 ),
     ) {
         Box(
-            contentAlignment =
-                Alignment.Center,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .heightIn(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                    .fillMaxWidth().heightIn(
                         min = minHeight,
-                    )
-                    .padding(
+                    ).padding(
                         horizontal = 2.dp,
                         vertical = 4.dp,
                     ),
         ) {
             Text(
-                text =
-                    cell
-                        .jalaliDate
-                        .dayOfMonth
-                        .value
-                        .toString()
+                text = cell
+                        .jalaliDate.dayOfMonth
+                        .value.toString()
                         .toPersianDigits(),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
-                textAlign =
-                    TextAlign.Center,
+                style = MaterialTheme
+                        .typography.bodyLarge,
+                textAlign = TextAlign.Center,
             )
         }
     }

@@ -25,8 +25,7 @@ sealed interface MedicationDeletionPreviewResult {
     data object NotFound : MedicationDeletionPreviewResult
 
     data class Failed(
-        val stage: MedicationDeletionStage =
-            MedicationDeletionStage.LOADING_PREVIEW,
+        val stage: MedicationDeletionStage = MedicationDeletionStage.LOADING_PREVIEW,
         val failure: SafeAppFailure? = null,
     ) : MedicationDeletionPreviewResult
 }
@@ -50,8 +49,7 @@ sealed interface MedicationDeletionResult {
 }
 
 sealed interface MedicationDeletionRecoveryResult {
-    data object NoDeletionPending :
-        MedicationDeletionRecoveryResult
+    data object NoDeletionPending : MedicationDeletionRecoveryResult
 
     data class Completed(
         val medicationId: String,
@@ -75,6 +73,5 @@ interface MedicationDeletionCoordinator {
         expectedPreview: MedicationDeletionPreview,
     ): MedicationDeletionResult
 
-    suspend fun resumeIncompleteDeletionIfNeeded():
-        MedicationDeletionRecoveryResult
+    suspend fun resumeIncompleteDeletionIfNeeded(): MedicationDeletionRecoveryResult
 }

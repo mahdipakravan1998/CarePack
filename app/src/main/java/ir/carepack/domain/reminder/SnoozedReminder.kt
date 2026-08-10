@@ -13,10 +13,8 @@ data class SnoozedReminder(
     }
 
     val alarmKey: AlarmKey
-        get() =
-            AlarmKey.forDelayedOccurrence(
-                occurrenceId =
-                    occurrenceId,
+        get() = AlarmKey.forDelayedOccurrence(
+                occurrenceId = occurrenceId,
             )
 }
 
@@ -35,8 +33,7 @@ sealed interface RemindLaterOutcome {
         val reason: RemindLaterIgnoreReason,
     ) : RemindLaterOutcome
 
-    data object SchedulingFailed :
-        RemindLaterOutcome
+    data object SchedulingFailed : RemindLaterOutcome
 }
 
 sealed interface SnoozedReminderDecision {
@@ -61,19 +58,16 @@ object SnoozedReminderPolicy {
     ): SnoozedReminderDecision {
         if (!remindAt.isAfter(now)) {
             return SnoozedReminderDecision.Ignore(
-                reason =
-                    RemindLaterIgnoreReason
+                reason = RemindLaterIgnoreReason
                         .INVALID_DELAY,
             )
         }
 
         if (
-            occurrenceAlreadyReported ||
-            !occurrenceActive
+            occurrenceAlreadyReported || !occurrenceActive
         ) {
             return SnoozedReminderDecision.Ignore(
-                reason =
-                    RemindLaterIgnoreReason
+                reason = RemindLaterIgnoreReason
                         .OCCURRENCE_NOT_ELIGIBLE,
             )
         }

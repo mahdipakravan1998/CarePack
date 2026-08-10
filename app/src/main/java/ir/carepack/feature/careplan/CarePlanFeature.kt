@@ -1,5 +1,7 @@
 package ir.carepack.feature.careplan
 
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,8 +31,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.domain.careplan.ArchiveMedicationOutcome
 import ir.carepack.domain.careplan.CarePlanOverview
@@ -39,6 +39,7 @@ import ir.carepack.domain.careplan.MedicationPlanItem
 import ir.carepack.domain.careplan.SchedulePlan
 import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.domain.model.MedicationStatus
+import ir.carepack.domain.report.MedicationRecordingDetails
 import ir.carepack.domain.schedule.FixedTimeSchedule
 import ir.carepack.domain.schedule.IntervalSchedule
 import ir.carepack.ui.accessibility.carePackHeading
@@ -58,8 +59,7 @@ data class CarePlanUiState(
     val isLoading: Boolean = true,
     val overview: CarePlanOverview? = null,
     val errorMessage: String? = null,
-    val pendingMedicationAction:
-    PendingMedicationAction? = null,
+    val pendingMedicationAction: PendingMedicationAction? = null,
     val actionInProgress: Boolean = false,
 )
 
@@ -87,21 +87,17 @@ class CarePlanViewModel(
     private val carePlanService: CarePlanService,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
+    private val mutableState = MutableStateFlow(
             CarePlanUiState(),
         )
 
-    val state =
-        mutableState.asStateFlow()
+    val state = mutableState.asStateFlow()
 
-    private val eventChannel =
-        Channel<CarePlanEvent>(
+    private val eventChannel = Channel<CarePlanEvent>(
             capacity = Channel.BUFFERED,
         )
 
-    val events =
-        eventChannel.receiveAsFlow()
+    val events = eventChannel.receiveAsFlow()
 
     init {
         observeCarePlan()
@@ -115,17 +111,12 @@ class CarePlanViewModel(
         medicationId: String,
         medicationName: String,
     ) {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    pendingMedicationAction =
-                        PendingMedicationAction
+        mutableState.value = mutableState
+                .value.copy(
+                    pendingMedicationAction = PendingMedicationAction
                             .Stop(
-                                medicationId =
-                                    medicationId,
-                                medicationName =
-                                    medicationName,
+                                medicationId = medicationId,
+                                medicationName = medicationName,
                             ),
                     errorMessage = null,
                 )
@@ -135,51 +126,38 @@ class CarePlanViewModel(
         medicationId: String,
         medicationName: String,
     ) {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
-                    pendingMedicationAction =
-                        PendingMedicationAction
+        mutableState.value = mutableState
+                .value.copy(
+                    pendingMedicationAction = PendingMedicationAction
                             .Archive(
-                                medicationId =
-                                    medicationId,
-                                medicationName =
-                                    medicationName,
+                                medicationId = medicationId,
+                                medicationName = medicationName,
                             ),
                     errorMessage = null,
                 )
     }
 
     fun dismissMedicationAction() {
-        mutableState.value =
-            mutableState
-                .value
-                .copy(
+        mutableState.value = mutableState
+                .value.copy(
                     pendingMedicationAction = null,
                 )
     }
 
     fun confirmMedicationAction() {
-        val action =
-            mutableState
-                .value
-                .pendingMedicationAction
+        val action = mutableState
+                .value.pendingMedicationAction
                 ?: return
 
         if (
-            mutableState
-                .value
-                .actionInProgress
-        ) {
+            mutableState.value
+                .actionInProgress) {
             return
         }
 
         viewModelScope.launch {
-            mutableState.value =
-                mutableState
-                    .value
-                    .copy(
+            mutableState.value = mutableState
+                    .value.copy(
                         actionInProgress = true,
                         errorMessage = null,
                     )
@@ -203,18 +181,13 @@ class CarePlanViewModel(
             ) {
                 throw cancellationException
             } catch (_: Exception) {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            errorMessage =
-                                "انجام عملیات ممکن نشد. دوباره تلاش کنید.",
+                mutableState.value = mutableState
+                        .value.copy(
+                            errorMessage = "انجام عملیات ممکن نشد. دوباره تلاش کنید.",
                         )
             } finally {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
+                mutableState.value = mutableState
+                        .value.copy(
                             actionInProgress = false,
                             pendingMedicationAction = null,
                         )
@@ -224,22 +197,17 @@ class CarePlanViewModel(
 
     private fun observeCarePlan() {
         viewModelScope.launch {
-            mutableState.value =
-                mutableState
-                    .value
-                    .copy(
+            mutableState.value = mutableState
+                    .value.copy(
                         isLoading = true,
                         errorMessage = null,
                     )
 
             try {
-                carePlanService
-                    .observeCarePlan()
+                carePlanService.observeCarePlan()
                     .collect { overview ->
-                        mutableState.value =
-                            mutableState
-                                .value
-                                .copy(
+                        mutableState.value = mutableState
+                                .value.copy(
                                     isLoading = false,
                                     overview = overview,
                                     errorMessage = null,
@@ -250,13 +218,10 @@ class CarePlanViewModel(
             ) {
                 throw cancellationException
             } catch (_: Exception) {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
+                mutableState.value = mutableState
+                        .value.copy(
                             isLoading = false,
-                            errorMessage =
-                                "خواندن برنامه دارویی انجام نشد.",
+                            errorMessage = "خواندن برنامه دارویی انجام نشد.",
                         )
             }
         }
@@ -267,10 +232,8 @@ class CarePlanViewModel(
     ) {
         when (
             carePlanService.stopMedication(
-                medicationId =
-                    action.medicationId,
-            )
-        ) {
+                medicationId = action.medicationId,
+            )) {
             StopMedicationOutcome.Stopped -> {
                 eventChannel.send(
                     CarePlanEvent.ShowMessage(
@@ -280,12 +243,9 @@ class CarePlanViewModel(
             }
 
             StopMedicationOutcome.NotFound -> {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            errorMessage =
-                                "دارو پیدا نشد.",
+                mutableState.value = mutableState
+                        .value.copy(
+                            errorMessage = "دارو پیدا نشد.",
                         )
             }
 
@@ -304,10 +264,8 @@ class CarePlanViewModel(
     ) {
         when (
             carePlanService.archiveMedication(
-                medicationId =
-                    action.medicationId,
-            )
-        ) {
+                medicationId = action.medicationId,
+            )) {
             ArchiveMedicationOutcome.Archived -> {
                 eventChannel.send(
                     CarePlanEvent.ShowMessage(
@@ -317,22 +275,16 @@ class CarePlanViewModel(
             }
 
             ArchiveMedicationOutcome.NotFound -> {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            errorMessage =
-                                "دارو پیدا نشد.",
+                mutableState.value = mutableState
+                        .value.copy(
+                            errorMessage = "دارو پیدا نشد.",
                         )
             }
 
             ArchiveMedicationOutcome.MustStopFirst -> {
-                mutableState.value =
-                    mutableState
-                        .value
-                        .copy(
-                            errorMessage =
-                                "قبل از بایگانی، دارو را متوقف کنید.",
+                mutableState.value = mutableState
+                        .value.copy(
+                            errorMessage = "قبل از بایگانی، دارو را متوقف کنید.",
                         )
             }
 
@@ -350,14 +302,10 @@ class CarePlanViewModel(
 
         fun factory(
             carePlanService: CarePlanService,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     CarePlanViewModel(
-                        carePlanService =
-                            carePlanService,
+                        carePlanService = carePlanService,
                     )
-                }
             }
     }
 }
@@ -365,29 +313,21 @@ class CarePlanViewModel(
 @Composable
 fun CarePlanRoute(
     viewModel: CarePlanViewModel,
-    onAddMedication:
-        (String) -> Unit,
-    onAddSchedule:
-        (String) -> Unit,
-    onEditMedicationText:
-        (String) -> Unit,
-    onEditSchedule:
-        (String) -> Unit,
-    onDeleteMedication:
-        (String) -> Unit,
-    snackbarHost:
-    suspend (String) -> Unit = {},
+    onAddMedication: (String) -> Unit,
+    onAddSchedule: (String) -> Unit,
+    onEditMedicationText: (String) -> Unit,
+    onEditSchedule: (String) -> Unit,
+    onDeleteMedication: (String) -> Unit,
+    snackbarHost: suspend (String) -> Unit = {},
 ) {
     val state by
-    viewModel
-        .state
+    viewModel.state
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
         viewModel,
     ) {
-        viewModel
-            .events
+        viewModel.events
             .collect { event ->
                 when (event) {
                     is CarePlanEvent.ShowMessage -> {
@@ -401,26 +341,16 @@ fun CarePlanRoute(
 
     CarePlanScreen(
         state = state,
-        onRetry =
-            viewModel::retry,
-        onAddMedication =
-            onAddMedication,
-        onAddSchedule =
-            onAddSchedule,
-        onEditMedicationText =
-            onEditMedicationText,
-        onEditSchedule =
-            onEditSchedule,
-        onDeleteMedication =
-            onDeleteMedication,
-        onStopMedication =
-            viewModel::requestStopMedication,
-        onArchiveMedication =
-            viewModel::requestArchiveMedication,
-        onConfirmMedicationAction =
-            viewModel::confirmMedicationAction,
-        onDismissMedicationAction =
-            viewModel::dismissMedicationAction,
+        onRetry = viewModel::retry,
+        onAddMedication = onAddMedication,
+        onAddSchedule = onAddSchedule,
+        onEditMedicationText = onEditMedicationText,
+        onEditSchedule = onEditSchedule,
+        onDeleteMedication = onDeleteMedication,
+        onStopMedication = viewModel::requestStopMedication,
+        onArchiveMedication = viewModel::requestArchiveMedication,
+        onConfirmMedicationAction = viewModel::confirmMedicationAction,
+        onDismissMedicationAction = viewModel::dismissMedicationAction,
     )
 }
 
@@ -428,70 +358,49 @@ fun CarePlanRoute(
 private fun CarePlanScreen(
     state: CarePlanUiState,
     onRetry: () -> Unit,
-    onAddMedication:
-        (String) -> Unit,
-    onAddSchedule:
-        (String) -> Unit,
-    onEditMedicationText:
-        (String) -> Unit,
-    onEditSchedule:
-        (String) -> Unit,
-    onDeleteMedication:
-        (String) -> Unit,
-    onStopMedication:
-        (String, String) -> Unit,
-    onArchiveMedication:
-        (String, String) -> Unit,
+    onAddMedication: (String) -> Unit,
+    onAddSchedule: (String) -> Unit,
+    onEditMedicationText: (String) -> Unit,
+    onEditSchedule: (String) -> Unit,
+    onDeleteMedication: (String) -> Unit,
+    onStopMedication: (String, String) -> Unit,
+    onArchiveMedication: (String, String) -> Unit,
     onConfirmMedicationAction: () -> Unit,
     onDismissMedicationAction: () -> Unit,
 ) {
-    val overview =
-        state.overview
+    val overview = state.overview
 
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .navigationBarsPadding()
+        modifier = Modifier
+                .fillMaxSize().navigationBarsPadding()
                 .testTag(
                     "care_plan_screen",
                 ),
     ) {
         LazyColumn(
-            modifier =
-                Modifier
+            modifier = Modifier
                     .fillMaxSize(),
-            contentPadding =
-                PaddingValues(
-                    horizontal =
-                        experience
+            contentPadding = PaddingValues(
+                    horizontal = experience
                             .screenHorizontalPadding,
-                    vertical =
-                        experience
+                    vertical = experience
                             .screenVerticalPadding,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.sectionSpacing,
                 ),
         ) {
             item {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.care_plan_title,
                         ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .headlineMedium,
-                    modifier =
-                        Modifier
-                            .carePackHeading()
-                            .testTag(
+                    style = MaterialTheme
+                            .typography.headlineMedium,
+                    modifier = Modifier
+                            .carePackHeading().testTag(
                                 "care_plan_title",
                             ),
                 )
@@ -501,14 +410,11 @@ private fun CarePlanScreen(
                 state.isLoading -> {
                     item {
                         Text(
-                            text =
-                                stringResource(
+                            text = stringResource(
                                     R.string.loading,
                                 ),
-                            modifier =
-                                Modifier
-                                    .carePackPoliteLiveRegion()
-                                    .testTag(
+                            modifier = Modifier
+                                    .carePackPoliteLiveRegion().testTag(
                                         "care_plan_loading",
                                     ),
                         )
@@ -518,10 +424,8 @@ private fun CarePlanScreen(
                 state.errorMessage != null -> {
                     item {
                         ErrorCard(
-                            message =
-                                state.errorMessage,
-                            onRetry =
-                                onRetry,
+                            message = state.errorMessage,
+                            onRetry = onRetry,
                         )
                     }
                 }
@@ -541,35 +445,25 @@ private fun CarePlanScreen(
                 else -> {
                     item {
                         AddMedicationButton(
-                            recipientId =
-                                overview.recipientId,
-                            onAddMedication =
-                                onAddMedication,
+                            recipientId = overview.recipientId,
+                            onAddMedication = onAddMedication,
                         )
                     }
 
                     items(
-                        items =
-                            overview.medications,
+                        items = overview.medications,
                         key = {
                             it.medicationId
                         },
                     ) { medication ->
                         MedicationCard(
-                            medication =
-                                medication,
-                            onAddSchedule =
-                                onAddSchedule,
-                            onEditMedicationText =
-                                onEditMedicationText,
-                            onEditSchedule =
-                                onEditSchedule,
-                            onDeleteMedication =
-                                onDeleteMedication,
-                            onStopMedication =
-                                onStopMedication,
-                            onArchiveMedication =
-                                onArchiveMedication,
+                            medication = medication,
+                            onAddSchedule = onAddSchedule,
+                            onEditMedicationText = onEditMedicationText,
+                            onEditSchedule = onEditSchedule,
+                            onDeleteMedication = onDeleteMedication,
+                            onStopMedication = onStopMedication,
+                            onArchiveMedication = onArchiveMedication,
                         )
                     }
                 }
@@ -577,18 +471,13 @@ private fun CarePlanScreen(
         }
     }
 
-    state
-        .pendingMedicationAction
+    state.pendingMedicationAction
         ?.let { action ->
             ConfirmMedicationActionDialog(
-                action =
-                    action,
-                inProgress =
-                    state.actionInProgress,
-                onConfirm =
-                    onConfirmMedicationAction,
-                onDismiss =
-                    onDismissMedicationAction,
+                action = action,
+                inProgress = state.actionInProgress,
+                onConfirm = onConfirmMedicationAction,
+                onDismiss = onDismissMedicationAction,
             )
         }
 }
@@ -596,135 +485,96 @@ private fun CarePlanScreen(
 @Composable
 private fun MedicationCard(
     medication: MedicationPlanItem,
-    onAddSchedule:
-        (String) -> Unit,
-    onEditMedicationText:
-        (String) -> Unit,
-    onEditSchedule:
-        (String) -> Unit,
-    onDeleteMedication:
-        (String) -> Unit,
-    onStopMedication:
-        (String, String) -> Unit,
-    onArchiveMedication:
-        (String, String) -> Unit,
+    onAddSchedule: (String) -> Unit,
+    onEditMedicationText: (String) -> Unit,
+    onEditSchedule: (String) -> Unit,
+    onDeleteMedication: (String) -> Unit,
+    onStopMedication: (String, String) -> Unit,
+    onArchiveMedication: (String, String) -> Unit,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "medication_card_${medication.medicationId}",
                 ),
     ) {
         Column(
-            modifier =
-                Modifier.padding(
+            modifier = Modifier.padding(
                     16.dp,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.itemSpacing,
                 ),
         ) {
             Text(
-                text =
-                    medication.name,
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleLarge,
-                modifier =
-                    Modifier.testTag(
+                text = medication.name,
+                style = MaterialTheme
+                        .typography.titleLarge,
+                modifier = Modifier.testTag(
                         "medication_name_${medication.medicationId}",
                     ),
             )
 
             Text(
-                text =
-                    medication.instruction,
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
-                modifier =
-                    Modifier.testTag(
+                text = medication.instruction,
+                style = MaterialTheme
+                        .typography.bodyMedium,
+                modifier = Modifier.testTag(
                         "medication_instruction_${medication.medicationId}",
                     ),
             )
 
-            medication
-                .recordingDetailsText()
-                .takeIf(String::isNotBlank)
-                ?.let { details ->
+            medication.recordingDetailsText()
+                .takeIf(String::isNotBlank)?.let { details ->
                     Text(
-                        text =
-                            details,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium,
-                        modifier =
-                            Modifier.testTag(
+                        text = details,
+                        style = MaterialTheme
+                                .typography.bodyMedium,
+                        modifier = Modifier.testTag(
                                 "medication_recording_details_${medication.medicationId}",
                             ),
                     )
                 }
 
             Text(
-                text =
-                    medicationStatusText(
+                text = medicationStatusText(
                         medication.status,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .labelLarge,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.labelLarge,
+                modifier = Modifier.testTag(
                         "medication_status_${medication.medicationId}",
                     ),
             )
 
             if (
-                medication
-                    .schedules
-                    .isEmpty()
-            ) {
+                medication.schedules
+                    .isEmpty()) {
                 Text(
-                    text =
-                        "برنامه فعالی برای این دارو وجود ندارد.",
-                    modifier =
-                        Modifier.testTag(
+                    text = "برنامه فعالی برای این دارو وجود ندارد.",
+                    modifier = Modifier.testTag(
                             "no_active_schedules_${medication.medicationId}",
                         ),
                 )
             } else {
-                medication
-                    .schedules
+                medication.schedules
                     .forEachIndexed {
                             index,
                             schedule ->
                         SchedulePlanCard(
-                            schedule =
-                                schedule,
-                            scheduleNumber =
-                                index + 1,
-                            enabled =
-                                medication.status ==
+                            schedule = schedule,
+                            scheduleNumber = index + 1,
+                            enabled = medication.status ==
                                         MedicationStatus.ACTIVE,
-                            onEditSchedule =
-                                onEditSchedule,
+                            onEditSchedule = onEditSchedule,
                         )
                     }
             }
 
             if (
-                medication.status ==
-                MedicationStatus.ACTIVE
+                medication.status == MedicationStatus.ACTIVE
             ) {
                 OutlinedButton(
                     onClick = {
@@ -732,17 +582,14 @@ private fun MedicationCard(
                             medication.medicationId,
                         )
                     },
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .carePackPrimaryAction()
+                    modifier = Modifier
+                            .fillMaxWidth().carePackPrimaryAction()
                             .testTag(
                                 "add_schedule_${medication.medicationId}",
                             ),
                 ) {
                     Text(
-                        text =
-                            stringResource(
+                        text = stringResource(
                                 R.string.add_schedule,
                             ),
                     )
@@ -755,19 +602,15 @@ private fun MedicationCard(
                         medication.medicationId,
                     )
                 },
-                enabled =
-                    medication.status ==
+                enabled = medication.status ==
                             MedicationStatus.ACTIVE,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
+                modifier = Modifier
+                        .fillMaxWidth().testTag(
                             "edit_medication_${medication.medicationId}",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.edit_medication_text,
                         ),
                 )
@@ -780,19 +623,15 @@ private fun MedicationCard(
                         medication.name,
                     )
                 },
-                enabled =
-                    medication.status ==
+                enabled = medication.status ==
                             MedicationStatus.ACTIVE,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
+                modifier = Modifier
+                        .fillMaxWidth().testTag(
                             "stop_medication_${medication.medicationId}",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.stop_medication,
                         ),
                 )
@@ -805,19 +644,15 @@ private fun MedicationCard(
                         medication.name,
                     )
                 },
-                enabled =
-                    medication.status ==
+                enabled = medication.status ==
                             MedicationStatus.STOPPED,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
+                modifier = Modifier
+                        .fillMaxWidth().testTag(
                             "archive_medication_${medication.medicationId}",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.archive_medication,
                         ),
                 )
@@ -831,24 +666,18 @@ private fun MedicationCard(
                         medication.medicationId,
                     )
                 },
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackPrimaryAction()
+                modifier = Modifier
+                        .fillMaxWidth().carePackPrimaryAction()
                         .testTag(
                             "delete_medication_${medication.medicationId}",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .medication_deletion_entry_action,
+                    text = stringResource(
+                            R.string.medication_deletion_entry_action,
                         ),
-                    color =
-                        MaterialTheme
-                            .colorScheme
-                            .error,
+                    color = MaterialTheme
+                            .colorScheme.error,
                 )
             }
         }
@@ -860,58 +689,44 @@ private fun SchedulePlanCard(
     schedule: SchedulePlan,
     scheduleNumber: Int,
     enabled: Boolean,
-    onEditSchedule:
-        (String) -> Unit,
+    onEditSchedule: (String) -> Unit,
 ) {
     Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "schedule_card_${schedule.scheduleSeriesId}",
                 ),
-        verticalArrangement =
-            Arrangement.spacedBy(
+        verticalArrangement = Arrangement.spacedBy(
                 8.dp,
             ),
     ) {
         Text(
-            text =
-                stringResource(
+            text = stringResource(
                     R.string.schedule_card_title,
                     scheduleNumber,
                 ),
-            style =
-                MaterialTheme
-                    .typography
-                    .titleMedium,
-            modifier =
-                Modifier.testTag(
+            style = MaterialTheme
+                    .typography.titleMedium,
+            modifier = Modifier.testTag(
                     "schedule_card_title_${schedule.scheduleSeriesId}",
                 ),
         )
 
-        val weekdayNames =
-            schedule
-                .weekdays
-                .sortedBy {
+        val weekdayNames = schedule
+                .weekdays.sortedBy {
                     it.value
-                }
-                .map { dayOfWeek ->
+                }.map { dayOfWeek ->
                     stringResource(
                         weekdayPersianNameResource(
                             dayOfWeek,
                         ),
                     )
-                }
-                .joinToString(
+                }.joinToString(
                     separator = "، ",
                 )
 
-        val timeNames =
-            schedule
-                .times
-                .joinToString(
+        val timeNames = schedule
+                .times.joinToString(
                     separator = "، ",
                 ) { time ->
                     time.format(
@@ -919,43 +734,34 @@ private fun SchedulePlanCard(
                     )
                 }
 
-        val startDateText =
-            schedule
-                .startDate
-                ?.toJalaliDateText()
+        val startDateText = schedule
+                .startDate?.toJalaliDateText()
                 ?: stringResource(
                     R.string.open_ended,
                 )
 
-        val endDateText =
-            schedule
-                .endDate
-                ?.toJalaliDateText()
+        val endDateText = schedule
+                .endDate?.toJalaliDateText()
                 ?: stringResource(
                     R.string.open_ended,
                 )
 
         ScheduleSummaryLine(
-            label =
-                stringResource(
+            label = stringResource(
                     R.string.schedule_weekdays,
                 ),
-            value =
-                weekdayNames,
+            value = weekdayNames,
         )
 
         ScheduleSummaryLine(
-            label =
-                stringResource(
+            label = stringResource(
                     R.string.schedule_times,
                 ),
-            value =
-                timeNames,
+            value = timeNames,
         )
 
         when (
-            val pattern =
-                schedule.schedulePattern
+            val pattern = schedule.schedulePattern
         ) {
             is FixedTimeSchedule -> {
                 Unit
@@ -963,12 +769,10 @@ private fun SchedulePlanCard(
 
             is IntervalSchedule -> {
                 ScheduleSummaryLine(
-                    label =
-                        stringResource(
+                    label = stringResource(
                             R.string.schedule_pattern,
                         ),
-                    value =
-                        stringResource(
+                    value = stringResource(
                             R.string.schedule_interval_hours,
                             pattern.intervalHours,
                         ),
@@ -977,23 +781,18 @@ private fun SchedulePlanCard(
         }
 
         ScheduleSummaryLine(
-            label =
-                stringResource(
+            label = stringResource(
                     R.string.schedule_dates,
                 ),
-            value =
-                "شروع: $startDateText، پایان: $endDateText",
+            value = "شروع: $startDateText، پایان: $endDateText",
         )
 
         ScheduleSummaryLine(
-            label =
-                stringResource(
+            label = stringResource(
                     R.string.schedule_zone,
                 ),
-            value =
-                schedule.zoneId,
-            ltr =
-                true,
+            value = schedule.zoneId,
+            ltr = true,
         )
 
         OutlinedButton(
@@ -1002,18 +801,14 @@ private fun SchedulePlanCard(
                     schedule.scheduleSeriesId,
                 )
             },
-            enabled =
-                enabled,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .testTag(
+            enabled = enabled,
+            modifier = Modifier
+                    .fillMaxWidth().testTag(
                         "edit_schedule_${schedule.scheduleSeriesId}",
                     ),
         ) {
             Text(
-                text =
-                    stringResource(
+                text = stringResource(
                         R.string.edit_schedule,
                     ),
             )
@@ -1030,30 +825,22 @@ private fun ScheduleSummaryLine(
     ltr: Boolean = false,
 ) {
     Column(
-        verticalArrangement =
-            Arrangement.spacedBy(
+        verticalArrangement = Arrangement.spacedBy(
                 2.dp,
             ),
     ) {
         Text(
-            text =
-                label,
-            style =
-                MaterialTheme
-                    .typography
-                    .labelMedium,
+            text = label,
+            style = MaterialTheme
+                    .typography.labelMedium,
         )
 
         Text(
-            text =
-                value,
-            style =
-                MaterialTheme
-                    .typography
-                    .bodyMedium
+            text = value,
+            style = MaterialTheme
+                    .typography.bodyMedium
                     .copy(
-                        textDirection =
-                            if (ltr) {
+                        textDirection = if (ltr) {
                                 TextDirection.Ltr
                             } else {
                                 TextDirection.Content
@@ -1066,8 +853,7 @@ private fun ScheduleSummaryLine(
 @Composable
 private fun AddMedicationButton(
     recipientId: String,
-    onAddMedication:
-        (String) -> Unit,
+    onAddMedication: (String) -> Unit,
 ) {
     Button(
         onClick = {
@@ -1075,16 +861,13 @@ private fun AddMedicationButton(
                 recipientId,
             )
         },
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "add_medication",
                 ),
     ) {
         Text(
-            text =
-                stringResource(
+            text = stringResource(
                     R.string.add_medication,
                 ),
         )
@@ -1094,32 +877,25 @@ private fun AddMedicationButton(
 @Composable
 private fun EmptyCarePlanCard() {
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "care_plan_empty",
                 ),
     ) {
         Column(
-            modifier =
-                Modifier.padding(
+            modifier = Modifier.padding(
                     16.dp,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     8.dp,
                 ),
         ) {
             Text(
-                text =
-                    stringResource(
+                text = stringResource(
                         R.string.no_medications,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
+                style = MaterialTheme
+                        .typography.bodyMedium,
             )
         }
     }
@@ -1131,39 +907,31 @@ private fun ErrorCard(
     onRetry: () -> Unit,
 ) {
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .carePackPoliteLiveRegion()
+        modifier = Modifier
+                .fillMaxWidth().carePackPoliteLiveRegion()
                 .testTag(
                     "care_plan_error",
                 ),
     ) {
         Column(
-            modifier =
-                Modifier.padding(
+            modifier = Modifier.padding(
                     16.dp,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     8.dp,
                 ),
         ) {
             Text(
-                text =
-                    message,
-                color =
-                    MaterialTheme
-                        .colorScheme
-                        .error,
+                text = message,
+                color = MaterialTheme
+                        .colorScheme.error,
             )
 
             Button(
                 onClick = onRetry,
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.retry,
                         ),
                 )
@@ -1179,8 +947,7 @@ private fun ConfirmMedicationActionDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val title =
-        when (action) {
+    val title = when (action) {
             is PendingMedicationAction.Stop ->
                 stringResource(
                     R.string.confirm_stop_title,
@@ -1192,8 +959,7 @@ private fun ConfirmMedicationActionDialog(
                 )
         }
 
-    val text =
-        when (action) {
+    val text = when (action) {
             is PendingMedicationAction.Stop ->
                 stringResource(
                     R.string.confirm_stop_body,
@@ -1208,8 +974,7 @@ private fun ConfirmMedicationActionDialog(
         }
 
     AlertDialog(
-        onDismissRequest =
-            onDismiss,
+        onDismissRequest = onDismiss,
         title = {
             Text(
                 text = title,
@@ -1222,27 +987,21 @@ private fun ConfirmMedicationActionDialog(
         },
         confirmButton = {
             TextButton(
-                onClick =
-                    onConfirm,
-                enabled =
-                    !inProgress,
+                onClick = onConfirm,
+                enabled = !inProgress,
             ) {
                 Text(
-                    text =
-                        "تأیید",
+                    text = "تأیید",
                 )
             }
         },
         dismissButton = {
             TextButton(
-                onClick =
-                    onDismiss,
-                enabled =
-                    !inProgress,
+                onClick = onDismiss,
+                enabled = !inProgress,
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.cancel,
                         ),
                 )
@@ -1251,44 +1010,16 @@ private fun ConfirmMedicationActionDialog(
     )
 }
 
-private fun MedicationPlanItem.recordingDetailsText():
-        String =
-    buildList {
-        medicationType
-            .trim()
-            .takeIf(String::isNotEmpty)
-            ?.let { value ->
-                add(
-                    "نوع: $value",
-                )
-            }
-
-        dosageText
-            .trim()
-            .takeIf(String::isNotEmpty)
-            ?.let { value ->
-                add(
-                    "مقدار ثبت‌شده: $value",
-                )
-            }
-
-        doseUnit
-            .trim()
-            .takeIf(String::isNotEmpty)
-            ?.let { value ->
-                add(
-                    "واحد: $value",
-                )
-            }
-    }.joinToString(
-        separator = "، ",
-    )
+private fun MedicationPlanItem.recordingDetailsText(): String = MedicationRecordingDetails(
+        medicationType = medicationType,
+        dosageText = dosageText,
+        doseUnit = doseUnit,
+    ).toDisplayText()
 
 @Composable
 private fun medicationStatusText(
     status: MedicationStatus,
-): String =
-    when (status) {
+): String = when (status) {
         MedicationStatus.ACTIVE ->
             stringResource(
                 R.string.status_active,
@@ -1300,8 +1031,7 @@ private fun medicationStatusText(
             )
     }
 
-private val TIME_FORMATTER =
-    DateTimeFormatter.ofPattern(
+private val TIME_FORMATTER = DateTimeFormatter.ofPattern(
         "HH:mm",
         Locale.ROOT,
     )

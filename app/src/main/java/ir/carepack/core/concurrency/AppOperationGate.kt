@@ -13,8 +13,7 @@ class AppOperationGate {
     suspend fun <T> withGate(
         operation: suspend () -> T,
     ): T {
-        val currentOwner =
-            currentCoroutineContext()[GateOwner]
+        val currentOwner = currentCoroutineContext()[GateOwner]
 
         if (currentOwner?.gate === this) {
             return operation()
@@ -34,7 +33,6 @@ class AppOperationGate {
     private class GateOwner(
         val gate: AppOperationGate,
     ) : AbstractCoroutineContextElement(Key) {
-        companion object Key :
-            CoroutineContext.Key<GateOwner>
+        companion object Key : CoroutineContext.Key<GateOwner>
     }
 }

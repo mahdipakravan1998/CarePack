@@ -11,43 +11,32 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.semantics
 import ir.carepack.ui.experience.LocalCarePackExperience
 
-fun Modifier.carePackHeading(): Modifier =
-    semantics {
+fun Modifier.carePackHeading(): Modifier = semantics {
         heading()
     }
 
-fun Modifier.carePackPoliteLiveRegion(): Modifier =
-    semantics {
-        liveRegion =
-            LiveRegionMode.Polite
+fun Modifier.carePackPoliteLiveRegion(): Modifier = semantics {
+        liveRegion = LiveRegionMode.Polite
     }
 
-fun Modifier.carePackTraversalGroup(): Modifier =
-    semantics {
+fun Modifier.carePackTraversalGroup(): Modifier = semantics {
         isTraversalGroup = true
     }
 
 fun Modifier.carePackStateDescription(
     description: String,
-): Modifier =
-    semantics {
+): Modifier = semantics {
         stateDescription = description
     }
 
 @Composable
-fun Modifier.carePackPrimaryAction(): Modifier =
-    sizeIn(
-        minHeight =
-            LocalCarePackExperience
-                .current
-                .primaryActionMinHeight,
+fun Modifier.carePackPrimaryAction(): Modifier = sizeIn(
+        minHeight = LocalCarePackExperience
+                .current.primaryActionMinHeight,
     )
 
 @Composable
-fun Modifier.carePackInteractiveControl(): Modifier =
-    sizeIn(
-        minHeight =
-            LocalCarePackExperience
-                .current
-                .controlMinHeight,
+fun Modifier.carePackInteractiveControl(): Modifier = sizeIn(
+        minHeight = LocalCarePackExperience
+                .current.controlMinHeight,
     )

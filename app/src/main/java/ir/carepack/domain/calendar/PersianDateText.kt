@@ -7,23 +7,19 @@ object PersianDateText {
 
     fun formatNumeric(
         localDate: LocalDate,
-    ): String =
-        JalaliPresentationDate
-            .from(localDate)
-            .formatNumeric()
+    ): String = JalaliPresentationDate
+            .from(localDate).formatNumeric()
             .toPersianDigits()
 
     fun formatMonthYear(
         year: Int,
         month: Int,
-    ): String =
-        "${monthName(month)} ${year.toString().toPersianDigits()}"
+    ): String = "${monthName(month)} ${year.toString().toPersianDigits()}"
 
     fun formatFull(
         localDate: LocalDate,
     ): String {
-        val jalaliDate =
-            JalaliPresentationDate
+        val jalaliDate = JalaliPresentationDate
                 .from(localDate)
 
         return buildString {
@@ -34,26 +30,21 @@ object PersianDateText {
             )
             append("، ")
             append(
-                jalaliDate
-                    .dayOfMonth
-                    .value
-                    .toString()
+                jalaliDate.dayOfMonth
+                    .value.toString()
                     .toPersianDigits(),
             )
             append(' ')
             append(
                 monthName(
-                    jalaliDate
-                        .month
+                    jalaliDate.month
                         .value,
                 ),
             )
             append(' ')
             append(
-                jalaliDate
-                    .year
-                    .value
-                    .toString()
+                jalaliDate.year
+                    .value.toString()
                     .toPersianDigits(),
             )
         }
@@ -61,15 +52,12 @@ object PersianDateText {
 
     fun monthName(
         month: Int,
-    ): String =
-        PERSIAN_MONTH_NAMES[
-            month - 1
-        ]
+    ): String = PERSIAN_MONTH_NAMES[
+            month - 1]
 
     fun weekdayName(
         dayOfWeek: DayOfWeek,
-    ): String =
-        when (dayOfWeek) {
+    ): String = when (dayOfWeek) {
             DayOfWeek.SATURDAY ->
                 "شنبه"
 
@@ -94,8 +82,7 @@ object PersianDateText {
 
     fun shortWeekdayName(
         dayOfWeek: DayOfWeek,
-    ): String =
-        when (dayOfWeek) {
+    ): String = when (dayOfWeek) {
             DayOfWeek.SATURDAY ->
                 "ش"
 
@@ -118,8 +105,7 @@ object PersianDateText {
                 "ج"
         }
 
-    private val PERSIAN_MONTH_NAMES =
-        listOf(
+    private val PERSIAN_MONTH_NAMES = listOf(
             "فروردین",
             "اردیبهشت",
             "خرداد",
@@ -135,8 +121,7 @@ object PersianDateText {
         )
 }
 
-fun String.toPersianDigits(): String =
-    map { character ->
+fun String.toPersianDigits(): String = map { character ->
         when (character) {
             '0' -> '۰'
             '1' -> '۱'

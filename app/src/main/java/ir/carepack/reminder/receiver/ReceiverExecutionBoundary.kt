@@ -19,8 +19,7 @@ fun interface ReceiverCompletion {
 class ReceiverExecutionBoundary(
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
-    private val completionProvider:
-        (BroadcastReceiver) -> ReceiverCompletion = { receiver ->
+    private val completionProvider: (BroadcastReceiver) -> ReceiverCompletion = { receiver ->
         val pendingResult = receiver.goAsync()
         ReceiverCompletion {
             pendingResult.finish()

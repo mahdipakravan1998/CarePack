@@ -1,6 +1,5 @@
 package ir.carepack.domain.report
 
-import java.time.LocalDate
 import kotlinx.coroutines.flow.Flow
 
 interface DateRangeSummaryService {
@@ -20,12 +19,10 @@ object RangeSummaryBuilder {
         range: ReportDateRange,
         entries: List<RangeOccurrenceEntry>,
     ): DateRangeSummary {
-        val orderedEntries =
-            entries.asSequence()
+        val orderedEntries = entries.asSequence()
                 .filter { entry ->
                     entry.localDate in range
-                }
-                .sortedWith(
+                }.sortedWith(
                     compareBy<RangeOccurrenceEntry>(
                         RangeOccurrenceEntry::localDate,
                     ).thenBy(
@@ -33,52 +30,38 @@ object RangeSummaryBuilder {
                     ).thenBy(
                         RangeOccurrenceEntry::occurrenceId,
                     ),
-                )
-                .toList()
+                ).toList()
 
-        val entriesByDate =
-            orderedEntries.groupBy(
+        val entriesByDate = orderedEntries.groupBy(
                 RangeOccurrenceEntry::localDate,
             )
 
-        val daySummaries =
-            (0 until range.dayCount)
+        val daySummaries = (0 until range.dayCount)
                 .map { dayOffset ->
-                    val date =
-                        range.startDate.plusDays(
+                    val date = range.startDate.plusDays(
                             dayOffset.toLong(),
                         )
 
-                    val dayEntries =
-                        entriesByDate[date]
+                    val dayEntries = entriesByDate[date]
                             .orEmpty()
 
                     DayRangeSummary(
                         date = date,
-                        totalOccurrenceCount =
-                            dayEntries.size,
-                        givenCount =
-                            dayEntries.count {
-                                it.reportState ==
-                                        RangeOccurrenceReportState
+                        totalOccurrenceCount = dayEntries.size,
+                        givenCount = dayEntries.count {
+                                it.reportState == RangeOccurrenceReportState
                                             .GIVEN
                             },
-                        notGivenCount =
-                            dayEntries.count {
-                                it.reportState ==
-                                        RangeOccurrenceReportState
+                        notGivenCount = dayEntries.count {
+                                it.reportState == RangeOccurrenceReportState
                                             .NOT_GIVEN
                             },
-                        unknownCount =
-                            dayEntries.count {
-                                it.reportState ==
-                                        RangeOccurrenceReportState
+                        unknownCount = dayEntries.count {
+                                it.reportState == RangeOccurrenceReportState
                                             .UNKNOWN
                             },
-                        noReportCount =
-                            dayEntries.count {
-                                it.reportState ==
-                                        RangeOccurrenceReportState
+                        noReportCount = dayEntries.count {
+                                it.reportState == RangeOccurrenceReportState
                                             .NO_REPORT
                             },
                         entries = dayEntries,
@@ -87,34 +70,24 @@ object RangeSummaryBuilder {
 
         return DateRangeSummary(
             range = range,
-            totalOccurrenceCount =
-                orderedEntries.size,
-            givenCount =
-                orderedEntries.count {
-                    it.reportState ==
-                            RangeOccurrenceReportState
+            totalOccurrenceCount = orderedEntries.size,
+            givenCount = orderedEntries.count {
+                    it.reportState == RangeOccurrenceReportState
                                 .GIVEN
                 },
-            notGivenCount =
-                orderedEntries.count {
-                    it.reportState ==
-                            RangeOccurrenceReportState
+            notGivenCount = orderedEntries.count {
+                    it.reportState == RangeOccurrenceReportState
                                 .NOT_GIVEN
                 },
-            unknownCount =
-                orderedEntries.count {
-                    it.reportState ==
-                            RangeOccurrenceReportState
+            unknownCount = orderedEntries.count {
+                    it.reportState == RangeOccurrenceReportState
                                 .UNKNOWN
                 },
-            noReportCount =
-                orderedEntries.count {
-                    it.reportState ==
-                            RangeOccurrenceReportState
+            noReportCount = orderedEntries.count {
+                    it.reportState == RangeOccurrenceReportState
                                 .NO_REPORT
                 },
-            daySummaries =
-                daySummaries,
+            daySummaries = daySummaries,
         )
     }
 }

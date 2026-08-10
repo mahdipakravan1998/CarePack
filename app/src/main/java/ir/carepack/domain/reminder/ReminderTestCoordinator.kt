@@ -9,23 +9,18 @@ sealed interface ReminderTestScheduleResult {
         val deliveryMode: ReminderDeliveryMode,
     ) : ReminderTestScheduleResult
 
-    data object NotificationPermissionRequired :
-        ReminderTestScheduleResult
+    data object NotificationPermissionRequired : ReminderTestScheduleResult
 
-    data object SchedulingUnavailable :
-        ReminderTestScheduleResult
+    data object SchedulingUnavailable : ReminderTestScheduleResult
 }
 
 sealed interface ReminderTestFireResult {
 
-    data object NotificationPosted :
-        ReminderTestFireResult
+    data object NotificationPosted : ReminderTestFireResult
 
-    data object NotificationPermissionUnavailable :
-        ReminderTestFireResult
+    data object NotificationPermissionUnavailable : ReminderTestFireResult
 
-    data object NotificationFailed :
-        ReminderTestFireResult
+    data object NotificationFailed : ReminderTestFireResult
 }
 
 interface ReminderTestCoordinator {
@@ -34,13 +29,11 @@ interface ReminderTestCoordinator {
         delaySeconds: Long = DEFAULT_TEST_DELAY_SECONDS,
     ): ReminderTestScheduleResult
 
-    suspend fun handleTestAlarmFired():
-            ReminderTestFireResult
+    suspend fun handleTestAlarmFired(): ReminderTestFireResult
 
     suspend fun cancelPendingTest()
 
     companion object {
-        const val DEFAULT_TEST_DELAY_SECONDS =
-            30L
+        const val DEFAULT_TEST_DELAY_SECONDS = 30L
     }
 }

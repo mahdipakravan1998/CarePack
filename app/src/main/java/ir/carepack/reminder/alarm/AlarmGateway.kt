@@ -12,8 +12,7 @@ data class AlarmRequest(
     val alarmKey: AlarmKey,
     val occurrenceId: String,
     val triggerAt: Instant,
-    val deliveryMode:
-    AlarmDeliveryMode,
+    val deliveryMode: AlarmDeliveryMode,
 ) {
     init {
         require(occurrenceId.isNotBlank())

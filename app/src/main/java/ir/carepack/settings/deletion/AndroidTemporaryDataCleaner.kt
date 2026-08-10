@@ -8,12 +8,10 @@ class AndroidTemporaryDataCleaner(
     context: Context,
 ) : TemporaryDataCleaner {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
     override suspend fun clearAllTemporaryData() {
-        val wholeDirectoryContents =
-            listOfNotNull(
+        val wholeDirectoryContents = listOfNotNull(
                 applicationContext.cacheDir,
                 applicationContext.codeCacheDir,
                 applicationContext.externalCacheDir,
@@ -25,8 +23,7 @@ class AndroidTemporaryDataCleaner(
             )
         }
 
-        val dedicatedTemporaryDirectories =
-            listOf(
+        val dedicatedTemporaryDirectories = listOf(
                 File(
                     applicationContext.filesDir,
                     INTERNAL_TEMPORARY_DIRECTORY,
@@ -65,8 +62,7 @@ class AndroidTemporaryDataCleaner(
             )
         }
 
-        val children =
-            directory.listFiles()
+        val children = directory.listFiles()
                 ?: throw IOException(
                     "Temporary cleanup directory could not be read: ${directory.absolutePath}",
                 )
@@ -85,8 +81,7 @@ class AndroidTemporaryDataCleaner(
             return
         }
 
-        val deleted =
-            directory.deleteRecursively()
+        val deleted = directory.deleteRecursively()
 
         if (!deleted && directory.exists()) {
             throw IOException(
@@ -97,10 +92,8 @@ class AndroidTemporaryDataCleaner(
 
     private companion object {
 
-        const val INTERNAL_TEMPORARY_DIRECTORY =
-            "carepack-temporary"
+        const val INTERNAL_TEMPORARY_DIRECTORY = "carepack-temporary"
 
-        const val REPORT_PREVIEW_DIRECTORY =
-            "carepack-report-previews"
+        const val REPORT_PREVIEW_DIRECTORY = "carepack-report-previews"
     }
 }

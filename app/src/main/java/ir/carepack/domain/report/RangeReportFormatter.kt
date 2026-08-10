@@ -38,12 +38,10 @@ class RangeReportTextBuilder {
         recipientName: String?,
     ): RangeReportText {
         require(
-            summary.range.dayCount ==
-                    period.dayCount,
+            summary.range.dayCount == period.dayCount,
         )
 
-        val header =
-            buildList {
+        val header = buildList {
                 add(
                     reportTitle(
                         period,
@@ -51,32 +49,24 @@ class RangeReportTextBuilder {
                 )
 
                 add(
-                    "$PERIOD_LABEL: " +
-                            period.dayCount
-                                .toString()
-                                .toPersianDigits() +
+                    "$PERIOD_LABEL: " + period.dayCount
+                                .toString().toPersianDigits() +
                             " روز",
                 )
 
                 add(
-                    "$DATE_RANGE_LABEL: " +
-                            PersianDateText.formatNumeric(
-                                summary
-                                    .range
+                    "$DATE_RANGE_LABEL: " + PersianDateText.formatNumeric(
+                                summary.range
                                     .startDate,
-                            ) +
-                            " تا " +
+                            ) + " تا " +
                             PersianDateText.formatNumeric(
-                                summary
-                                    .range
+                                summary.range
                                     .endDate,
                             ),
                 )
 
-                recipientName
-                    ?.trim()
-                    ?.takeIf(String::isNotEmpty)
-                    ?.let { displayName ->
+                recipientName?.trim()
+                    ?.takeIf(String::isNotEmpty)?.let { displayName ->
                         add(
                             "$RECIPIENT_LABEL: $displayName",
                         )
@@ -85,51 +75,41 @@ class RangeReportTextBuilder {
                 separator = "\n",
             )
 
-        val summaryText =
-            listOf(
+        val summaryText = listOf(
                 SUMMARY_TITLE,
                 countLine(
                     label = TOTAL_LABEL,
-                    count =
-                        summary
+                    count = summary
                             .totalOccurrenceCount,
                 ),
                 countLine(
                     label = GIVEN_LABEL,
-                    count =
-                        summary.givenCount,
+                    count = summary.givenCount,
                 ),
                 countLine(
                     label = NOT_GIVEN_LABEL,
-                    count =
-                        summary.notGivenCount,
+                    count = summary.notGivenCount,
                 ),
                 countLine(
                     label = UNKNOWN_LABEL,
-                    count =
-                        summary.unknownCount,
+                    count = summary.unknownCount,
                 ),
                 countLine(
                     label = NO_REPORT_LABEL,
-                    count =
-                        summary.noReportCount,
+                    count = summary.noReportCount,
                 ),
             ).joinToString(
                 separator = "\n",
             )
 
-        val details =
-            if (
-                summary.totalOccurrenceCount == 0
-            ) {
+        val details = if (
+                summary.totalOccurrenceCount == 0) {
                 EMPTY_RANGE_MESSAGE
             } else {
-                summary
-                    .daySummaries
+                summary.daySummaries
                     .filter {
                         it.totalOccurrenceCount > 0
-                    }
-                    .joinToString(
+                    }.joinToString(
                         separator = "\n\n",
                     ) { daySummary ->
                         daySummary.toTextBlock()
@@ -137,8 +117,7 @@ class RangeReportTextBuilder {
             }
 
         return RangeReportText(
-            value =
-                listOf(
+            value = listOf(
                     header,
                     summaryText,
                     "$DETAILS_TITLE\n$details",
@@ -149,8 +128,7 @@ class RangeReportTextBuilder {
         )
     }
 
-    private fun DayRangeSummary.toTextBlock():
-            String =
+    private fun DayRangeSummary.toTextBlock(): String =
         buildString {
             append(
                 PersianDateText.formatFull(
@@ -167,19 +145,15 @@ class RangeReportTextBuilder {
                 }
 
                 append(
-                    index
-                        .plus(1)
-                        .toString()
-                        .toPersianDigits(),
+                    index.plus(1)
+                        .toString().toPersianDigits(),
                 )
                 append(". ")
                 append(
-                    entry
-                        .localTime
+                    entry.localTime
                         .format(
                             HOUR_MINUTE_FORMATTER,
-                        )
-                        .toPersianDigits(),
+                        ).toPersianDigits(),
                 )
                 append(" — ")
                 append(entry.medicationName)
@@ -190,8 +164,7 @@ class RangeReportTextBuilder {
                     ),
                 )
 
-                val recordingDetails =
-                    entry.recordingDetailsText()
+                val recordingDetails = entry.recordingDetailsText()
 
                 if (recordingDetails.isNotBlank()) {
                     append('\n')
@@ -207,43 +180,15 @@ class RangeReportTextBuilder {
             }
         }
 
-    private fun RangeOccurrenceEntry.recordingDetailsText():
-            String =
-        buildList {
-            medicationType
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$MEDICATION_TYPE_LABEL: $value",
-                    )
-                }
-
-            dosageText
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$DOSAGE_LABEL: $value",
-                    )
-                }
-
-            doseUnit
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$DOSE_UNIT_LABEL: $value",
-                    )
-                }
-        }.joinToString(
-            separator = "، ",
-        )
+    private fun RangeOccurrenceEntry.recordingDetailsText(): String = MedicationRecordingDetails(
+            medicationType = medicationType,
+            dosageText = dosageText,
+            doseUnit = doseUnit,
+        ).toDisplayText()
 
     private fun reportTitle(
         period: RangeReportPeriod,
-    ): String =
-        when (period) {
+    ): String = when (period) {
             RangeReportPeriod.SEVEN_DAYS ->
                 "گزارش ۷ روزه CarePack"
 
@@ -254,16 +199,13 @@ class RangeReportTextBuilder {
     private fun countLine(
         label: String,
         count: Int,
-    ): String =
-        "$label: " +
-                count
-                    .toString()
+    ): String = "$label: " +
+                count.toString()
                     .toPersianDigits()
 
     private fun reportStateText(
         state: RangeOccurrenceReportState,
-    ): String =
-        when (state) {
+    ): String = when (state) {
             RangeOccurrenceReportState.GIVEN ->
                 "مراقب: داده شد"
 
@@ -278,56 +220,40 @@ class RangeReportTextBuilder {
         }
 
     private companion object {
-        const val PERIOD_LABEL =
-            "دوره"
+        const val PERIOD_LABEL = "دوره"
 
-        const val DATE_RANGE_LABEL =
-            "بازه"
+        const val DATE_RANGE_LABEL = "بازه"
 
-        const val RECIPIENT_LABEL =
-            "فرد تحت مراقبت"
+        const val RECIPIENT_LABEL = "فرد تحت مراقبت"
 
-        const val SUMMARY_TITLE =
-            "خلاصه"
+        const val SUMMARY_TITLE = "خلاصه"
 
-        const val TOTAL_LABEL =
-            "مجموع نوبت‌ها"
+        const val TOTAL_LABEL = "مجموع نوبت‌ها"
 
-        const val GIVEN_LABEL =
-            "مراقب: داده شد"
+        const val GIVEN_LABEL = "مراقب: داده شد"
 
-        const val NOT_GIVEN_LABEL =
-            "مراقب: داده نشد"
+        const val NOT_GIVEN_LABEL = "مراقب: داده نشد"
 
-        const val UNKNOWN_LABEL =
-            "نامشخص"
+        const val UNKNOWN_LABEL = "نامشخص"
 
-        const val NO_REPORT_LABEL =
-            "ثبت نشده"
+        const val NO_REPORT_LABEL = "ثبت نشده"
 
-        const val DETAILS_TITLE =
-            "جزئیات"
+        const val DETAILS_TITLE = "جزئیات"
 
-        const val INSTRUCTION_LABEL =
-            "توضیح"
+        const val INSTRUCTION_LABEL = "توضیح"
 
-        const val MEDICATION_TYPE_LABEL =
-            "نوع"
+        const val MEDICATION_TYPE_LABEL = "نوع"
 
-        const val DOSAGE_LABEL =
-            "مقدار ثبت‌شده"
+        const val DOSAGE_LABEL = "مقدار ثبت‌شده"
 
-        const val DOSE_UNIT_LABEL =
-            "واحد"
+        const val DOSE_UNIT_LABEL = "واحد"
 
-        const val EMPTY_RANGE_MESSAGE =
-            "در این بازه نوبتی وجود ندارد."
+        const val EMPTY_RANGE_MESSAGE = "در این بازه نوبتی وجود ندارد."
 
         const val DISCLAIMER =
             "این خلاصه فقط بر اساس نوبت‌ها و ثبت‌های موجود در CarePack تهیه شده است و ارزیابی پزشکی یا تضمین مصرف دارو نیست."
 
-        val HOUR_MINUTE_FORMATTER:
-                DateTimeFormatter =
+        val HOUR_MINUTE_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern(
                 "HH:mm",
             )

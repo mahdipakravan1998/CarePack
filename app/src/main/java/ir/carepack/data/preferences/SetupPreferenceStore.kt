@@ -12,35 +12,24 @@ import kotlinx.coroutines.flow.map
 interface SetupPreferenceStore {
     val setupComplete: Flow<Boolean>
 
-    fun isInitialSetupComplete(): Flow<Boolean> =
-        setupComplete
-
     suspend fun markSetupComplete()
-
-    suspend fun markInitialSetupComplete() {
-        markSetupComplete()
-    }
 }
 
 class DataStoreSetupPreferenceStore(
     context: Context,
 ) : SetupPreferenceStore {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    override val setupComplete: Flow<Boolean> =
-        applicationContext
-            .carePackDataStore
-            .data
+    override val setupComplete: Flow<Boolean> = applicationContext
+            .carePackDataStore.data
             .catch { throwable ->
                 if (throwable is IOException) {
                     emit(emptyPreferences())
                 } else {
                     throw throwable
                 }
-            }
-            .map { preferences ->
+            }.map { preferences ->
                 preferences[SETUP_COMPLETE] ?: false
             }
 
@@ -51,7 +40,6 @@ class DataStoreSetupPreferenceStore(
     }
 
     private companion object {
-        val SETUP_COMPLETE =
-            booleanPreferencesKey("setup_complete")
+        val SETUP_COMPLETE = booleanPreferencesKey("setup_complete")
     }
 }

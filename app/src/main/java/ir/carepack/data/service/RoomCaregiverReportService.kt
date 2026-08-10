@@ -26,8 +26,7 @@ class RoomCaregiverReportService(
         }
     }
 
-    override suspend fun restorePrevious(change: ReportChange): UndoReportOutcome =
-        database.withTransaction {
+    override suspend fun restorePrevious(change: ReportChange): UndoReportOutcome = database.withTransaction {
             when (reportingDao.getOccurrenceLifecycle(change.occurrenceId)) {
                 null -> UndoReportOutcome.OccurrenceNotFound
                 OccurrenceLifecycle.ACTIVE.name -> restoreActiveOccurrenceReport(change)
@@ -50,11 +49,9 @@ class RoomCaregiverReportService(
     }
 
     private suspend fun restoreActiveOccurrenceReport(change: ReportChange): UndoReportOutcome {
-        val current = reportingDao.getReport(change.occurrenceId)
-            ?: return UndoReportOutcome.NoLongerCurrent
+        val current = reportingDao.getReport(change.occurrenceId) ?: return UndoReportOutcome.NoLongerCurrent
 
-        val isCurrentChange =
-            CaregiverReportState.valueOf(current.state) == change.newState &&
+        val isCurrentChange = CaregiverReportState.valueOf(current.state) == change.newState &&
                     current.updatedAtEpochMillis == change.changedAtEpochMillis
 
         if (!isCurrentChange) {

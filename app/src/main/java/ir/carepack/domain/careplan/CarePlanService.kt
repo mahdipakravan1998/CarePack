@@ -64,14 +64,11 @@ data class UpdateRecipientNameCommand(
 
 sealed interface UpdateRecipientNameOutcome {
 
-    data object Updated :
-        UpdateRecipientNameOutcome
+    data object Updated : UpdateRecipientNameOutcome
 
-    data object Unchanged :
-        UpdateRecipientNameOutcome
+    data object Unchanged : UpdateRecipientNameOutcome
 
-    data object NotFound :
-        UpdateRecipientNameOutcome
+    data object NotFound : UpdateRecipientNameOutcome
 
     data class Invalid(
         val errors: List<CarePlanValidationError>,
@@ -84,10 +81,8 @@ data class CreateMedicationScheduleCommand(
     val instruction: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
-    val schedulePattern: SchedulePattern =
-        FixedTimeSchedule(
-            minutesOfDay =
-                minutesOfDay,
+    val schedulePattern: SchedulePattern = FixedTimeSchedule(
+            minutesOfDay = minutesOfDay,
         ),
     val startDate: LocalDate?,
     val endDate: LocalDate?,
@@ -106,8 +101,7 @@ sealed interface CreateMedicationScheduleOutcome {
         val occurrenceIds: List<String>,
     ) : CreateMedicationScheduleOutcome
 
-    data object RecipientNotFound :
-        CreateMedicationScheduleOutcome
+    data object RecipientNotFound : CreateMedicationScheduleOutcome
 
     data class Invalid(
         val errors: List<CarePlanValidationError>,
@@ -118,10 +112,8 @@ data class AddScheduleCommand(
     val medicationId: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
-    val schedulePattern: SchedulePattern =
-        FixedTimeSchedule(
-            minutesOfDay =
-                minutesOfDay,
+    val schedulePattern: SchedulePattern = FixedTimeSchedule(
+            minutesOfDay = minutesOfDay,
         ),
     val startDate: LocalDate?,
     val endDate: LocalDate?,
@@ -137,11 +129,9 @@ sealed interface AddScheduleOutcome {
         val occurrenceIds: List<String>,
     ) : AddScheduleOutcome
 
-    data object NotFound :
-        AddScheduleOutcome
+    data object NotFound : AddScheduleOutcome
 
-    data object NotEditable :
-        AddScheduleOutcome
+    data object NotEditable : AddScheduleOutcome
 
     data class Invalid(
         val errors: List<CarePlanValidationError>,
@@ -159,17 +149,13 @@ data class UpdateMedicationTextCommand(
 
 sealed interface UpdateMedicationTextOutcome {
 
-    data object Updated :
-        UpdateMedicationTextOutcome
+    data object Updated : UpdateMedicationTextOutcome
 
-    data object Unchanged :
-        UpdateMedicationTextOutcome
+    data object Unchanged : UpdateMedicationTextOutcome
 
-    data object NotFound :
-        UpdateMedicationTextOutcome
+    data object NotFound : UpdateMedicationTextOutcome
 
-    data object NotEditable :
-        UpdateMedicationTextOutcome
+    data object NotEditable : UpdateMedicationTextOutcome
 
     data class Invalid(
         val errors: List<CarePlanValidationError>,
@@ -180,10 +166,8 @@ data class UpdateScheduleCommand(
     val scheduleSeriesId: String,
     val weekdays: Set<DayOfWeek>,
     val minutesOfDay: List<Int>,
-    val schedulePattern: SchedulePattern =
-        FixedTimeSchedule(
-            minutesOfDay =
-                minutesOfDay,
+    val schedulePattern: SchedulePattern = FixedTimeSchedule(
+            minutesOfDay = minutesOfDay,
         ),
     val startDate: LocalDate?,
     val endDate: LocalDate?,
@@ -192,17 +176,13 @@ data class UpdateScheduleCommand(
 
 sealed interface UpdateScheduleOutcome {
 
-    data object Updated :
-        UpdateScheduleOutcome
+    data object Updated : UpdateScheduleOutcome
 
-    data object Unchanged :
-        UpdateScheduleOutcome
+    data object Unchanged : UpdateScheduleOutcome
 
-    data object NotFound :
-        UpdateScheduleOutcome
+    data object NotFound : UpdateScheduleOutcome
 
-    data object NotEditable :
-        UpdateScheduleOutcome
+    data object NotEditable : UpdateScheduleOutcome
 
     data class Invalid(
         val errors: List<CarePlanValidationError>,
@@ -211,42 +191,33 @@ sealed interface UpdateScheduleOutcome {
 
 sealed interface StopMedicationOutcome {
 
-    data object Stopped :
-        StopMedicationOutcome
+    data object Stopped : StopMedicationOutcome
 
-    data object AlreadyStopped :
-        StopMedicationOutcome
+    data object AlreadyStopped : StopMedicationOutcome
 
-    data object NotFound :
-        StopMedicationOutcome
+    data object NotFound : StopMedicationOutcome
 }
 
 sealed interface ArchiveMedicationOutcome {
 
-    data object Archived :
-        ArchiveMedicationOutcome
+    data object Archived : ArchiveMedicationOutcome
 
-    data object AlreadyArchived :
-        ArchiveMedicationOutcome
+    data object AlreadyArchived : ArchiveMedicationOutcome
 
-    data object MustStopFirst :
-        ArchiveMedicationOutcome
+    data object MustStopFirst : ArchiveMedicationOutcome
 
-    data object NotFound :
-        ArchiveMedicationOutcome
+    data object NotFound : ArchiveMedicationOutcome
 }
 
 sealed interface SetupProgress {
 
-    data object Empty :
-        SetupProgress
+    data object Empty : SetupProgress
 
     data class RecipientOnly(
         val recipientId: String,
     ) : SetupProgress
 
-    data object Complete :
-        SetupProgress
+    data object Complete : SetupProgress
 }
 
 data class SchedulePlan(
@@ -255,10 +226,8 @@ data class SchedulePlan(
     val versionNumber: Int,
     val weekdays: Set<DayOfWeek>,
     val times: List<LocalTime>,
-    val schedulePattern: SchedulePattern =
-        FixedTimeSchedule(
-            minutesOfDay =
-                times.map(
+    val schedulePattern: SchedulePattern = FixedTimeSchedule(
+            minutesOfDay = times.map(
                     SchedulePatternRules::minuteOfDayFrom,
                 ),
         ),
@@ -343,11 +312,9 @@ interface CarePlanService {
         medicationId: String,
     ): ArchiveMedicationOutcome
 
-    suspend fun getSetupProgress():
-            SetupProgress
+    suspend fun getSetupProgress(): SetupProgress
 
-    fun observeCarePlan():
-            Flow<CarePlanOverview?>
+    fun observeCarePlan(): Flow<CarePlanOverview?>
 
     suspend fun getMedicationEditor(
         medicationId: String,

@@ -11,8 +11,7 @@ data class ShareDescriptor(
     val kind: ShareReportKind,
 ) {
     val chooserTitle: String
-        get() =
-            when (kind) {
+        get() = when (kind) {
                 ShareReportKind.TODAY ->
                     "اشتراک‌گذاری گزارش امروز CarePack"
                 ShareReportKind.SEVEN_DAY ->
@@ -24,8 +23,7 @@ data class ShareDescriptor(
             }
 
     val clipboardLabel: String
-        get() =
-            when (kind) {
+        get() = when (kind) {
                 ShareReportKind.TODAY ->
                     "گزارش امروز CarePack"
                 ShareReportKind.SEVEN_DAY ->

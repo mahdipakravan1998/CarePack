@@ -76,312 +76,228 @@ import java.time.Clock
 class AppContainer(
     context: Context,
 ) {
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    val clock: Clock =
-        Clock.systemUTC()
+    val clock: Clock = Clock.systemUTC()
 
-    val zoneProvider: ZoneProvider =
-        SystemZoneProvider()
+    val zoneProvider: ZoneProvider = SystemZoneProvider()
 
-    val systemReconciliationRetryScheduler =
-        SystemReconciliationRetryScheduler(
+    val systemReconciliationRetryScheduler = SystemReconciliationRetryScheduler(
             context = applicationContext,
             clock = clock,
         )
 
-    private val idSource: IdSource =
-        UuidIdSource()
+    private val idSource: IdSource = UuidIdSource()
 
-    private val reminderOperationLock =
-        AppOperationGate()
+    private val reminderOperationLock = AppOperationGate()
 
-    val reminderDiagnosticSink:
-            ReminderDiagnosticSink =
+    val reminderDiagnosticSink: ReminderDiagnosticSink =
         LogcatReminderDiagnosticSink(
-            enabled =
-                BuildConfig.DEBUG,
+            enabled = BuildConfig.DEBUG,
         )
 
-    val database: CarePackDatabase =
-        Room.databaseBuilder(
+    val database: CarePackDatabase = Room.databaseBuilder(
             applicationContext,
             CarePackDatabase::class.java,
             DATABASE_NAME,
-        )
-            .addCallback(
+        ).addCallback(
                 CarePackDatabase.invariantCallback,
-            )
-            .build()
+            ).build()
 
-    val setupPreferenceStore:
-            SetupPreferenceStore =
+    val setupPreferenceStore: SetupPreferenceStore =
         DataStoreSetupPreferenceStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    val reminderPreferenceStore:
-            ReminderPreferenceStore =
+    val reminderPreferenceStore: ReminderPreferenceStore =
         DataStoreReminderPreferenceStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    val privacyPreferenceStore:
-            PrivacyPreferenceStore =
+    val privacyPreferenceStore: PrivacyPreferenceStore =
         DataStorePrivacyPreferenceStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    val userExperiencePreferenceStore:
-            UserExperiencePreferenceStore =
+    val userExperiencePreferenceStore: UserExperiencePreferenceStore =
         DataStoreUserExperiencePreferenceStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    val snoozedReminderStore:
-            SnoozedReminderStore =
+    val snoozedReminderStore: SnoozedReminderStore =
         DataStoreSnoozedReminderStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    private val medicationDeletionMarkerStore:
-            MedicationDeletionMarkerStore =
+    private val medicationDeletionMarkerStore: MedicationDeletionMarkerStore =
         DataStoreMedicationDeletionMarkerStore(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    private val dataDeletionMarkerStore:
-            DataDeletionMarkerStore =
+    private val dataDeletionMarkerStore: DataDeletionMarkerStore =
         DataStoreDataDeletionMarkerStore(
             context = applicationContext,
         )
 
-    private val preferenceDataCleaner:
-            PreferenceDataCleaner =
+    private val preferenceDataCleaner: PreferenceDataCleaner =
         DataStorePreferenceDataCleaner(
             context = applicationContext,
         )
 
-    val notificationPermissionGateway:
-            NotificationPermissionGateway =
+    val notificationPermissionGateway: NotificationPermissionGateway =
         AndroidNotificationPermissionGateway(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    val exactAlarmCapabilityGateway:
-            ExactAlarmCapabilityGateway =
+    val exactAlarmCapabilityGateway: ExactAlarmCapabilityGateway =
         AndroidExactAlarmCapabilityGateway(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    private val androidAlarmGateway =
-        AndroidAlarmGateway(
-            context =
-                applicationContext,
+    private val androidAlarmGateway = AndroidAlarmGateway(
+            context = applicationContext,
             clock = clock,
-            diagnosticSink =
-                reminderDiagnosticSink,
+            diagnosticSink = reminderDiagnosticSink,
         )
 
-    val alarmGateway: AlarmGateway =
-        androidAlarmGateway
+    val alarmGateway: AlarmGateway = androidAlarmGateway
 
-    private val androidNotificationGateway =
-        AndroidNotificationGateway(
-            context =
-                applicationContext,
+    private val androidNotificationGateway = AndroidNotificationGateway(
+            context = applicationContext,
             clock = clock,
-            diagnosticSink =
-                reminderDiagnosticSink,
+            diagnosticSink = reminderDiagnosticSink,
         )
 
-    val notificationGateway:
-            NotificationGateway =
+    val notificationGateway: NotificationGateway =
         androidNotificationGateway
 
-    val occurrenceGenerator:
-            OccurrenceGenerator =
+    val occurrenceGenerator: OccurrenceGenerator =
         RoomOccurrenceGenerator(
             database = database,
             idSource = idSource,
-            candidateResolver =
-                OccurrenceCandidateResolver(),
+            candidateResolver = OccurrenceCandidateResolver(),
         )
 
-    private val reminderScheduleSource:
-            ReminderScheduleSource =
+    private val reminderScheduleSource: ReminderScheduleSource =
         RoomReminderScheduleSource(
             database = database,
         )
 
-    val reminderCoordinator:
-            ReminderCoordinator =
+    val reminderCoordinator: ReminderCoordinator =
         DefaultReminderCoordinator(
-            scheduleSource =
-                reminderScheduleSource,
-            preferenceStore =
-                reminderPreferenceStore,
-            snoozedReminderStore =
-                snoozedReminderStore,
-            notificationPermissionGateway =
-                notificationPermissionGateway,
-            exactAlarmCapabilityGateway =
-                exactAlarmCapabilityGateway,
-            alarmGateway =
-                alarmGateway,
-            notificationGateway =
-                notificationGateway,
+            scheduleSource = reminderScheduleSource,
+            preferenceStore = reminderPreferenceStore,
+            snoozedReminderStore = snoozedReminderStore,
+            notificationPermissionGateway = notificationPermissionGateway,
+            exactAlarmCapabilityGateway = exactAlarmCapabilityGateway,
+            alarmGateway = alarmGateway,
+            notificationGateway = notificationGateway,
             clock = clock,
-            diagnosticSink =
-                reminderDiagnosticSink,
-            operationLock =
-                reminderOperationLock,
+            diagnosticSink = reminderDiagnosticSink,
+            operationLock = reminderOperationLock,
         )
 
-    val reminderTestCoordinator:
-            ReminderTestCoordinator =
+    val reminderTestCoordinator: ReminderTestCoordinator =
         DefaultReminderTestCoordinator(
-            notificationPermissionGateway =
-                notificationPermissionGateway,
-            exactAlarmCapabilityGateway =
-                exactAlarmCapabilityGateway,
-            alarmGateway =
-                androidAlarmGateway,
-            notificationGateway =
-                androidNotificationGateway,
+            notificationPermissionGateway = notificationPermissionGateway,
+            exactAlarmCapabilityGateway = exactAlarmCapabilityGateway,
+            alarmGateway = androidAlarmGateway,
+            notificationGateway = androidNotificationGateway,
             clock = clock,
-            operationLock =
-                reminderOperationLock,
+            operationLock = reminderOperationLock,
         )
 
-    private val roomCarePlanService:
-            CarePlanService =
+    private val roomCarePlanService: CarePlanService =
         RoomCarePlanService(
             database = database,
-            occurrenceGenerator =
-                occurrenceGenerator,
+            occurrenceGenerator = occurrenceGenerator,
             clock = clock,
             idSource = idSource,
         )
 
-    val carePlanService:
-            CarePlanService =
+    val carePlanService: CarePlanService =
         ReminderAwareCarePlanService(
             delegate = roomCarePlanService,
             reminderCoordinator = reminderCoordinator,
-            reminderPreferenceStore =
-                reminderPreferenceStore,
+            reminderPreferenceStore = reminderPreferenceStore,
             operationGate = reminderOperationLock,
             clock = clock,
         )
 
-    private val roomCaregiverReportService:
-            CaregiverReportService =
+    private val roomCaregiverReportService: CaregiverReportService =
         RoomCaregiverReportService(
             database = database,
             clock = clock,
         )
 
-    val caregiverReportService:
-            CaregiverReportService =
+    val caregiverReportService: CaregiverReportService =
         ReminderAwareCaregiverReportService(
             delegate = roomCaregiverReportService,
             reminderCoordinator = reminderCoordinator,
-            reminderPreferenceStore =
-                reminderPreferenceStore,
+            reminderPreferenceStore = reminderPreferenceStore,
             operationGate = reminderOperationLock,
             clock = clock,
         )
 
-    val todayQueryService:
-            TodayQueryService =
+    val todayQueryService: TodayQueryService =
         RoomTodayQueryService(
             database = database,
         )
 
-    val todayReportFormatter:
-            TodayReportFormatter =
+    val todayReportFormatter: TodayReportFormatter =
         RoomTodayReportFormatter(
             database = database,
         )
 
-    val dateRangeSummaryService:
-            DateRangeSummaryService =
+    val dateRangeSummaryService: DateRangeSummaryService =
         RoomDateRangeSummaryService(
             database = database,
         )
 
-    val rangeReportFormatter:
-            RangeReportFormatter =
+    val rangeReportFormatter: RangeReportFormatter =
         RoomRangeReportFormatter(
             database = database,
-            summaryService =
-                dateRangeSummaryService,
+            summaryService = dateRangeSummaryService,
         )
 
-    val textShareGateway:
-            TextShareGateway =
+    val textShareGateway: TextShareGateway =
         AndroidTextShareGateway(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    private val medicationDeletionDataSource:
-            MedicationDeletionDataSource =
+    private val medicationDeletionDataSource: MedicationDeletionDataSource =
         RoomMedicationDeletionDataSource(
             database = database,
         )
 
-    val medicationDeletionCoordinator:
-            MedicationDeletionCoordinator =
+    val medicationDeletionCoordinator: MedicationDeletionCoordinator =
         DefaultMedicationDeletionCoordinator(
-            dataSource =
-                medicationDeletionDataSource,
-            markerStore =
-                medicationDeletionMarkerStore,
-            alarmGateway =
-                alarmGateway,
-            notificationGateway =
-                notificationGateway,
-            snoozedReminderStore =
-                snoozedReminderStore,
-            reminderCoordinator =
-                reminderCoordinator,
-            operationGate =
-                reminderOperationLock,
+            dataSource = medicationDeletionDataSource,
+            markerStore = medicationDeletionMarkerStore,
+            alarmGateway = alarmGateway,
+            notificationGateway = notificationGateway,
+            snoozedReminderStore = snoozedReminderStore,
+            reminderCoordinator = reminderCoordinator,
+            operationGate = reminderOperationLock,
             clock = clock,
         )
 
-    private val domainDataCleaner:
-            DomainDataCleaner =
+    private val domainDataCleaner: DomainDataCleaner =
         RoomDomainDataCleaner(
             database = database,
         )
 
-    private val temporaryDataCleaner:
-            TemporaryDataCleaner =
+    private val temporaryDataCleaner: TemporaryDataCleaner =
         AndroidTemporaryDataCleaner(
-            context =
-                applicationContext,
+            context = applicationContext,
         )
 
-    private val auxiliaryDeletionStateCleaner =
-        AuxiliaryDeletionStateCleaner {
+    private val auxiliaryDeletionStateCleaner = AuxiliaryDeletionStateCleaner {
             reminderTestCoordinator.cancelPendingTest()
             systemReconciliationRetryScheduler.clearAll()
         }
 
-    val dataDeletionCoordinator:
-            DataDeletionCoordinator =
+    val dataDeletionCoordinator: DataDeletionCoordinator =
         DefaultDataDeletionCoordinator(
             markerStore = dataDeletionMarkerStore,
             reminderCoordinator = reminderCoordinator,
@@ -389,35 +305,28 @@ class AppContainer(
             domainDataCleaner = domainDataCleaner,
             preferenceDataCleaner = preferenceDataCleaner,
             temporaryDataCleaner = temporaryDataCleaner,
-            auxiliaryDeletionStateCleaner =
-                auxiliaryDeletionStateCleaner,
+            auxiliaryDeletionStateCleaner = auxiliaryDeletionStateCleaner,
             operationGate = reminderOperationLock,
             idSource = idSource,
             clock = clock,
         )
 
-    val notificationNavigationValidator =
-        NotificationNavigationValidator(
+    val notificationNavigationValidator = NotificationNavigationValidator(
             database = database,
         )
 
-    val appReconciler =
-        AppReconciler(
-            medicationDeletionCoordinator =
-                medicationDeletionCoordinator,
-            dataDeletionCoordinator =
-                dataDeletionCoordinator,
+    val appReconciler = AppReconciler(
+            medicationDeletionCoordinator = medicationDeletionCoordinator,
+            dataDeletionCoordinator = dataDeletionCoordinator,
             occurrenceGenerator = occurrenceGenerator,
             reminderCoordinator = reminderCoordinator,
-            reminderPreferenceStore =
-                reminderPreferenceStore,
+            reminderPreferenceStore = reminderPreferenceStore,
             clock = clock,
             zoneProvider = zoneProvider,
             operationGate = reminderOperationLock,
         )
 
     private companion object {
-        const val DATABASE_NAME =
-            "carepack.db"
+        const val DATABASE_NAME = "carepack.db"
     }
 }

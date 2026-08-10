@@ -25,8 +25,7 @@ abstract class CarePackDatabase : RoomDatabase() {
     abstract fun reportingDao(): ReportingDao
 
     companion object {
-        val invariantCallback =
-            object : Callback() {
+        val invariantCallback = object : Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     installInvariantTriggers(db)
                 }
@@ -48,8 +47,7 @@ abstract class CarePackDatabase : RoomDatabase() {
             INVARIANT_TRIGGERS.forEach(db::execSQL)
         }
 
-        private val INVARIANT_TRIGGERS =
-            listOf(
+        private val INVARIANT_TRIGGERS = listOf(
                 """
                 CREATE TRIGGER IF NOT EXISTS carepack_schedule_time_insert_guard
                 BEFORE INSERT ON schedule_times

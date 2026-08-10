@@ -27,7 +27,6 @@ import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceStore
-import ir.carepack.domain.reminder.recoverableFailureOrNull
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.report.ReportChange
 import ir.carepack.domain.report.SetReportOutcome
@@ -45,24 +44,20 @@ class ReminderAwareCarePlanService(
 
     override suspend fun createRecipient(
         command: CreateRecipientCommand,
-    ): CreateRecipientOutcome =
-        operationGate.withGate {
+    ): CreateRecipientOutcome = operationGate.withGate {
             delegate.createRecipient(command)
         }
 
     override suspend fun updateRecipientName(
         command: UpdateRecipientNameCommand,
-    ): UpdateRecipientNameOutcome =
-        operationGate.withGate {
+    ): UpdateRecipientNameOutcome = operationGate.withGate {
             delegate.updateRecipientName(command)
         }
 
     override suspend fun createMedicationAndSchedule(
         command: CreateMedicationScheduleCommand,
-    ): CreateMedicationScheduleOutcome =
-        operationGate.withGate {
-            val outcome =
-                delegate.createMedicationAndSchedule(command)
+    ): CreateMedicationScheduleOutcome = operationGate.withGate {
+            val outcome = delegate.createMedicationAndSchedule(command)
             if (outcome is CreateMedicationScheduleOutcome.Created) {
                 reconcileAfterCommit(
                     ReconciliationReason.CARE_PLAN_CHANGED,
@@ -73,8 +68,7 @@ class ReminderAwareCarePlanService(
 
     override suspend fun addSchedule(
         command: AddScheduleCommand,
-    ): AddScheduleOutcome =
-        operationGate.withGate {
+    ): AddScheduleOutcome = operationGate.withGate {
             val outcome = delegate.addSchedule(command)
             if (outcome is AddScheduleOutcome.Created) {
                 reconcileAfterCommit(
@@ -86,8 +80,7 @@ class ReminderAwareCarePlanService(
 
     override suspend fun updateMedicationText(
         command: UpdateMedicationTextCommand,
-    ): UpdateMedicationTextOutcome =
-        operationGate.withGate {
+    ): UpdateMedicationTextOutcome = operationGate.withGate {
             val outcome = delegate.updateMedicationText(command)
             if (outcome == UpdateMedicationTextOutcome.Updated) {
                 reconcileAfterCommit(
@@ -99,8 +92,7 @@ class ReminderAwareCarePlanService(
 
     override suspend fun updateSchedule(
         command: UpdateScheduleCommand,
-    ): UpdateScheduleOutcome =
-        operationGate.withGate {
+    ): UpdateScheduleOutcome = operationGate.withGate {
             val outcome = delegate.updateSchedule(command)
             if (outcome == UpdateScheduleOutcome.Updated) {
                 reconcileAfterCommit(
@@ -112,8 +104,7 @@ class ReminderAwareCarePlanService(
 
     override suspend fun stopMedication(
         medicationId: String,
-    ): StopMedicationOutcome =
-        operationGate.withGate {
+    ): StopMedicationOutcome = operationGate.withGate {
             val outcome = delegate.stopMedication(medicationId)
             if (outcome == StopMedicationOutcome.Stopped) {
                 reconcileAfterCommit(
@@ -125,8 +116,7 @@ class ReminderAwareCarePlanService(
 
     override suspend fun archiveMedication(
         medicationId: String,
-    ): ArchiveMedicationOutcome =
-        operationGate.withGate {
+    ): ArchiveMedicationOutcome = operationGate.withGate {
             val outcome = delegate.archiveMedication(medicationId)
             if (outcome == ArchiveMedicationOutcome.Archived) {
                 reconcileAfterCommit(
@@ -136,47 +126,34 @@ class ReminderAwareCarePlanService(
             outcome
         }
 
-    override suspend fun getSetupProgress(): SetupProgress =
-        delegate.getSetupProgress()
+    override suspend fun getSetupProgress(): SetupProgress = delegate.getSetupProgress()
 
-    override fun observeCarePlan(): Flow<CarePlanOverview?> =
-        delegate.observeCarePlan()
+    override fun observeCarePlan(): Flow<CarePlanOverview?> = delegate.observeCarePlan()
 
     override suspend fun getMedicationEditor(
         medicationId: String,
-    ): MedicationEditorSnapshot? =
-        delegate.getMedicationEditor(medicationId)
+    ): MedicationEditorSnapshot? = delegate.getMedicationEditor(medicationId)
 
     override suspend fun getScheduleEditor(
         scheduleSeriesId: String,
-    ): ScheduleEditorSnapshot? =
-        delegate.getScheduleEditor(scheduleSeriesId)
+    ): ScheduleEditorSnapshot? = delegate.getScheduleEditor(scheduleSeriesId)
 
     private suspend fun reconcileAfterCommit(
         reason: ReconciliationReason,
     ) {
         try {
             val result = reminderCoordinator.reconcile(reason)
-            val failure = result.recoverableFailureOrNull()
-
-            if (failure == null) {
-                reminderPreferenceStore.markHealthy()
-            } else {
-                reminderPreferenceStore.markFailure(
-                    failure = failure,
-                    failedAtEpochMillis =
-                        clock.instant().toEpochMilli(),
-                )
-            }
+            reminderPreferenceStore.recordReconciliationHealth(
+                result = result,
+                failedAtEpochMillis = { clock.instant().toEpochMilli() },
+            )
         } catch (throwable: Throwable) {
             throwable.rethrowIfCancellation()
             reminderPreferenceStore.markFailure(
-                failure =
-                    throwable.toSafeAppFailure(
+                failure = throwable.toSafeAppFailure(
                         AppOperationStage.RECONCILING_REMINDERS,
                     ),
-                failedAtEpochMillis =
-                    clock.instant().toEpochMilli(),
+                failedAtEpochMillis = clock.instant().toEpochMilli(),
             )
         }
     }
@@ -193,10 +170,8 @@ class ReminderAwareCaregiverReportService(
     override suspend fun setReport(
         occurrenceId: String,
         newState: CaregiverReportState,
-    ): SetReportOutcome =
-        operationGate.withGate {
-            val outcome =
-                delegate.setReport(
+    ): SetReportOutcome = operationGate.withGate {
+            val outcome = delegate.setReport(
                     occurrenceId = occurrenceId,
                     newState = newState,
                 )
@@ -215,8 +190,7 @@ class ReminderAwareCaregiverReportService(
 
     override suspend fun restorePrevious(
         change: ReportChange,
-    ): UndoReportOutcome =
-        operationGate.withGate {
+    ): UndoReportOutcome = operationGate.withGate {
             val outcome = delegate.restorePrevious(change)
             if (outcome is UndoReportOutcome.Restored) {
                 reconcileAfterCommit()
@@ -226,30 +200,20 @@ class ReminderAwareCaregiverReportService(
 
     private suspend fun reconcileAfterCommit() {
         try {
-            val result =
-                reminderCoordinator.reconcile(
+            val result = reminderCoordinator.reconcile(
                     ReconciliationReason.REPORT_CHANGED,
                 )
-            val failure = result.recoverableFailureOrNull()
-
-            if (failure == null) {
-                reminderPreferenceStore.markHealthy()
-            } else {
-                reminderPreferenceStore.markFailure(
-                    failure = failure,
-                    failedAtEpochMillis =
-                        clock.instant().toEpochMilli(),
-                )
-            }
+            reminderPreferenceStore.recordReconciliationHealth(
+                result = result,
+                failedAtEpochMillis = { clock.instant().toEpochMilli() },
+            )
         } catch (throwable: Throwable) {
             throwable.rethrowIfCancellation()
             reminderPreferenceStore.markFailure(
-                failure =
-                    throwable.toSafeAppFailure(
+                failure = throwable.toSafeAppFailure(
                         AppOperationStage.RECONCILING_REMINDERS,
                     ),
-                failedAtEpochMillis =
-                    clock.instant().toEpochMilli(),
+                failedAtEpochMillis = clock.instant().toEpochMilli(),
             )
         }
     }
@@ -262,12 +226,10 @@ class ReminderAwareCaregiverReportService(
         } catch (throwable: Throwable) {
             throwable.rethrowIfCancellation()
             reminderPreferenceStore.markFailure(
-                failure =
-                    throwable.toSafeAppFailure(
+                failure = throwable.toSafeAppFailure(
                         AppOperationStage.RECONCILING_REMINDERS,
                     ),
-                failedAtEpochMillis =
-                    clock.instant().toEpochMilli(),
+                failedAtEpochMillis = clock.instant().toEpochMilli(),
             )
         }
     }

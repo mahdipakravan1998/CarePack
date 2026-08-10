@@ -14,41 +14,34 @@ data class JalaliYearMonth(
     }
 
     val monthName: String
-        get() =
-            PersianDateText.monthName(
+        get() = PersianDateText.monthName(
                 month,
             )
 
     val lengthOfMonth: Int
-        get() =
-            JalaliPresentationDate
+        get() = JalaliPresentationDate
                 .lengthOfMonth(
                     year = year,
                     month = month,
                 )
 
-    fun firstLocalDate(): LocalDate =
-        JalaliPresentationDate(
+    fun firstLocalDate(): LocalDate = JalaliPresentationDate(
             year = JalaliYear(year),
             month = JalaliMonth(month),
-            dayOfMonth =
-                JalaliDayOfMonth(1),
+            dayOfMonth = JalaliDayOfMonth(1),
         ).toLocalDate()
 
     fun localDateAt(
         dayOfMonth: Int,
-    ): LocalDate =
-        JalaliPresentationDate(
+    ): LocalDate = JalaliPresentationDate(
             year = JalaliYear(year),
             month = JalaliMonth(month),
-            dayOfMonth =
-                JalaliDayOfMonth(
+            dayOfMonth = JalaliDayOfMonth(
                     dayOfMonth,
                 ),
         ).toLocalDate()
 
-    fun previous(): JalaliYearMonth =
-        if (month == 1) {
+    fun previous(): JalaliYearMonth = if (month == 1) {
             JalaliYearMonth(
                 year = year - 1,
                 month = 12,
@@ -59,8 +52,7 @@ data class JalaliYearMonth(
             )
         }
 
-    fun next(): JalaliYearMonth =
-        if (month == 12) {
+    fun next(): JalaliYearMonth = if (month == 12) {
             JalaliYearMonth(
                 year = year + 1,
                 month = 1,
@@ -75,19 +67,14 @@ data class JalaliYearMonth(
         fun from(
             localDate: LocalDate,
         ): JalaliYearMonth {
-            val jalaliDate =
-                JalaliPresentationDate
+            val jalaliDate = JalaliPresentationDate
                     .from(localDate)
 
             return JalaliYearMonth(
-                year =
-                    jalaliDate
-                        .year
-                        .value,
-                month =
-                    jalaliDate
-                        .month
-                        .value,
+                year = jalaliDate
+                        .year.value,
+                month = jalaliDate
+                        .month.value,
             )
         }
     }
@@ -122,12 +109,10 @@ data class JalaliMonthModel(
     }
 
     val cells: List<JalaliMonthCell>
-        get() =
-            weeks.flatten()
+        get() = weeks.flatten()
 
     companion object {
-        private const val DAYS_PER_WEEK =
-            7
+        private const val DAYS_PER_WEEK = 7
     }
 }
 
@@ -139,77 +124,56 @@ object JalaliMonthModelFactory {
         selectedDate: LocalDate,
         firstDayOfWeek: DayOfWeek,
     ): JalaliMonthModel {
-        val firstMonthDate =
-            displayedMonth.firstLocalDate()
+        val firstMonthDate = displayedMonth.firstLocalDate()
 
-        val leadingDayCount =
-            dayDistance(
+        val leadingDayCount = dayDistance(
                 first = firstDayOfWeek,
-                second =
-                    firstMonthDate
+                second = firstMonthDate
                         .dayOfWeek,
             )
 
-        val firstVisibleDate =
-            firstMonthDate.minusDays(
+        val firstVisibleDate = firstMonthDate.minusDays(
                 leadingDayCount.toLong(),
             )
 
-        val usedCellCount =
-            leadingDayCount +
+        val usedCellCount = leadingDayCount +
                     displayedMonth.lengthOfMonth
 
-        val rowCount =
-            (
-                    usedCellCount +
-                            DAYS_PER_WEEK - 1
+        val rowCount = (
+                    usedCellCount + DAYS_PER_WEEK - 1
                     ) / DAYS_PER_WEEK
 
-        val totalCellCount =
-            rowCount * DAYS_PER_WEEK
+        val totalCellCount = rowCount * DAYS_PER_WEEK
 
-        val cells =
-            (0 until totalCellCount)
+        val cells = (0 until totalCellCount)
                 .map { index ->
-                    val localDate =
-                        firstVisibleDate.plusDays(
+                    val localDate = firstVisibleDate.plusDays(
                             index.toLong(),
                         )
 
-                    val jalaliDate =
-                        JalaliPresentationDate
+                    val jalaliDate = JalaliPresentationDate
                             .from(localDate)
 
                     JalaliMonthCell(
                         localDate = localDate,
                         jalaliDate = jalaliDate,
-                        belongsToDisplayedMonth =
-                            jalaliDate.year.value ==
-                                    displayedMonth.year &&
-                                    jalaliDate.month.value ==
+                        belongsToDisplayedMonth = jalaliDate.year.value ==
+                                    displayedMonth.year && jalaliDate.month.value ==
                                     displayedMonth.month,
-                        isToday =
-                            localDate == today,
-                        isSelected =
-                            localDate == selectedDate,
+                        isToday = localDate == today,
+                        isSelected = localDate == selectedDate,
                     )
                 }
 
         return JalaliMonthModel(
-            displayedMonth =
-                displayedMonth,
-            firstDayOfWeek =
-                firstDayOfWeek,
-            weekdayOrder =
-                weekdayOrder(
+            displayedMonth = displayedMonth,
+            firstDayOfWeek = firstDayOfWeek,
+            weekdayOrder = weekdayOrder(
                     firstDayOfWeek,
                 ),
-            firstVisibleDate =
-                firstVisibleDate,
-            lastVisibleDate =
-                cells.last().localDate,
-            weeks =
-                cells.chunked(
+            firstVisibleDate = firstVisibleDate,
+            lastVisibleDate = cells.last().localDate,
+            weeks = cells.chunked(
                     DAYS_PER_WEEK,
                 ),
         )
@@ -217,13 +181,11 @@ object JalaliMonthModelFactory {
 
     private fun weekdayOrder(
         firstDayOfWeek: DayOfWeek,
-    ): List<DayOfWeek> =
-        (0 until DAYS_PER_WEEK)
+    ): List<DayOfWeek> = (0 until DAYS_PER_WEEK)
             .map { offset ->
                 DayOfWeek.of(
                     (
-                            firstDayOfWeek.value - 1 +
-                                    offset
+                            firstDayOfWeek.value - 1 + offset
                             ) % DAYS_PER_WEEK + 1,
                 )
             }
@@ -231,13 +193,9 @@ object JalaliMonthModelFactory {
     private fun dayDistance(
         first: DayOfWeek,
         second: DayOfWeek,
-    ): Int =
-        (
-                second.value -
-                        first.value +
-                        DAYS_PER_WEEK
-                ) % DAYS_PER_WEEK
+    ): Int = (
+                second.value - first.value +
+                        DAYS_PER_WEEK) % DAYS_PER_WEEK
 
-    private const val DAYS_PER_WEEK =
-        7
+    private const val DAYS_PER_WEEK = 7
 }

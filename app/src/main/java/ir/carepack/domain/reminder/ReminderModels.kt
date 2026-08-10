@@ -55,24 +55,19 @@ value class AlarmKey private constructor(
     }
 
     val scheduleSeriesId: String
-        get() =
-            value
+        get() = value
                 .removePrefix(
                     SCHEDULE_SERIES_PREFIX,
-                )
-                .removePrefix(
+                ).removePrefix(
                     DELAYED_OCCURRENCE_PREFIX,
-                )
-                .removePrefix(
+                ).removePrefix(
                     TEST_REMINDER_PREFIX,
                 )
 
     val stableToken: String
         get() {
-            val digest =
-                MessageDigest
-                    .getInstance("SHA-256")
-                    .digest(
+            val digest = MessageDigest
+                    .getInstance("SHA-256").digest(
                         value.toByteArray(
                             Charsets.UTF_8,
                         ),
@@ -88,29 +83,23 @@ value class AlarmKey private constructor(
         }
 
     companion object {
-        private const val SCHEDULE_SERIES_PREFIX =
-            "schedule-series:"
+        private const val SCHEDULE_SERIES_PREFIX = "schedule-series:"
 
-        private const val DELAYED_OCCURRENCE_PREFIX =
-            "delayed-occurrence:"
+        private const val DELAYED_OCCURRENCE_PREFIX = "delayed-occurrence:"
 
-        private const val TEST_REMINDER_PREFIX =
-            "test-reminder:"
+        private const val TEST_REMINDER_PREFIX = "test-reminder:"
 
-        private const val TEST_REMINDER_ID =
-            "single"
+        private const val TEST_REMINDER_ID = "single"
 
         fun forScheduleSeries(
             scheduleSeriesId: String,
         ): AlarmKey {
-            val trimmed =
-                scheduleSeriesId.trim()
+            val trimmed = scheduleSeriesId.trim()
 
             require(trimmed.isNotBlank())
 
             return AlarmKey(
-                value =
-                    SCHEDULE_SERIES_PREFIX +
+                value = SCHEDULE_SERIES_PREFIX +
                             trimmed,
             )
         }
@@ -118,22 +107,18 @@ value class AlarmKey private constructor(
         fun forDelayedOccurrence(
             occurrenceId: String,
         ): AlarmKey {
-            val trimmed =
-                occurrenceId.trim()
+            val trimmed = occurrenceId.trim()
 
             require(trimmed.isNotBlank())
 
             return AlarmKey(
-                value =
-                    DELAYED_OCCURRENCE_PREFIX +
+                value = DELAYED_OCCURRENCE_PREFIX +
                             trimmed,
             )
         }
 
-        fun forTestReminder(): AlarmKey =
-            AlarmKey(
-                value =
-                    TEST_REMINDER_PREFIX +
+        fun forTestReminder(): AlarmKey = AlarmKey(
+                value = TEST_REMINDER_PREFIX +
                             TEST_REMINDER_ID,
             )
     }
@@ -194,8 +179,7 @@ sealed interface ReminderReconciliationResult {
     }
 }
 
-fun ReminderReconciliationResult.recoverableFailureOrNull():
-        SafeAppFailure? =
+fun ReminderReconciliationResult.recoverableFailureOrNull(): SafeAppFailure? =
     when (this) {
         is ReminderReconciliationResult.Reconciled -> null
         is ReminderReconciliationResult.PartialFailure ->

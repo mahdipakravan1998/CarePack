@@ -3,32 +3,22 @@ package ir.carepack.feature.reporting
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -36,44 +26,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
-import ir.carepack.core.time.ZoneProvider
-import ir.carepack.data.preferences.PrivacyPreferenceStore
-import ir.carepack.domain.calendar.PersianDateText
 import ir.carepack.domain.calendar.toPersianDigits
-import ir.carepack.domain.experience.SeniorMode
-import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.report.DateRangeSummary
-import ir.carepack.domain.report.RangeReportFormatter
 import ir.carepack.domain.report.RangeReportPeriod
-import ir.carepack.reporting.share.CopyTextResult
-import ir.carepack.reporting.share.ShareDescriptor
-import ir.carepack.reporting.share.ShareReportKind
-import ir.carepack.reporting.share.ShareTextResult
-import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackInteractiveControl
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import ir.carepack.ui.accessibility.carePackPrimaryAction
-import ir.carepack.ui.experience.CarePackExperience
 import ir.carepack.ui.experience.LocalCarePackExperience
-import java.time.Clock
-import java.time.LocalDate
-import java.util.concurrent.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 
 
@@ -82,97 +43,72 @@ import kotlinx.coroutines.launch
 internal fun RangePeriodSelector(
     selectedPeriod: RangeReportPeriod,
     enabled: Boolean,
-    onPeriodSelected:
-        (RangeReportPeriod) -> Unit,
+    onPeriodSelected: (RangeReportPeriod) -> Unit,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Column(
-        modifier =
-            Modifier.fillMaxWidth(),
-        verticalArrangement =
-            Arrangement.spacedBy(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(
                 experience.compactSpacing,
             ),
     ) {
         Text(
-            text =
-                stringResource(
-                    R.string
-                        .range_report_period_label,
+            text = stringResource(
+                    R.string.range_report_period_label,
                 ),
-            style =
-                MaterialTheme
-                    .typography
-                    .titleMedium,
-            modifier =
-                Modifier.carePackHeading(),
+            style = MaterialTheme
+                    .typography.titleMedium,
+            modifier = Modifier.carePackHeading(),
         )
 
         Row(
-            modifier =
-                Modifier.fillMaxWidth(),
-            horizontalArrangement =
-                Arrangement.spacedBy(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(
                     experience.compactSpacing,
                 ),
         ) {
             FilterChip(
-                selected =
-                    selectedPeriod ==
-                            RangeReportPeriod
-                                .SEVEN_DAYS,
+                selected = selectedPeriod ==
+                            RangeReportPeriod.SEVEN_DAYS,
                 onClick = {
                     onPeriodSelected(
-                        RangeReportPeriod
-                            .SEVEN_DAYS,
+                        RangeReportPeriod.SEVEN_DAYS,
                     )
                 },
                 enabled = enabled,
                 label = {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .range_report_7_days,
+                        text = stringResource(
+                                R.string.range_report_7_days,
                             ),
                     )
                 },
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .carePackInteractiveControl()
+                modifier = Modifier
+                        .weight(1f).carePackInteractiveControl()
                         .testTag(
                             "range_report_period_7",
                         ),
             )
 
             FilterChip(
-                selected =
-                    selectedPeriod ==
-                            RangeReportPeriod
-                                .THIRTY_DAYS,
+                selected = selectedPeriod ==
+                            RangeReportPeriod.THIRTY_DAYS,
                 onClick = {
                     onPeriodSelected(
-                        RangeReportPeriod
-                            .THIRTY_DAYS,
+                        RangeReportPeriod.THIRTY_DAYS,
                     )
                 },
                 enabled = enabled,
                 label = {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .range_report_30_days,
+                        text = stringResource(
+                                R.string.range_report_30_days,
                             ),
                     )
                 },
-                modifier =
-                    Modifier
-                        .weight(1f)
-                        .carePackInteractiveControl()
+                modifier = Modifier
+                        .weight(1f).carePackInteractiveControl()
                         .testTag(
                             "range_report_period_30",
                         ),
@@ -185,65 +121,45 @@ internal fun RangePeriodSelector(
 internal fun IncludeRecipientNameToggle(
     checked: Boolean,
     enabled: Boolean,
-    onCheckedChange:
-        (Boolean) -> Unit,
+    onCheckedChange: (Boolean) -> Unit,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .toggleable(
+        modifier = Modifier
+                .fillMaxWidth().toggleable(
                     value = checked,
                     enabled = enabled,
                     role = Role.Switch,
-                    onValueChange =
-                        onCheckedChange,
-                )
-                .padding(
-                    vertical =
-                        experience.compactSpacing,
-                )
-                .testTag(
+                    onValueChange = onCheckedChange,
+                ).padding(
+                    vertical = experience.compactSpacing,
+                ).testTag(
                     "range_report_include_recipient_name_row",
                 ),
-        horizontalArrangement =
-            Arrangement.SpaceBetween,
-        verticalAlignment =
-            Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(
-            modifier =
-                Modifier.weight(1f),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(
                     4.dp,
                 ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_include_recipient_name,
+                text = stringResource(
+                        R.string.carepack_include_recipient_name,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleMedium,
+                style = MaterialTheme
+                        .typography.titleMedium,
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_include_recipient_name_description,
+                text = stringResource(
+                        R.string.carepack_include_recipient_name_description,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodySmall,
+                style = MaterialTheme
+                        .typography.bodySmall,
             )
         }
 
@@ -251,8 +167,7 @@ internal fun IncludeRecipientNameToggle(
             checked = checked,
             onCheckedChange = null,
             enabled = enabled,
-            modifier =
-                Modifier.testTag(
+            modifier = Modifier.testTag(
                     "range_report_include_recipient_name_switch",
                 ),
         )
@@ -262,27 +177,21 @@ internal fun IncludeRecipientNameToggle(
 @Composable
 internal fun RangeReportLoading() {
     Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .carePackPoliteLiveRegion()
+        modifier = Modifier
+                .fillMaxWidth().carePackPoliteLiveRegion()
                 .testTag(
                     "range_report_loading",
                 ),
-        horizontalAlignment =
-            Alignment.CenterHorizontally,
-        verticalArrangement =
-            Arrangement.spacedBy(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(
                 12.dp,
             ),
     ) {
         CircularProgressIndicator()
 
         Text(
-            text =
-                stringResource(
-                    R.string
-                        .range_report_loading,
+            text = stringResource(
+                    R.string.range_report_loading,
                 ),
         )
     }
@@ -294,42 +203,33 @@ internal fun RangeReportError(
     onRetry: () -> Unit,
 ) {
     Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .carePackPoliteLiveRegion()
+        modifier = Modifier
+                .fillMaxWidth().carePackPoliteLiveRegion()
                 .testTag(
                     "range_report_error",
                 ),
-        verticalArrangement =
-            Arrangement.spacedBy(
+        verticalArrangement = Arrangement.spacedBy(
                 12.dp,
             ),
     ) {
         Text(
-            text =
-                rangeReportFailureText(
+            text = rangeReportFailureText(
                     failure,
                 ),
-            color =
-                MaterialTheme
-                    .colorScheme
-                    .error,
+            color = MaterialTheme
+                    .colorScheme.error,
         )
 
         Button(
             onClick = onRetry,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .carePackPrimaryAction()
+            modifier = Modifier
+                    .fillMaxWidth().carePackPrimaryAction()
                     .testTag(
                         "range_report_retry",
                     ),
         ) {
             Text(
-                text =
-                    stringResource(
+                text = stringResource(
                         R.string.retry_action,
                     ),
             )
@@ -342,18 +242,13 @@ internal fun RangeReportActionError(
     failure: RangeReportFailure,
 ) {
     Text(
-        text =
-            rangeReportFailureText(
+        text = rangeReportFailureText(
                 failure,
             ),
-        color =
-            MaterialTheme
-                .colorScheme
-                .error,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .carePackPoliteLiveRegion()
+        color = MaterialTheme
+                .colorScheme.error,
+        modifier = Modifier
+                .fillMaxWidth().carePackPoliteLiveRegion()
                 .testTag(
                     "range_report_action_error",
                 ),
@@ -363,30 +258,25 @@ internal fun RangeReportActionError(
 @Composable
 internal fun rangeReportFailureText(
     failure: RangeReportFailure,
-): String =
-    when (failure) {
+): String = when (failure) {
         RangeReportFailure.LOAD_FAILED ->
             stringResource(
-                R.string
-                    .range_report_load_failed,
+                R.string.range_report_load_failed,
             )
 
         RangeReportFailure.COPY_FAILED ->
             stringResource(
-                R.string
-                    .range_report_copy_failed,
+                R.string.range_report_copy_failed,
             )
 
         RangeReportFailure.NO_SHARE_TARGET ->
             stringResource(
-                R.string
-                    .range_report_no_share_target,
+                R.string.range_report_no_share_target,
             )
 
         RangeReportFailure.SHARE_FAILED ->
             stringResource(
-                R.string
-                    .range_report_share_failed,
+                R.string.range_report_share_failed,
             )
     }
 
@@ -394,97 +284,70 @@ internal fun rangeReportFailureText(
 internal fun RangeSummaryCard(
     summary: DateRangeSummary,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "range_report_summary",
                 ),
     ) {
         Column(
-            modifier =
-                Modifier.padding(
+            modifier = Modifier.padding(
                     16.dp,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.compactSpacing,
                 ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_summary_title,
+                text = stringResource(
+                        R.string.range_report_summary_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleLarge,
-                modifier =
-                    Modifier.carePackHeading(),
+                style = MaterialTheme
+                        .typography.titleLarge,
+                modifier = Modifier.carePackHeading(),
             )
 
             SummaryLine(
-                label =
-                    stringResource(
-                        R.string
-                            .range_report_total,
+                label = stringResource(
+                        R.string.range_report_total,
                     ),
-                count =
-                    summary
+                count = summary
                         .totalOccurrenceCount,
-                testTag =
-                    "range_report_total",
+                testTag = "range_report_total",
             )
 
             SummaryLine(
-                label =
-                    stringResource(
-                        R.string
-                            .range_report_given,
+                label = stringResource(
+                        R.string.range_report_given,
                     ),
                 count = summary.givenCount,
-                testTag =
-                    "range_report_given",
+                testTag = "range_report_given",
             )
 
             SummaryLine(
-                label =
-                    stringResource(
-                        R.string
-                            .range_report_not_given,
+                label = stringResource(
+                        R.string.range_report_not_given,
                     ),
-                count =
-                    summary.notGivenCount,
-                testTag =
-                    "range_report_not_given",
+                count = summary.notGivenCount,
+                testTag = "range_report_not_given",
             )
 
             SummaryLine(
-                label =
-                    stringResource(
-                        R.string
-                            .range_report_unknown,
+                label = stringResource(
+                        R.string.range_report_unknown,
                     ),
                 count = summary.unknownCount,
-                testTag =
-                    "range_report_unknown",
+                testTag = "range_report_unknown",
             )
 
             SummaryLine(
-                label =
-                    stringResource(
-                        R.string
-                            .range_report_no_report,
+                label = stringResource(
+                        R.string.range_report_no_report,
                     ),
                 count = summary.noReportCount,
-                testTag =
-                    "range_report_no_report",
+                testTag = "range_report_no_report",
             )
         }
     }
@@ -497,32 +360,22 @@ internal fun SummaryLine(
     testTag: String,
 ) {
     Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(testTag),
-        horizontalArrangement =
-            Arrangement.SpaceBetween,
-        verticalAlignment =
-            Alignment.CenterVertically,
+        modifier = Modifier
+                .fillMaxWidth().testTag(testTag),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = label,
-            style =
-                MaterialTheme
-                    .typography
-                    .bodyLarge,
+            style = MaterialTheme
+                    .typography.bodyLarge,
         )
 
         Text(
-            text =
-                count
-                    .toString()
-                    .toPersianDigits(),
-            style =
-                MaterialTheme
-                    .typography
-                    .titleMedium,
+            text = count
+                    .toString().toPersianDigits(),
+            style = MaterialTheme
+                    .typography.titleMedium,
         )
     }
 }
@@ -532,51 +385,38 @@ internal fun RangeReportPreview(
     reportText: String,
 ) {
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .testTag(
+        modifier = Modifier
+                .fillMaxWidth().testTag(
                     "range_report_preview_card",
                 ),
     ) {
         Column(
-            modifier =
-                Modifier.padding(
+            modifier = Modifier.padding(
                     16.dp,
                 ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     12.dp,
                 ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_preview_title,
+                text = stringResource(
+                        R.string.range_report_preview_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleMedium,
-                modifier =
-                    Modifier.carePackHeading(),
+                style = MaterialTheme
+                        .typography.titleMedium,
+                modifier = Modifier.carePackHeading(),
             )
 
             SelectionContainer {
                 Text(
                     text = reportText,
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyMedium
+                    style = MaterialTheme
+                            .typography.bodyMedium
                             .copy(
-                                textDirection =
-                                    TextDirection
+                                textDirection = TextDirection
                                         .ContentOrRtl,
                             ),
-                    modifier =
-                        Modifier.testTag(
+                    modifier = Modifier.testTag(
                             "range_report_preview_text",
                         ),
                 )
@@ -592,48 +432,37 @@ internal fun RangeReportActions(
     onCopyReport: () -> Unit,
     onShareReport: () -> Unit,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Column(
-        modifier =
-            Modifier.fillMaxWidth(),
-        verticalArrangement =
-            Arrangement.spacedBy(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(
                 experience.itemSpacing,
             ),
     ) {
         OutlinedButton(
             onClick = onCopyReport,
-            enabled =
-                reportText.isNotBlank() &&
+            enabled = reportText.isNotBlank() &&
                         !isSharing,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .carePackPrimaryAction()
+            modifier = Modifier
+                    .fillMaxWidth().carePackPrimaryAction()
                     .testTag(
                         "range_report_copy",
                     ),
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_copy,
+                text = stringResource(
+                        R.string.range_report_copy,
                     ),
             )
         }
 
         Button(
             onClick = onShareReport,
-            enabled =
-                reportText.isNotBlank() &&
+            enabled = reportText.isNotBlank() &&
                         !isSharing,
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .carePackPrimaryAction()
+            modifier = Modifier
+                    .fillMaxWidth().carePackPrimaryAction()
                     .testTag(
                         "range_report_share",
                     ),
@@ -642,10 +471,8 @@ internal fun RangeReportActions(
                 CircularProgressIndicator()
             } else {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .range_report_share,
+                    text = stringResource(
+                            R.string.range_report_share,
                         ),
                 )
             }
@@ -655,22 +482,16 @@ internal fun RangeReportActions(
 
 @Composable
 internal fun RangeReportActionMessages(
-    actionMessage:
-    RangeReportActionMessage?,
-    snackbarHostState:
-    SnackbarHostState,
+    actionMessage: RangeReportActionMessage?,
+    snackbarHostState: SnackbarHostState,
     onConsumed: () -> Unit,
 ) {
-    val copiedMessage =
-        stringResource(
-            R.string
-                .range_report_copied,
+    val copiedMessage = stringResource(
+            R.string.range_report_copied,
         )
 
-    val shareOpenedMessage =
-        stringResource(
-            R.string
-                .range_report_share_opened,
+    val shareOpenedMessage = stringResource(
+            R.string.range_report_share_opened,
         )
 
     LaunchedEffect(
@@ -685,8 +506,7 @@ internal fun RangeReportActionMessages(
                 RangeReportActionMessage.COPIED ->
                     copiedMessage
 
-                RangeReportActionMessage
-                    .SHARE_CHOOSER_OPENED ->
+                RangeReportActionMessage.SHARE_CHOOSER_OPENED ->
                     shareOpenedMessage
             },
         )

@@ -26,24 +26,19 @@ class DataStorePrivacyPreferenceStore(
     context: Context,
 ) : PrivacyPreferenceStore {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    override val state: Flow<PrivacyPreferenceState> =
-        applicationContext
-            .carePackDataStore
-            .data
+    override val state: Flow<PrivacyPreferenceState> = applicationContext
+            .carePackDataStore.data
             .catch { throwable ->
                 if (throwable is IOException) {
                     emit(emptyPreferences())
                 } else {
                     throw throwable
                 }
-            }
-            .map { preferences ->
+            }.map { preferences ->
                 PrivacyPreferenceState(
-                    includeRecipientName =
-                        preferences[INCLUDE_RECIPIENT_NAME]
+                    includeRecipientName = preferences[INCLUDE_RECIPIENT_NAME]
                             ?: false,
                 )
             }
@@ -51,17 +46,14 @@ class DataStorePrivacyPreferenceStore(
     override suspend fun setIncludeRecipientName(
         includeRecipientName: Boolean,
     ) {
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
-                preferences[INCLUDE_RECIPIENT_NAME] =
-                    includeRecipientName
+                preferences[INCLUDE_RECIPIENT_NAME] = includeRecipientName
             }
     }
 
     private companion object {
-        val INCLUDE_RECIPIENT_NAME =
-            booleanPreferencesKey(
+        val INCLUDE_RECIPIENT_NAME = booleanPreferencesKey(
                 "report_include_recipient_name",
             )
     }

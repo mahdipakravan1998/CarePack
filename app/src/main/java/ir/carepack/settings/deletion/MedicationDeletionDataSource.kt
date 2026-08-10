@@ -44,12 +44,10 @@ sealed interface MedicationGraphDeletionResult {
         val counts: MedicationDeletionCounts,
     ) : MedicationGraphDeletionResult
 
-    data object NotFound :
-        MedicationGraphDeletionResult
+    data object NotFound : MedicationGraphDeletionResult
 
     data class ChangedSincePreview(
-        val latestPreview:
-        MedicationDeletionPreview,
+        val latestPreview: MedicationDeletionPreview,
     ) : MedicationGraphDeletionResult
 }
 
@@ -65,7 +63,6 @@ interface MedicationDeletionDataSource {
 
     suspend fun deleteGraph(
         medicationId: String,
-        expectedPreview:
-        MedicationDeletionPreview?,
+        expectedPreview: MedicationDeletionPreview?,
     ): MedicationGraphDeletionResult
 }

@@ -16,76 +16,59 @@ import kotlinx.coroutines.flow.map
 class DataStoreUserExperiencePreferenceStore(
     context: Context,
 ) : UserExperiencePreferenceStore {
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    override val state:
-            Flow<UserExperiencePreferenceState> =
-        applicationContext
-            .carePackDataStore
-            .data
-            .catch { throwable ->
+    override val state: Flow<UserExperiencePreferenceState> =
+        applicationContext.carePackDataStore
+            .data.catch { throwable ->
                 if (throwable is IOException) {
                     emit(emptyPreferences())
                 } else {
                     throw throwable
                 }
-            }
-            .map { preferences ->
+            }.map { preferences ->
                 UserExperiencePreferenceState(
-                    firstDayOfWeekPreference =
-                        preferences[FIRST_DAY_OF_WEEK]
-                            ?.toFirstDayOfWeekPreference()
-                            ?: FirstDayOfWeekPreference
+                    firstDayOfWeekPreference = preferences[FIRST_DAY_OF_WEEK]
+                            ?.toFirstDayOfWeekPreference() ?: FirstDayOfWeekPreference
                                 .SYSTEM_DEFAULT,
-                    seniorMode =
-                        preferences[SENIOR_MODE]
-                            ?.toSeniorMode()
-                            ?: SeniorMode.STANDARD,
+                    seniorMode = preferences[SENIOR_MODE]
+                            ?.toSeniorMode() ?: SeniorMode.STANDARD,
                 )
             }
 
     override suspend fun setFirstDayOfWeekPreference(
         preference: FirstDayOfWeekPreference,
     ) {
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
-                preferences[FIRST_DAY_OF_WEEK] =
-                    preference.name
+                preferences[FIRST_DAY_OF_WEEK] = preference.name
             }
     }
 
     override suspend fun setSeniorMode(
         seniorMode: SeniorMode,
     ) {
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
-                preferences[SENIOR_MODE] =
-                    seniorMode.name
+                preferences[SENIOR_MODE] = seniorMode.name
             }
     }
 
-    private fun String.toFirstDayOfWeekPreference():
-            FirstDayOfWeekPreference? =
+    private fun String.toFirstDayOfWeekPreference(): FirstDayOfWeekPreference? =
         runCatching {
             FirstDayOfWeekPreference.valueOf(this)
         }.getOrNull()
 
-    private fun String.toSeniorMode(): SeniorMode? =
-        runCatching {
+    private fun String.toSeniorMode(): SeniorMode? = runCatching {
             SeniorMode.valueOf(this)
         }.getOrNull()
 
     private companion object {
-        val FIRST_DAY_OF_WEEK =
-            stringPreferencesKey(
+        val FIRST_DAY_OF_WEEK = stringPreferencesKey(
                 "first_day_of_week_preference",
             )
 
-        val SENIOR_MODE =
-            stringPreferencesKey(
+        val SENIOR_MODE = stringPreferencesKey(
                 "senior_mode",
             )
     }

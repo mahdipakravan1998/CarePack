@@ -2,6 +2,7 @@ package ir.carepack.domain.reminder
 
 import ir.carepack.core.concurrency.AppOperationGate
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
+import ir.carepack.reminder.alarm.toReminderDeliveryMode
 import ir.carepack.reminder.alarm.ReminderTestAlarmGateway
 import ir.carepack.reminder.alarm.ReminderTestAlarmRequest
 import ir.carepack.reminder.notification.ReminderTestNotificationGateway
@@ -12,17 +13,12 @@ import java.time.Instant
 import kotlinx.coroutines.CancellationException
 
 class DefaultReminderTestCoordinator(
-    private val notificationPermissionGateway:
-    NotificationPermissionGateway,
-    private val exactAlarmCapabilityGateway:
-    ExactAlarmCapabilityGateway,
-    private val alarmGateway:
-    ReminderTestAlarmGateway,
-    private val notificationGateway:
-    ReminderTestNotificationGateway,
+    private val notificationPermissionGateway: NotificationPermissionGateway,
+    private val exactAlarmCapabilityGateway: ExactAlarmCapabilityGateway,
+    private val alarmGateway: ReminderTestAlarmGateway,
+    private val notificationGateway: ReminderTestNotificationGateway,
     private val clock: Clock,
-    private val operationLock:
-    AppOperationGate,
+    private val operationLock: AppOperationGate,
 ) : ReminderTestCoordinator {
 
     override suspend fun scheduleTestReminder(
@@ -35,90 +31,64 @@ class DefaultReminderTestCoordinator(
                 cancelExistingTestLocked()
 
                 if (
-                    !notificationPermissionGateway
-                        .isPermissionGranted()
+                    !notificationPermissionGateway.isPermissionGranted()
                 ) {
-                    return@withGate ReminderTestScheduleResult
-                        .NotificationPermissionRequired
+                    return@withGate ReminderTestScheduleResult.NotificationPermissionRequired
                 }
 
-                val triggerAt =
-                    clock
-                        .instant()
-                        .plusSeconds(
+                val triggerAt = clock
+                        .instant().plusSeconds(
                             delaySeconds,
                         )
 
-                val preferredMode =
-                    if (
-                        exactAlarmCapabilityGateway
-                            .canScheduleExactAlarms()
+                val preferredMode = if (
+                        exactAlarmCapabilityGateway.canScheduleExactAlarms()
                     ) {
                         AlarmDeliveryMode.EXACT
                     } else {
                         AlarmDeliveryMode.APPROXIMATE
                     }
 
-                val scheduledMode =
-                    scheduleWithFallback(
+                val scheduledMode = scheduleWithFallback(
                         triggerAt = triggerAt,
-                        preferredMode =
-                            preferredMode,
-                    )
-                        ?: return@withGate ReminderTestScheduleResult
+                        preferredMode = preferredMode,
+                    ) ?: return@withGate ReminderTestScheduleResult
                             .SchedulingUnavailable
 
                 ReminderTestScheduleResult.Scheduled(
                     triggerAt = triggerAt,
-                    deliveryMode =
-                        when (scheduledMode) {
-                            AlarmDeliveryMode.EXACT ->
-                                ReminderDeliveryMode.EXACT
-
-                            AlarmDeliveryMode.APPROXIMATE ->
-                                ReminderDeliveryMode.APPROXIMATE
-                        },
+                    deliveryMode = scheduledMode.toReminderDeliveryMode(),
                 )
             } catch (
-                cancellationException:
-                CancellationException,
+                cancellationException: CancellationException,
             ) {
                 throw cancellationException
             } catch (_: RuntimeException) {
-                ReminderTestScheduleResult
-                    .SchedulingUnavailable
+                ReminderTestScheduleResult.SchedulingUnavailable
             }
         }
     }
 
-    override suspend fun handleTestAlarmFired():
-            ReminderTestFireResult =
+    override suspend fun handleTestAlarmFired(): ReminderTestFireResult =
         operationLock.withGate {
             if (
-                !notificationPermissionGateway
-                    .isPermissionGranted()
+                !notificationPermissionGateway.isPermissionGranted()
             ) {
-                return@withGate ReminderTestFireResult
-                    .NotificationPermissionUnavailable
+                return@withGate ReminderTestFireResult.NotificationPermissionUnavailable
             }
 
             try {
-                notificationGateway
-                    .postTestReminder(
-                        scheduledAt =
-                            clock.instant(),
+                notificationGateway.postTestReminder(
+                        scheduledAt = clock.instant(),
                     )
 
-                ReminderTestFireResult
-                    .NotificationPosted
+                ReminderTestFireResult.NotificationPosted
             } catch (
-                cancellationException:
-                CancellationException,
+                cancellationException: CancellationException,
             ) {
                 throw cancellationException
             } catch (_: RuntimeException) {
-                ReminderTestFireResult
-                    .NotificationFailed
+                ReminderTestFireResult.NotificationFailed
             }
         }
 
@@ -137,8 +107,7 @@ class DefaultReminderTestCoordinator(
         triggerAt: Instant,
         preferredMode: AlarmDeliveryMode,
     ): AlarmDeliveryMode? {
-        val preferredScheduled =
-            trySchedule(
+        val preferredScheduled = trySchedule(
                 triggerAt = triggerAt,
                 mode = preferredMode,
             )
@@ -148,8 +117,7 @@ class DefaultReminderTestCoordinator(
         }
 
         if (
-            preferredMode ==
-            AlarmDeliveryMode.APPROXIMATE
+            preferredMode == AlarmDeliveryMode.APPROXIMATE
         ) {
             return null
         }
@@ -157,10 +125,8 @@ class DefaultReminderTestCoordinator(
         return if (
             trySchedule(
                 triggerAt = triggerAt,
-                mode =
-                    AlarmDeliveryMode.APPROXIMATE,
-            )
-        ) {
+                mode = AlarmDeliveryMode.APPROXIMATE,
+            )) {
             AlarmDeliveryMode.APPROXIMATE
         } else {
             null
@@ -170,8 +136,7 @@ class DefaultReminderTestCoordinator(
     private fun trySchedule(
         triggerAt: Instant,
         mode: AlarmDeliveryMode,
-    ): Boolean =
-        try {
+    ): Boolean = try {
             alarmGateway.scheduleTest(
                 ReminderTestAlarmRequest(
                     triggerAt = triggerAt,
@@ -181,8 +146,7 @@ class DefaultReminderTestCoordinator(
 
             true
         } catch (
-            cancellationException:
-            CancellationException,
+            cancellationException: CancellationException,
         ) {
             throw cancellationException
         } catch (_: RuntimeException) {

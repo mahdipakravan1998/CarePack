@@ -6,10 +6,8 @@ import java.time.LocalDate
 
 class RoomRangeReportFormatter(
     private val database: CarePackDatabase,
-    private val summaryService:
-    DateRangeSummaryService,
-    private val textBuilder:
-    RangeReportTextBuilder =
+    private val summaryService: DateRangeSummaryService,
+    private val textBuilder: RangeReportTextBuilder =
         RangeReportTextBuilder(),
 ) : RangeReportFormatter {
 
@@ -18,20 +16,15 @@ class RoomRangeReportFormatter(
         today: LocalDate,
         includeRecipientName: Boolean,
     ): RangeReportContent {
-        val summary =
-            summaryService.getSummary(
-                range =
-                    period.rangeEndingAt(
+        val summary = summaryService.getSummary(
+                range = period.rangeEndingAt(
                         today,
                     ),
             )
 
-        val recipientName =
-            if (includeRecipientName) {
-                database
-                    .careRecipientDao()
-                    .getSingleton()
-                    ?.displayName
+        val recipientName = if (includeRecipientName) {
+                database.careRecipientDao()
+                    .getSingleton()?.displayName
             } else {
                 null
             }
@@ -39,12 +32,10 @@ class RoomRangeReportFormatter(
         return RangeReportContent(
             period = period,
             summary = summary,
-            text =
-                textBuilder.build(
+            text = textBuilder.build(
                     period = period,
                     summary = summary,
-                    recipientName =
-                        recipientName,
+                    recipientName = recipientName,
                 ),
         )
     }

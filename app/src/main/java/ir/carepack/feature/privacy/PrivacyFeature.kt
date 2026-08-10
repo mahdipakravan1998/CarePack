@@ -37,89 +37,65 @@ fun PrivacyScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = modifier
+                .fillMaxSize().testTag(
                     "privacy_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .navigationBarsPadding()
+                    ).navigationBarsPadding()
                     .verticalScroll(
                         rememberScrollState(),
-                    )
-                    .padding(
-                        horizontal =
-                            experience
+                    ).padding(
+                        horizontal = experience
                                 .screenHorizontalPadding,
-                        vertical =
-                            experience
+                        vertical = experience
                                 .screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.sectionSpacing,
                 ),
         ) {
             OutlinedButton(
                 onClick = onBack,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackPrimaryAction()
+                modifier = Modifier
+                        .fillMaxWidth().carePackPrimaryAction()
                         .testTag(
                             "privacy_back",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.back,
                         ),
                 )
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_privacy_title,
+                text = stringResource(
+                        R.string.carepack_privacy_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineMedium,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "privacy_title",
                         ),
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_privacy_minimal_summary,
+                text = stringResource(
+                        R.string.carepack_privacy_minimal_summary,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.bodyLarge,
+                modifier = Modifier.testTag(
                         "privacy_summary",
                     ),
             )

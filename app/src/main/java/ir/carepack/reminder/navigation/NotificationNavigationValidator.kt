@@ -11,21 +11,15 @@ class NotificationNavigationValidator(
     suspend fun validatedOccurrenceId(
         intent: Intent?,
     ): String? {
-        val occurrenceId =
-            ReminderNotificationContract
+        val occurrenceId = ReminderNotificationContract
                 .extractOccurrenceId(
                     intent = intent,
-                )
-                ?: return null
+                ) ?: return null
 
-        val occurrence =
-            database
-                .occurrenceDao()
-                .getById(
-                    occurrenceId =
-                        occurrenceId,
-                )
-                ?: return null
+        val occurrence = database
+                .occurrenceDao().getById(
+                    occurrenceId = occurrenceId,
+                ) ?: return null
 
         return occurrence.id
     }

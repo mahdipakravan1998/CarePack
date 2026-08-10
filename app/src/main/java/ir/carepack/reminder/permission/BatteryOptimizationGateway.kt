@@ -10,42 +10,30 @@ enum class BatteryOptimizationState {
     UNKNOWN,
 }
 
-interface BatteryOptimizationGateway {
-
-    fun currentState():
-            BatteryOptimizationState
-}
-
 class AndroidBatteryOptimizationGateway(
     context: Context,
-) : BatteryOptimizationGateway {
+) {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    private val powerManager =
-        applicationContext
+    private val powerManager = applicationContext
             .getSystemService(
                 PowerManager::class.java,
             )
 
-    override fun currentState():
-            BatteryOptimizationState {
+    fun currentState(): BatteryOptimizationState {
         if (
             Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.M ||
-            powerManager == null
+            Build.VERSION_CODES.M || powerManager == null
         ) {
             return BatteryOptimizationState.UNKNOWN
         }
 
         return try {
             if (
-                powerManager
-                    .isIgnoringBatteryOptimizations(
+                powerManager.isIgnoringBatteryOptimizations(
                         applicationContext.packageName,
-                    )
-            ) {
+                    )) {
                 BatteryOptimizationState.IGNORED
             } else {
                 BatteryOptimizationState.NOT_IGNORED
