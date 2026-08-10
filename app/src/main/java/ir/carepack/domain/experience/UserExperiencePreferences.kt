@@ -9,11 +9,9 @@ enum class SeniorMode {
 }
 
 data class UserExperiencePreferenceState(
-    val firstDayOfWeekPreference:
-    FirstDayOfWeekPreference =
+    val firstDayOfWeekPreference: FirstDayOfWeekPreference =
         FirstDayOfWeekPreference.SYSTEM_DEFAULT,
-    val seniorMode: SeniorMode =
-        SeniorMode.STANDARD,
+    val seniorMode: SeniorMode = SeniorMode.STANDARD,
 )
 
 interface UserExperiencePreferenceStore {

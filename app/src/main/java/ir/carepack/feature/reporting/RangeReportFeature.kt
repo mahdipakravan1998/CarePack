@@ -2,78 +2,42 @@ package ir.carepack.feature.reporting
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.PrivacyPreferenceStore
 import ir.carepack.domain.calendar.PersianDateText
-import ir.carepack.domain.calendar.toPersianDigits
-import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
-import ir.carepack.domain.report.DateRangeSummary
 import ir.carepack.domain.report.RangeReportFormatter
 import ir.carepack.domain.report.RangeReportPeriod
-import ir.carepack.reporting.share.CopyTextResult
-import ir.carepack.reporting.share.ShareDescriptor
-import ir.carepack.reporting.share.ShareReportKind
-import ir.carepack.reporting.share.ShareTextResult
 import ir.carepack.reporting.share.TextShareGateway
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackInteractiveControl
-import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
-import ir.carepack.ui.accessibility.carePackPrimaryAction
 import ir.carepack.ui.experience.CarePackExperience
 import ir.carepack.ui.experience.LocalCarePackExperience
 import java.time.Clock
-import java.time.LocalDate
-import java.util.concurrent.CancellationException
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 
 
 
@@ -81,41 +45,30 @@ import kotlinx.coroutines.launch
 @Composable
 fun RangeReportRoute(
     formatter: RangeReportFormatter,
-    privacyPreferenceStore:
-    PrivacyPreferenceStore,
-    userExperiencePreferenceStore:
-    UserExperiencePreferenceStore,
-    textShareGateway:
-    TextShareGateway,
+    privacyPreferenceStore: PrivacyPreferenceStore,
+    userExperiencePreferenceStore: UserExperiencePreferenceStore,
+    textShareGateway: TextShareGateway,
     clock: Clock,
     zoneProvider: ZoneProvider,
     onBack: () -> Unit,
 ) {
-    val viewModel:
-            RangeReportViewModel =
+    val viewModel: RangeReportViewModel =
         androidx.lifecycle.viewmodel.compose.viewModel(
-            factory =
-                RangeReportViewModel.factory(
+            factory = RangeReportViewModel.factory(
                     formatter = formatter,
-                    privacyPreferenceStore =
-                        privacyPreferenceStore,
-                    userExperiencePreferenceStore =
-                        userExperiencePreferenceStore,
-                    textShareGateway =
-                        textShareGateway,
+                    privacyPreferenceStore = privacyPreferenceStore,
+                    userExperiencePreferenceStore = userExperiencePreferenceStore,
+                    textShareGateway = textShareGateway,
                     clock = clock,
-                    zoneProvider =
-                        zoneProvider,
+                    zoneProvider = zoneProvider,
                 ),
         )
 
     val state by
-    viewModel
-        .state
+    viewModel.state
         .collectAsStateWithLifecycle()
 
-    val snackbarHostState =
-        remember {
+    val snackbarHostState = remember {
             SnackbarHostState()
         }
 
@@ -127,196 +80,140 @@ fun RangeReportRoute(
     ) {
         RangeReportScreen(
             state = state,
-            snackbarHostState =
-                snackbarHostState,
+            snackbarHostState = snackbarHostState,
             onBack = onBack,
-            onPeriodSelected =
-                viewModel::selectPeriod,
-            onIncludeRecipientNameChanged =
-                viewModel::setIncludeRecipientName,
-            onCopyReport =
-                viewModel::copyReport,
-            onShareReport =
-                viewModel::shareReport,
-            onRetry =
-                viewModel::refresh,
+            onPeriodSelected = viewModel::selectPeriod,
+            onIncludeRecipientNameChanged = viewModel::setIncludeRecipientName,
+            onCopyReport = viewModel::copyReport,
+            onShareReport = viewModel::shareReport,
+            onRetry = viewModel::refresh,
         )
     }
 
     RangeReportActionMessages(
-        actionMessage =
-            state.actionMessage,
-        snackbarHostState =
-            snackbarHostState,
-        onConsumed =
-            viewModel::consumeActionMessage,
+        actionMessage = state.actionMessage,
+        snackbarHostState = snackbarHostState,
+        onConsumed = viewModel::consumeActionMessage,
     )
 }
 
 @Composable
 fun RangeReportScreen(
     state: RangeReportUiState,
-    snackbarHostState:
-    SnackbarHostState,
+    snackbarHostState: SnackbarHostState,
     onBack: () -> Unit,
-    onPeriodSelected:
-        (RangeReportPeriod) -> Unit,
-    onIncludeRecipientNameChanged:
-        (Boolean) -> Unit,
+    onPeriodSelected: (RangeReportPeriod) -> Unit,
+    onIncludeRecipientNameChanged: (Boolean) -> Unit,
     onCopyReport: () -> Unit,
     onShareReport: () -> Unit,
     onRetry: () -> Unit,
 ) {
-    val experience =
-        LocalCarePackExperience.current
+    val experience = LocalCarePackExperience.current
 
     Scaffold(
         snackbarHost = {
             SnackbarHost(
-                hostState =
-                    snackbarHostState,
+                hostState = snackbarHostState,
             )
         },
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = Modifier
+                .fillMaxSize().testTag(
                     "range_report_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .verticalScroll(
+                    ).imePadding()
+                    .navigationBarsPadding().verticalScroll(
                         rememberScrollState(),
-                    )
-                    .padding(
-                        horizontal =
-                            experience
+                    ).padding(
+                        horizontal = experience
                                 .screenHorizontalPadding,
-                        vertical =
-                            experience
+                        vertical = experience
                                 .screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.sectionSpacing,
                 ),
         ) {
             TextButton(
                 onClick = onBack,
-                enabled =
-                    !state.isSharing,
-                modifier =
-                    Modifier
-                        .carePackInteractiveControl()
-                        .testTag(
+                enabled = !state.isSharing,
+                modifier = Modifier
+                        .carePackInteractiveControl().testTag(
                             "range_report_back",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.back,
                         ),
                 )
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_title,
+                text = stringResource(
+                        R.string.range_report_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineMedium,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "range_report_title",
                         ),
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_description,
+                text = stringResource(
+                        R.string.range_report_description,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
+                style = MaterialTheme
+                        .typography.bodyLarge,
             )
 
             RangePeriodSelector(
-                selectedPeriod =
-                    state.period,
-                enabled =
-                    !state.isLoading &&
+                selectedPeriod = state.period,
+                enabled = !state.isLoading &&
                             !state.isSharing,
-                onPeriodSelected =
-                    onPeriodSelected,
+                onPeriodSelected = onPeriodSelected,
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .range_report_date_range,
+                text = stringResource(
+                        R.string.range_report_date_range,
                         PersianDateText.formatNumeric(
-                            state
-                                .period
+                            state.period
                                 .rangeEndingAt(
                                     state.today,
-                                )
-                                .startDate,
+                                ).startDate,
                         ),
                         PersianDateText.formatNumeric(
                             state.today,
                         ),
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleMedium,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.titleMedium,
+                modifier = Modifier.testTag(
                         "range_report_date_range",
                     ),
             )
 
             IncludeRecipientNameToggle(
-                checked =
-                    state.includeRecipientName,
-                enabled =
-                    !state.isLoading &&
+                checked = state.includeRecipientName,
+                enabled = !state.isLoading &&
                             !state.isSharing,
-                onCheckedChange =
-                    onIncludeRecipientNameChanged,
+                onCheckedChange = onIncludeRecipientNameChanged,
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_share_destination_notice,
+                text = stringResource(
+                        R.string.carepack_share_destination_notice,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.bodyMedium,
+                modifier = Modifier.testTag(
                         "range_report_share_notice",
                     ),
             )
@@ -325,52 +222,40 @@ fun RangeReportScreen(
                 state.isLoading ->
                     RangeReportLoading()
 
-                state.failure ==
-                        RangeReportFailure.LOAD_FAILED ->
+                state.failure == RangeReportFailure.LOAD_FAILED ->
                     RangeReportError(
-                        failure =
-                            RangeReportFailure.LOAD_FAILED,
+                        failure = RangeReportFailure.LOAD_FAILED,
                         onRetry = onRetry,
                     )
 
                 state.summary != null -> {
-                    state.failure
-                        ?.takeIf { failure ->
-                            failure !=
-                                    RangeReportFailure
+                    state.failure?.takeIf { failure ->
+                            failure != RangeReportFailure
                                         .LOAD_FAILED
-                        }
-                        ?.let { failure ->
+                        }?.let { failure ->
                             RangeReportActionError(
                                 failure = failure,
                             )
                         }
 
                     RangeSummaryCard(
-                        summary =
-                            state.summary,
+                        summary = state.summary,
                     )
 
                     if (
-                        state.summary
-                            .totalOccurrenceCount == 0
+                        state.summary.totalOccurrenceCount == 0
                     ) {
                         Card(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .testTag(
+                            modifier = Modifier
+                                    .fillMaxWidth().testTag(
                                         "range_report_empty",
                                     ),
                         ) {
                             Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .range_report_empty,
+                                text = stringResource(
+                                        R.string.range_report_empty,
                                     ),
-                                modifier =
-                                    Modifier.padding(
+                                modifier = Modifier.padding(
                                         16.dp,
                                     ),
                             )
@@ -378,19 +263,14 @@ fun RangeReportScreen(
                     }
 
                     RangeReportPreview(
-                        reportText =
-                            state.reportText,
+                        reportText = state.reportText,
                     )
 
                     RangeReportActions(
-                        reportText =
-                            state.reportText,
-                        isSharing =
-                            state.isSharing,
-                        onCopyReport =
-                            onCopyReport,
-                        onShareReport =
-                            onShareReport,
+                        reportText = state.reportText,
+                        isSharing = state.isSharing,
+                        onCopyReport = onCopyReport,
+                        onShareReport = onShareReport,
                     )
                 }
             }

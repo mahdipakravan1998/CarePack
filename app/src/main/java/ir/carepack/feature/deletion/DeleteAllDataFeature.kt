@@ -1,5 +1,7 @@
 package ir.carepack.feature.deletion
 
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,14 +26,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.settings.deletion.DataDeletionCoordinator
 import ir.carepack.settings.deletion.DataDeletionResult
@@ -51,29 +50,23 @@ data class DeleteAllDataUiState(
     val showConfirmation: Boolean = false,
     val isDeleting: Boolean = false,
     val deletionCompleted: Boolean = false,
-    val failedStage:
-    DataDeletionStage? = null,
+    val failedStage: DataDeletionStage? = null,
 )
 
 class DeleteAllDataViewModel(
-    private val dataDeletionCoordinator:
-    DataDeletionCoordinator,
+    private val dataDeletionCoordinator: DataDeletionCoordinator,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
+    private val mutableState = MutableStateFlow(
             DeleteAllDataUiState(),
         )
 
-    val state =
-        mutableState.asStateFlow()
+    val state = mutableState.asStateFlow()
 
     fun requestDeletion() {
         if (
-            mutableState
-                .value
-                .isDeleting
-        ) {
+            mutableState.value
+                .isDeleting) {
             return
         }
 
@@ -88,10 +81,8 @@ class DeleteAllDataViewModel(
 
     fun dismissConfirmation() {
         if (
-            mutableState
-                .value
-                .isDeleting
-        ) {
+            mutableState.value
+                .isDeleting) {
             return
         }
 
@@ -119,10 +110,8 @@ class DeleteAllDataViewModel(
         resumeOnly: Boolean,
     ) {
         if (
-            mutableState
-                .value
-                .isDeleting
-        ) {
+            mutableState.value
+                .isDeleting) {
             return
         }
 
@@ -136,24 +125,19 @@ class DeleteAllDataViewModel(
                 )
             }
 
-            val result =
-                try {
+            val result = try {
                     if (resumeOnly) {
-                        dataDeletionCoordinator
-                            .resumeIncompleteDeletionIfNeeded()
+                        dataDeletionCoordinator.resumeIncompleteDeletionIfNeeded()
                     } else {
-                        dataDeletionCoordinator
-                            .deleteEverything()
+                        dataDeletionCoordinator.deleteEverything()
                     }
                 } catch (
-                    cancellationException:
-                    CancellationException,
+                    cancellationException: CancellationException,
                 ) {
                     throw cancellationException
                 } catch (_: Exception) {
                     DataDeletionResult.Failed(
-                        stage =
-                            DataDeletionStage
+                        stage = DataDeletionStage
                                 .MARKING_DELETION_IN_PROGRESS,
                     )
                 }
@@ -170,8 +154,7 @@ class DeleteAllDataViewModel(
                     }
                 }
 
-                DataDeletionResult
-                    .NoDeletionPending -> {
+                DataDeletionResult.NoDeletionPending -> {
                     mutableState.update {
                             current ->
                         current.copy(
@@ -188,8 +171,7 @@ class DeleteAllDataViewModel(
                         current.copy(
                             isDeleting = false,
                             deletionCompleted = false,
-                            failedStage =
-                                result.stage,
+                            failedStage = result.stage,
                         )
                     }
                 }
@@ -200,63 +182,48 @@ class DeleteAllDataViewModel(
     companion object {
 
         fun factory(
-            dataDeletionCoordinator:
-            DataDeletionCoordinator,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+            dataDeletionCoordinator: DataDeletionCoordinator,
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     DeleteAllDataViewModel(
-                        dataDeletionCoordinator =
-                            dataDeletionCoordinator,
+                        dataDeletionCoordinator = dataDeletionCoordinator,
                     )
-                }
             }
     }
 }
 
 @Composable
 fun DeleteAllDataRoute(
-    dataDeletionCoordinator:
-    DataDeletionCoordinator,
+    dataDeletionCoordinator: DataDeletionCoordinator,
     onDeletionCompleted: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val viewModel:
-            DeleteAllDataViewModel =
+    val viewModel: DeleteAllDataViewModel =
         viewModel(
-            factory =
-                DeleteAllDataViewModel.factory(
-                    dataDeletionCoordinator =
-                        dataDeletionCoordinator,
+            factory = DeleteAllDataViewModel.factory(
+                    dataDeletionCoordinator = dataDeletionCoordinator,
                 ),
         )
 
     val state by
-    viewModel
-        .state
+    viewModel.state
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
         state.deletionCompleted,
     ) {
         if (
-            state.deletionCompleted
-        ) {
+            state.deletionCompleted) {
             onDeletionCompleted()
         }
     }
 
     DeleteAllDataScreen(
         state = state,
-        onRequestDeletion =
-            viewModel::requestDeletion,
-        onDismissConfirmation =
-            viewModel::dismissConfirmation,
-        onConfirmDeletion =
-            viewModel::confirmDeletion,
-        onRetry =
-            viewModel::retryDeletion,
+        onRequestDeletion = viewModel::requestDeletion,
+        onDismissConfirmation = viewModel::dismissConfirmation,
+        onConfirmDeletion = viewModel::confirmDeletion,
+        onRetry = viewModel::retryDeletion,
         onBack = onBack,
         modifier = modifier,
     )
@@ -272,171 +239,121 @@ fun DeleteAllDataScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = modifier
+                .fillMaxSize().testTag(
                     "delete_all_data_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .navigationBarsPadding()
+                    ).navigationBarsPadding()
                     .verticalScroll(
                         rememberScrollState(),
-                    )
-                    .padding(
-                        horizontal =
-                            experience
+                    ).padding(
+                        horizontal = experience
                                 .screenHorizontalPadding,
-                        vertical =
-                            experience
+                        vertical = experience
                                 .screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.sectionSpacing,
                 ),
         ) {
             OutlinedButton(
                 onClick = onBack,
-                enabled =
-                    !state.isDeleting,
-                modifier =
-                    Modifier
-                        .carePackInteractiveControl()
-                        .testTag(
+                enabled = !state.isDeleting,
+                modifier = Modifier
+                        .carePackInteractiveControl().testTag(
                             "delete_all_data_back",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.back,
                         ),
                 )
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_delete_all_title,
+                text = stringResource(
+                        R.string.carepack_delete_all_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineMedium,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "delete_all_data_title",
                         ),
             )
 
             Card(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
+                modifier = Modifier
+                        .fillMaxWidth().testTag(
                             "delete_all_data_warning",
                         ),
             ) {
                 Column(
-                    modifier =
-                        Modifier.padding(
+                    modifier = Modifier.padding(
                             experience.itemSpacing,
                         ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
+                    verticalArrangement = Arrangement.spacedBy(
                             experience.itemSpacing,
                         ),
                 ) {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_delete_all_warning_title,
+                        text = stringResource(
+                                R.string.carepack_delete_all_warning_title,
                             ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleLarge,
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .error,
-                        modifier =
-                            Modifier
+                        style = MaterialTheme
+                                .typography.titleLarge,
+                        color = MaterialTheme
+                                .colorScheme.error,
+                        modifier = Modifier
                                 .carePackHeading(),
                     )
 
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_delete_all_warning_body,
+                        text = stringResource(
+                                R.string.carepack_delete_all_warning_body,
                             ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyLarge,
+                        style = MaterialTheme
+                                .typography.bodyLarge,
                     )
                 }
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_delete_all_scope_title,
+                text = stringResource(
+                        R.string.carepack_delete_all_scope_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .titleLarge,
-                modifier =
-                    Modifier.carePackHeading(),
+                style = MaterialTheme
+                        .typography.titleLarge,
+                modifier = Modifier.carePackHeading(),
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_delete_all_scope_body,
+                text = stringResource(
+                        R.string.carepack_delete_all_scope_body,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.bodyLarge,
+                modifier = Modifier.testTag(
                         "delete_all_data_scope",
                     ),
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .carepack_delete_all_external_limit,
+                text = stringResource(
+                        R.string.carepack_delete_all_external_limit,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyMedium,
-                modifier =
-                    Modifier.testTag(
+                style = MaterialTheme
+                        .typography.bodyMedium,
+                modifier = Modifier.testTag(
                         "delete_all_data_external_limit",
                     ),
             )
@@ -444,85 +361,64 @@ fun DeleteAllDataScreen(
             when {
                 state.isDeleting -> {
                     Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPoliteLiveRegion()
                                 .testTag(
                                     "delete_all_data_progress",
                                 ),
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally,
-                        verticalArrangement =
-                            Arrangement.spacedBy(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(
                                 experience.itemSpacing,
                             ),
                     ) {
                         CircularProgressIndicator()
 
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_delete_all_progress,
+                            text = stringResource(
+                                    R.string.carepack_delete_all_progress,
                                 ),
-                            style =
-                                MaterialTheme
-                                    .typography
-                                    .bodyLarge,
+                            style = MaterialTheme
+                                    .typography.bodyLarge,
                         )
                     }
                 }
 
                 state.failedStage != null -> {
                     Card(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPoliteLiveRegion()
                                 .testTag(
                                     "delete_all_data_error",
                                 ),
                     ) {
                         Column(
-                            modifier =
-                                Modifier.padding(
+                            modifier = Modifier.padding(
                                     experience.itemSpacing,
                                 ),
-                            verticalArrangement =
-                                Arrangement.spacedBy(
+                            verticalArrangement = Arrangement.spacedBy(
                                     experience.itemSpacing,
                                 ),
                         ) {
                             Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .carepack_delete_all_failed,
+                                text = stringResource(
+                                        R.string.carepack_delete_all_failed,
                                     ),
-                                style =
-                                    MaterialTheme
-                                        .typography
-                                        .bodyLarge,
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .error,
+                                style = MaterialTheme
+                                        .typography.bodyLarge,
+                                color = MaterialTheme
+                                        .colorScheme.error,
                             )
 
                             Button(
                                 onClick = onRetry,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .carePackPrimaryAction()
+                                modifier = Modifier
+                                        .fillMaxWidth().carePackPrimaryAction()
                                         .testTag(
                                             "delete_all_data_retry",
                                         ),
                             ) {
                                 Text(
-                                    text =
-                                        stringResource(
+                                    text = stringResource(
                                             R.string.retry,
                                         ),
                                 )
@@ -533,21 +429,16 @@ fun DeleteAllDataScreen(
 
                 !state.deletionCompleted -> {
                     Button(
-                        onClick =
-                            onRequestDeletion,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPrimaryAction()
+                        onClick = onRequestDeletion,
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPrimaryAction()
                                 .testTag(
                                     "delete_all_data_request",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .carepack_delete_all_action,
+                            text = stringResource(
+                                    R.string.carepack_delete_all_action,
                                 ),
                         )
                     }
@@ -558,77 +449,58 @@ fun DeleteAllDataScreen(
 
     if (state.showConfirmation) {
         AlertDialog(
-            onDismissRequest =
-                onDismissConfirmation,
+            onDismissRequest = onDismissConfirmation,
             title = {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .carepack_delete_confirmation_title,
+                    text = stringResource(
+                            R.string.carepack_delete_confirmation_title,
                         ),
-                    modifier =
-                        Modifier.carePackHeading(),
+                    modifier = Modifier.carePackHeading(),
                 )
             },
             text = {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .carepack_delete_confirmation_body,
+                    text = stringResource(
+                            R.string.carepack_delete_confirmation_body,
                         ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyLarge,
-                    modifier =
-                        Modifier.testTag(
+                    style = MaterialTheme
+                            .typography.bodyLarge,
+                    modifier = Modifier.testTag(
                             "delete_all_data_confirmation_body",
                         ),
                 )
             },
             confirmButton = {
                 Button(
-                    onClick =
-                        onConfirmDeletion,
-                    modifier =
-                        Modifier
-                            .carePackPrimaryAction()
-                            .testTag(
+                    onClick = onConfirmDeletion,
+                    modifier = Modifier
+                            .carePackPrimaryAction().testTag(
                                 "delete_all_data_confirm",
                             ),
                 ) {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .carepack_delete_confirmation_action,
+                        text = stringResource(
+                                R.string.carepack_delete_confirmation_action,
                             ),
                     )
                 }
             },
             dismissButton = {
                 TextButton(
-                    onClick =
-                        onDismissConfirmation,
-                    modifier =
-                        Modifier
-                            .carePackInteractiveControl()
-                            .testTag(
+                    onClick = onDismissConfirmation,
+                    modifier = Modifier
+                            .carePackInteractiveControl().testTag(
                                 "delete_all_data_cancel",
                             ),
                 ) {
                     Text(
-                        text =
-                            stringResource(
+                        text = stringResource(
                                 R.string.cancel,
                             ),
                     )
                 }
             },
-            modifier =
-                Modifier.testTag(
+            modifier = Modifier.testTag(
                     "delete_all_data_confirmation",
                 ),
         )

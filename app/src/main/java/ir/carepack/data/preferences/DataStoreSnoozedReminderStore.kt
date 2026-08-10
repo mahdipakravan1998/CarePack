@@ -11,38 +11,29 @@ import java.time.Instant
 import java.util.Base64
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 class DataStoreSnoozedReminderStore(
     context: Context,
 ) : SnoozedReminderStore {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
-    override val reminders:
-            Flow<List<SnoozedReminder>> =
-        applicationContext
-            .carePackDataStore
-            .data
-            .catch { throwable ->
+    override val reminders: Flow<List<SnoozedReminder>> =
+        applicationContext.carePackDataStore
+            .data.catch { throwable ->
                 if (throwable is IOException) {
                     emit(emptyPreferences())
                 } else {
                     throw throwable
                 }
-            }
-            .map { preferences ->
-                preferences[SNOOZED_REMINDERS]
-                    .orEmpty()
+            }.map { preferences ->
+                preferences[SNOOZED_REMINDERS].orEmpty()
                     .mapNotNull(
                         ::decodeReminder,
-                    )
-                    .distinctBy {
+                    ).distinctBy {
                         it.occurrenceId
-                    }
-                    .sortedBy {
+                    }.sortedBy {
                         it.remindAt
                     }
             }
@@ -50,65 +41,49 @@ class DataStoreSnoozedReminderStore(
     override suspend fun upsert(
         reminder: SnoozedReminder,
     ) {
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
-                val current =
-                    preferences[SNOOZED_REMINDERS]
-                        .orEmpty()
-                        .mapNotNull(
+                val current = preferences[SNOOZED_REMINDERS]
+                        .orEmpty().mapNotNull(
                             ::decodeReminder,
-                        )
-                        .filterNot {
-                            it.occurrenceId ==
-                                    reminder.occurrenceId
+                        ).filterNot {
+                            it.occurrenceId == reminder.occurrenceId
                         }
 
-                preferences[SNOOZED_REMINDERS] =
-                    (current + reminder)
+                preferences[SNOOZED_REMINDERS] = (current + reminder)
                         .map(
                             ::encodeReminder,
-                        )
-                        .toSet()
+                        ).toSet()
             }
     }
 
     override suspend fun delete(
         occurrenceId: String,
     ) {
-        val trimmedOccurrenceId =
-            occurrenceId.trim()
+        val trimmedOccurrenceId = occurrenceId.trim()
 
         if (trimmedOccurrenceId.isBlank()) {
             return
         }
 
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
-                val updated =
-                    preferences[SNOOZED_REMINDERS]
-                        .orEmpty()
-                        .mapNotNull(
+                val updated = preferences[SNOOZED_REMINDERS]
+                        .orEmpty().mapNotNull(
                             ::decodeReminder,
-                        )
-                        .filterNot {
-                            it.occurrenceId ==
-                                    trimmedOccurrenceId
+                        ).filterNot {
+                            it.occurrenceId == trimmedOccurrenceId
                         }
 
-                preferences[SNOOZED_REMINDERS] =
-                    updated
+                preferences[SNOOZED_REMINDERS] = updated
                         .map(
                             ::encodeReminder,
-                        )
-                        .toSet()
+                        ).toSet()
             }
     }
 
     override suspend fun clear() {
-        applicationContext
-            .carePackDataStore
+        applicationContext.carePackDataStore
             .edit { preferences ->
                 preferences.remove(
                     SNOOZED_REMINDERS,
@@ -123,25 +98,19 @@ class DataStoreSnoozedReminderStore(
             encodeComponent(
                 reminder.occurrenceId,
             ),
-            reminder
-                .remindAt
-                .toEpochMilli()
-                .toString(),
-            reminder
-                .createdAt
-                .toEpochMilli()
-                .toString(),
+            reminder.remindAt
+                .toEpochMilli().toString(),
+            reminder.createdAt
+                .toEpochMilli().toString(),
         ).joinToString(
-            separator =
-                FIELD_SEPARATOR,
+            separator = FIELD_SEPARATOR,
         )
     }
 
     private fun decodeReminder(
         encoded: String,
     ): SnoozedReminder? {
-        val parts =
-            encoded.split(
+        val parts = encoded.split(
                 FIELD_SEPARATOR,
             )
 
@@ -151,16 +120,13 @@ class DataStoreSnoozedReminderStore(
 
         return runCatching {
             SnoozedReminder(
-                occurrenceId =
-                    decodeComponent(
+                occurrenceId = decodeComponent(
                         parts[0],
                     ),
-                remindAt =
-                    Instant.ofEpochMilli(
+                remindAt = Instant.ofEpochMilli(
                         parts[1].toLong(),
                     ),
-                createdAt =
-                    Instant.ofEpochMilli(
+                createdAt = Instant.ofEpochMilli(
                         parts[2].toLong(),
                     ),
             )
@@ -170,10 +136,8 @@ class DataStoreSnoozedReminderStore(
     private fun encodeComponent(
         value: String,
     ): String {
-        return Base64
-            .getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(
+        return Base64.getUrlEncoder()
+            .withoutPadding().encodeToString(
                 value.toByteArray(
                     Charsets.UTF_8,
                 ),
@@ -184,23 +148,19 @@ class DataStoreSnoozedReminderStore(
         value: String,
     ): String {
         return String(
-            Base64
-                .getUrlDecoder()
+            Base64.getUrlDecoder()
                 .decode(value),
             Charsets.UTF_8,
         )
     }
 
     private companion object {
-        val SNOOZED_REMINDERS =
-            stringSetPreferencesKey(
+        val SNOOZED_REMINDERS = stringSetPreferencesKey(
                 "snoozed_reminders",
             )
 
-        const val FIELD_SEPARATOR =
-            "|"
+        const val FIELD_SEPARATOR = "|"
 
-        const val ENCODED_PART_COUNT =
-            3
+        const val ENCODED_PART_COUNT = 3
     }
 }

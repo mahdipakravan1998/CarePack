@@ -1,5 +1,6 @@
 package ir.carepack.domain.calendar
 
+import ir.carepack.core.text.normalizePersianAndArabicDigits
 import java.time.LocalDate
 
 @JvmInline
@@ -43,20 +44,16 @@ data class JalaliPresentationDate(
         )
     }
 
-    fun toLocalDate(): LocalDate =
-        PersianCalendarMath.toGregorian(
+    fun toLocalDate(): LocalDate = PersianCalendarMath.toGregorian(
             year = year.value,
             month = month.value,
             day = dayOfMonth.value,
         )
 
-    fun formatNumeric(): String =
-        buildString {
+    fun formatNumeric(): String = buildString {
             append(
-                year
-                    .value
-                    .toString()
-                    .padStart(
+                year.value
+                    .toString().padStart(
                         length = 4,
                         padChar = '0',
                     ),
@@ -65,10 +62,8 @@ data class JalaliPresentationDate(
             append('/')
 
             append(
-                month
-                    .value
-                    .toString()
-                    .padStart(
+                month.value
+                    .toString().padStart(
                         length = 2,
                         padChar = '0',
                     ),
@@ -77,10 +72,8 @@ data class JalaliPresentationDate(
             append('/')
 
             append(
-                dayOfMonth
-                    .value
-                    .toString()
-                    .padStart(
+                dayOfMonth.value
+                    .toString().padStart(
                         length = 2,
                         padChar = '0',
                     ),
@@ -92,22 +85,18 @@ data class JalaliPresentationDate(
         fun from(
             localDate: LocalDate,
         ): JalaliPresentationDate {
-            val date =
-                PersianCalendarMath.fromGregorian(
+            val date = PersianCalendarMath.fromGregorian(
                     localDate,
                 )
 
             return JalaliPresentationDate(
-                year =
-                    JalaliYear(
+                year = JalaliYear(
                         date.year,
                     ),
-                month =
-                    JalaliMonth(
+                month = JalaliMonth(
                         date.month,
                     ),
-                dayOfMonth =
-                    JalaliDayOfMonth(
+                dayOfMonth = JalaliDayOfMonth(
                         date.day,
                     ),
             )
@@ -116,47 +105,35 @@ data class JalaliPresentationDate(
         fun parseNumeric(
             rawValue: String,
         ): JalaliPresentationDate? {
-            val normalizedValue =
-                rawValue
-                    .trim()
-                    .normalizePersianDigits()
+            val normalizedValue = rawValue
+                    .trim().normalizePersianAndArabicDigits()
 
-            val match =
-                NUMERIC_PATTERN.matchEntire(
+            val match = NUMERIC_PATTERN.matchEntire(
                     normalizedValue,
                 ) ?: return null
 
-            val year =
-                match
-                    .groupValues[1]
-                    .toInt()
+            val year = match
+                    .groupValues[1].toInt()
 
             if (year !in USER_INPUT_YEAR_RANGE) {
                 return null
             }
 
-            val month =
-                match
-                    .groupValues[2]
-                    .toInt()
+            val month = match
+                    .groupValues[2].toInt()
 
-            val day =
-                match
-                    .groupValues[3]
-                    .toInt()
+            val day = match
+                    .groupValues[3].toInt()
 
             return runCatching {
                 JalaliPresentationDate(
-                    year =
-                        JalaliYear(
+                    year = JalaliYear(
                             year,
                         ),
-                    month =
-                        JalaliMonth(
+                    month = JalaliMonth(
                             month,
                         ),
-                    dayOfMonth =
-                        JalaliDayOfMonth(
+                    dayOfMonth = JalaliDayOfMonth(
                             day,
                         ),
                 )
@@ -166,8 +143,7 @@ data class JalaliPresentationDate(
         fun lengthOfMonth(
             year: Int,
             month: Int,
-        ): Int =
-            when (month) {
+        ): Int = when (month) {
                 in 1..6 -> {
                     31
                 }
@@ -193,18 +169,15 @@ data class JalaliPresentationDate(
 
         fun isLeapYear(
             year: Int,
-        ): Boolean =
-            PersianCalendarMath.isLeapYear(
+        ): Boolean = PersianCalendarMath.isLeapYear(
                 year,
             )
 
-        private val NUMERIC_PATTERN =
-            Regex(
+        private val NUMERIC_PATTERN = Regex(
                 """^(\d{4})[/\-](\d{1,2})[/\-](\d{1,2})$""",
             )
 
-        private val USER_INPUT_YEAR_RANGE =
-            1300..1599
+        private val USER_INPUT_YEAR_RANGE = 1300..1599
     }
 }
 
@@ -215,8 +188,7 @@ private data class JalaliDateParts(
 )
 
 private object PersianCalendarMath {
-    private val breaks =
-        intArrayOf(
+    private val breaks = intArrayOf(
             -61,
             9,
             38,
@@ -242,8 +214,7 @@ private object PersianCalendarMath {
     fun fromGregorian(
         localDate: LocalDate,
     ): JalaliDateParts {
-        val julianDayNumber =
-            gregorianToJulianDayNumber(
+        val julianDayNumber = gregorianToJulianDayNumber(
                 year = localDate.year,
                 month = localDate.monthValue,
                 day = localDate.dayOfMonth,
@@ -259,15 +230,13 @@ private object PersianCalendarMath {
         month: Int,
         day: Int,
     ): LocalDate {
-        val julianDayNumber =
-            jalaliToJulianDayNumber(
+        val julianDayNumber = jalaliToJulianDayNumber(
                 year = year,
                 month = month,
                 day = day,
             )
 
-        val parts =
-            julianDayNumberToGregorian(
+        val parts = julianDayNumberToGregorian(
                 julianDayNumber,
             )
 
@@ -280,78 +249,60 @@ private object PersianCalendarMath {
 
     fun isLeapYear(
         year: Int,
-    ): Boolean =
-        jalaliCalendar(year).leap == 0
+    ): Boolean = jalaliCalendar(year).leap == 0
 
     private fun jalaliCalendar(
         year: Int,
     ): JalaliCalendarState {
         require(
-            year >= breaks.first() &&
-                    year < breaks.last(),
+            year >= breaks.first() && year < breaks.last(),
         )
 
-        val gregorianYear =
-            year + 621
+        val gregorianYear = year + 621
 
-        var leapJ =
-            -14
+        var leapJ = -14
 
-        var previousBreak =
-            breaks[0]
+        var previousBreak = breaks[0]
 
         var jump = 0
 
         for (index in 1 until breaks.size) {
-            val currentBreak =
-                breaks[index]
+            val currentBreak = breaks[index]
 
-            jump =
-                currentBreak - previousBreak
+            jump = currentBreak - previousBreak
 
             if (year < currentBreak) {
                 break
             }
 
-            leapJ +=
-                (jump / 33) * 8 +
+            leapJ += (jump / 33) * 8 +
                         ((jump % 33) / 4)
 
-            previousBreak =
-                currentBreak
+            previousBreak = currentBreak
         }
 
-        var yearsSinceBreak =
-            year - previousBreak
+        var yearsSinceBreak = year - previousBreak
 
-        leapJ +=
-            (yearsSinceBreak / 33) * 8 +
+        leapJ += (yearsSinceBreak / 33) * 8 +
                     (((yearsSinceBreak % 33) + 3) / 4)
 
         if (
-            jump % 33 == 4 &&
-            jump - yearsSinceBreak == 4
+            jump % 33 == 4 && jump - yearsSinceBreak == 4
         ) {
             leapJ += 1
         }
 
-        val leapG =
-            gregorianYear / 4 -
-                    ((gregorianYear / 100 + 1) * 3 / 4) -
-                    150
+        val leapG = gregorianYear / 4 -
+                    ((gregorianYear / 100 + 1) * 3 / 4) - 150
 
-        val march =
-            20 + leapJ - leapG
+        val march = 20 + leapJ - leapG
 
         if (jump - yearsSinceBreak < 6) {
-            yearsSinceBreak =
-                yearsSinceBreak -
-                        jump +
-                        ((jump + 4) / 33) * 33
+            yearsSinceBreak = yearsSinceBreak -
+                        jump + ((jump + 4) / 33) * 33
         }
 
-        var leap =
-            ((yearsSinceBreak + 1) % 33 - 1) % 4
+        var leap = ((yearsSinceBreak + 1) % 33 - 1) % 4
 
         if (leap == -1) {
             leap = 4
@@ -369,8 +320,7 @@ private object PersianCalendarMath {
         month: Int,
         day: Int,
     ): Int {
-        val calendar =
-            jalaliCalendar(
+        val calendar = jalaliCalendar(
                 year,
             )
 
@@ -378,31 +328,25 @@ private object PersianCalendarMath {
             year = calendar.gregorianYear,
             month = 3,
             day = calendar.march,
-        ) +
-                (month - 1) * 31 -
-                ((month / 7) * (month - 7)) +
-                day -
+        ) + (month - 1) * 31 -
+                ((month / 7) * (month - 7)) + day -
                 1
     }
 
     private fun julianDayNumberToJalali(
         julianDayNumber: Int,
     ): JalaliDateParts {
-        val gregorian =
-            julianDayNumberToGregorian(
+        val gregorian = julianDayNumberToGregorian(
                 julianDayNumber,
             )
 
-        var year =
-            gregorian.year - 621
+        var year = gregorian.year - 621
 
-        val calendar =
-            jalaliCalendar(
+        val calendar = jalaliCalendar(
                 year,
             )
 
-        val dayOfYear =
-            julianDayNumber -
+        val dayOfYear = julianDayNumber -
                     gregorianToJulianDayNumber(
                         year = gregorian.year,
                         month = 3,
@@ -417,8 +361,7 @@ private object PersianCalendarMath {
                     day = dayOfYear % 31 + 1,
                 )
             } else {
-                val adjustedDay =
-                    dayOfYear - 186
+                val adjustedDay = dayOfYear - 186
 
                 JalaliDateParts(
                     year = year,
@@ -430,10 +373,8 @@ private object PersianCalendarMath {
 
         year -= 1
 
-        val adjustedDay =
-            dayOfYear +
-                    179 +
-                    if (calendar.leap == 1) {
+        val adjustedDay = dayOfYear +
+                    179 + if (calendar.leap == 1) {
                         1
                     } else {
                         0
@@ -451,54 +392,38 @@ private object PersianCalendarMath {
         month: Int,
         day: Int,
     ): Int {
-        val adjustedYear =
-            year +
-                    4800 -
-                    ((14 - month) / 12)
+        val adjustedYear = year +
+                    4800 - ((14 - month) / 12)
 
-        val adjustedMonth =
-            month +
-                    12 * ((14 - month) / 12) -
-                    3
+        val adjustedMonth = month +
+                    12 * ((14 - month) / 12) - 3
 
-        return day +
-                ((153 * adjustedMonth + 2) / 5) +
-                365 * adjustedYear +
-                adjustedYear / 4 -
-                adjustedYear / 100 +
-                adjustedYear / 400 -
+        return day + ((153 * adjustedMonth + 2) / 5) +
+                365 * adjustedYear + adjustedYear / 4 -
+                adjustedYear / 100 + adjustedYear / 400 -
                 32045
     }
 
     private fun julianDayNumberToGregorian(
         julianDayNumber: Int,
     ): JalaliDateParts {
-        val a =
-            julianDayNumber + 32044
+        val a = julianDayNumber + 32044
 
-        val b =
-            (4 * a + 3) / 146097
+        val b = (4 * a + 3) / 146097
 
-        val c =
-            a - (146097 * b) / 4
+        val c = a - (146097 * b) / 4
 
-        val d =
-            (4 * c + 3) / 1461
+        val d = (4 * c + 3) / 1461
 
-        val e =
-            c - (1461 * d) / 4
+        val e = c - (1461 * d) / 4
 
-        val m =
-            (5 * e + 2) / 153
+        val m = (5 * e + 2) / 153
 
-        val day =
-            e - (153 * m + 2) / 5 + 1
+        val day = e - (153 * m + 2) / 5 + 1
 
-        val month =
-            m + 3 - 12 * (m / 10)
+        val month = m + 3 - 12 * (m / 10)
 
-        val year =
-            100 * b + d - 4800 + (m / 10)
+        val year = 100 * b + d - 4800 + (m / 10)
 
         return JalaliDateParts(
             year = year,
@@ -513,34 +438,3 @@ private data class JalaliCalendarState(
     val gregorianYear: Int,
     val march: Int,
 )
-
-private fun String.normalizePersianDigits():
-        String =
-    map { character ->
-        when (character) {
-            '۰' -> '0'
-            '۱' -> '1'
-            '۲' -> '2'
-            '۳' -> '3'
-            '۴' -> '4'
-            '۵' -> '5'
-            '۶' -> '6'
-            '۷' -> '7'
-            '۸' -> '8'
-            '۹' -> '9'
-            '٠' -> '0'
-            '١' -> '1'
-            '٢' -> '2'
-            '٣' -> '3'
-            '٤' -> '4'
-            '٥' -> '5'
-            '٦' -> '6'
-            '٧' -> '7'
-            '٨' -> '8'
-            '٩' -> '9'
-            else -> character
-        }
-    }
-        .joinToString(
-            separator = "",
-        )

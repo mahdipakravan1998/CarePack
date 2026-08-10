@@ -19,8 +19,7 @@ data class OccurrenceCandidate(
 )
 
 class OccurrenceCandidateResolver(
-    private val localDateTimeResolver:
-        CarePackLocalDateTimeResolver =
+    private val localDateTimeResolver: CarePackLocalDateTimeResolver =
         CarePackLocalDateTimeResolver(),
 ) {
 
@@ -33,24 +32,20 @@ class OccurrenceCandidateResolver(
         }
 
         if (
-            definition.startDate != null &&
-            anchorDate.isBefore(definition.startDate)
+            definition.startDate != null && anchorDate.isBefore(definition.startDate)
         ) {
             return null
         }
 
         if (
-            definition.endDate != null &&
-            anchorDate.isAfter(definition.endDate)
+            definition.endDate != null && anchorDate.isAfter(definition.endDate)
         ) {
             return null
         }
 
-        val requestedMinuteOfDay =
-            definition.minuteOfDay
+        val requestedMinuteOfDay = definition.minuteOfDay
 
-        val eligibleMinutes =
-            minutesFor(
+        val eligibleMinutes = minutesFor(
                 schedulePattern = definition.schedulePattern,
                 fallbackMinuteOfDay = requestedMinuteOfDay,
                 anchorDate = anchorDate,
@@ -78,15 +73,13 @@ class OccurrenceCandidateResolver(
         }
 
         if (
-            definition.startDate != null &&
-            anchorDate.isBefore(definition.startDate)
+            definition.startDate != null && anchorDate.isBefore(definition.startDate)
         ) {
             return emptyList()
         }
 
         if (
-            definition.endDate != null &&
-            anchorDate.isAfter(definition.endDate)
+            definition.endDate != null && anchorDate.isAfter(definition.endDate)
         ) {
             return emptyList()
         }
@@ -118,16 +111,12 @@ class OccurrenceCandidateResolver(
             return null
         }
 
-        val localTime =
-            LocalTime.ofSecondOfDay(
-                minuteOfDay.toLong() *
-                    SECONDS_PER_MINUTE,
+        val localTime = LocalTime.ofSecondOfDay(
+                minuteOfDay.toLong() * SECONDS_PER_MINUTE,
             )
 
-        val resolution =
-            localDateTimeResolver.resolve(
-                localDateTime =
-                    LocalDateTime.of(
+        val resolution = localDateTimeResolver.resolve(
+                localDateTime = LocalDateTime.of(
                         anchorDate,
                         localTime,
                     ),
@@ -135,8 +124,7 @@ class OccurrenceCandidateResolver(
             )
 
         if (
-            resolution.instant
-                .isBefore(definition.effectiveFrom)
+            resolution.instant.isBefore(definition.effectiveFrom)
         ) {
             return null
         }
@@ -144,20 +132,16 @@ class OccurrenceCandidateResolver(
         val effectiveUntil = definition.effectiveUntil
 
         if (
-            effectiveUntil != null &&
-            !resolution.instant.isBefore(effectiveUntil)
+            effectiveUntil != null && !resolution.instant.isBefore(effectiveUntil)
         ) {
             return null
         }
 
-        val resolvedLocalTime =
-            resolution.resolvedLocalDateTime.toLocalTime()
+        val resolvedLocalTime = resolution.resolvedLocalDateTime.toLocalTime()
 
         return OccurrenceCandidate(
-            localDate =
-                resolution.resolvedLocalDateTime.toLocalDate(),
-            minuteOfDay =
-                resolvedLocalTime.hour * MINUTES_PER_HOUR +
+            localDate = resolution.resolvedLocalDateTime.toLocalDate(),
+            minuteOfDay = resolvedLocalTime.hour * MINUTES_PER_HOUR +
                     resolvedLocalTime.minute,
             zoneId = definition.zoneId,
             scheduledAt = resolution.instant,
@@ -171,35 +155,28 @@ class OccurrenceCandidateResolver(
         anchorDate: LocalDate,
         startDate: LocalDate?,
     ): List<Int> {
-        val minutes =
-            when (schedulePattern) {
+        val minutes = when (schedulePattern) {
                 is FixedTimeSchedule ->
-                    schedulePattern
-                        .representativeMinutesOfDay
+                    schedulePattern.representativeMinutesOfDay
                         .ifEmpty {
                             listOf(fallbackMinuteOfDay)
                         }
 
                 is IntervalSchedule ->
-                    schedulePattern
-                        .representativeMinutesOfDay
-            }
-                .filter { minuteOfDay ->
+                    schedulePattern.representativeMinutesOfDay
+            }.filter { minuteOfDay ->
                     minuteOfDay in 0 until MINUTES_PER_DAY
-                }
-                .distinct()
+                }.distinct()
                 .sorted()
 
         return when (schedulePattern) {
             is FixedTimeSchedule -> minutes
             is IntervalSchedule ->
                 if (
-                    startDate != null &&
-                    anchorDate == startDate
+                    startDate != null && anchorDate == startDate
                 ) {
                     minutes.filter { minuteOfDay ->
-                        minuteOfDay >=
-                            schedulePattern.anchorMinuteOfDay
+                        minuteOfDay >= schedulePattern.anchorMinuteOfDay
                     }
                 } else {
                     minutes
@@ -211,8 +188,7 @@ class OccurrenceCandidateResolver(
         weekdayMask: Int,
         date: LocalDate,
     ): Boolean {
-        val dayBit =
-            1 shl (date.dayOfWeek.value - 1)
+        val dayBit = 1 shl (date.dayOfWeek.value - 1)
 
         return weekdayMask and dayBit != 0
     }

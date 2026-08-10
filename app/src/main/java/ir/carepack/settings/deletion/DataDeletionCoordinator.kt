@@ -27,6 +27,5 @@ sealed interface DataDeletionResult {
 interface DataDeletionCoordinator {
     suspend fun deleteEverything(): DataDeletionResult
 
-    suspend fun resumeIncompleteDeletionIfNeeded():
-        DataDeletionResult
+    suspend fun resumeIncompleteDeletionIfNeeded(): DataDeletionResult
 }

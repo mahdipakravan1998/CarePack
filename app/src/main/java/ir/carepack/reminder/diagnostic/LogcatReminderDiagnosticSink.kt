@@ -15,8 +15,7 @@ class LogcatReminderDiagnosticSink(
             return
         }
 
-        val message =
-            buildMessage(
+        val message = buildMessage(
                 event = event,
             )
 
@@ -32,8 +31,7 @@ class LogcatReminderDiagnosticSink(
 
     private fun buildMessage(
         event: ReminderDiagnosticEvent,
-    ): String =
-        buildString {
+    ): String = buildString {
             append("type=")
             append(event.type.name)
 
@@ -67,17 +65,13 @@ class LogcatReminderDiagnosticSink(
         }
 
     companion object {
-        private const val TAG =
-            "CarePackReminder"
+        private const val TAG = "CarePackReminder"
 
-        private const val MAX_DEBUG_EVENT_COUNT =
-            200
+        private const val MAX_DEBUG_EVENT_COUNT = 200
 
-        private val lock =
-            Any()
+        private val lock = Any()
 
-        private val debugEvents =
-            mutableListOf<String>()
+        private val debugEvents = mutableListOf<String>()
 
         fun clearDebugEvents() {
             synchronized(lock) {
@@ -85,8 +79,7 @@ class LogcatReminderDiagnosticSink(
             }
         }
 
-        fun readDebugEvents():
-                List<String> {
+        fun readDebugEvents(): List<String> {
             return synchronized(lock) {
                 debugEvents.toList()
             }
@@ -100,8 +93,7 @@ class LogcatReminderDiagnosticSink(
 
                 while (
                     debugEvents.size >
-                    MAX_DEBUG_EVENT_COUNT
-                ) {
+                    MAX_DEBUG_EVENT_COUNT) {
                     debugEvents.removeAt(
                         0,
                     )

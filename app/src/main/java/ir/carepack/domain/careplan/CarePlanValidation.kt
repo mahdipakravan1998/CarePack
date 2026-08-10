@@ -43,25 +43,20 @@ internal object CarePlanValidation {
     private const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
     private const val VALID_WEEKDAY_MASK = 0b1111111
 
-    private val minuteOfDayRange =
-        0 until MINUTES_PER_DAY
+    private val minuteOfDayRange = 0 until MINUTES_PER_DAY
 
     private val hourMinutePattern =
         Regex("""^([01]\d|2[0-3]):([0-5]\d)$""")
 
     fun validateRecipientName(
         rawValue: String,
-    ): ValidationResult<String> =
-        validateRequiredBoundedText(
+    ): ValidationResult<String> = validateRequiredBoundedText(
             rawValue = rawValue,
             field = CarePlanField.RECIPIENT_NAME,
-            maximumLength =
-                CarePlanLimits
+            maximumLength = CarePlanLimits
                     .RECIPIENT_NAME_MAX_LENGTH,
-            emptyMessage =
-                "نام فرد تحت مراقبت نمی‌تواند خالی باشد.",
-            tooLongMessage =
-                "نام فرد تحت مراقبت نباید بیشتر از " +
+            emptyMessage = "نام فرد تحت مراقبت نمی‌تواند خالی باشد.",
+            tooLongMessage = "نام فرد تحت مراقبت نباید بیشتر از " +
                         "${CarePlanLimits.RECIPIENT_NAME_MAX_LENGTH} نویسه باشد.",
         )
 
@@ -72,98 +67,73 @@ internal object CarePlanValidation {
         rawDosageText: String = "",
         rawDoseUnit: String = "",
     ): ValidationResult<ValidatedMedicationText> {
-        val nameResult =
-            validateRequiredBoundedText(
+        val nameResult = validateRequiredBoundedText(
                 rawValue = rawName,
                 field = CarePlanField.MEDICATION_NAME,
-                maximumLength =
-                    CarePlanLimits
+                maximumLength = CarePlanLimits
                         .MEDICATION_NAME_MAX_LENGTH,
-                emptyMessage =
-                    "نام دارو نمی‌تواند خالی باشد.",
-                tooLongMessage =
-                    "نام دارو نباید بیشتر از " +
+                emptyMessage = "نام دارو نمی‌تواند خالی باشد.",
+                tooLongMessage = "نام دارو نباید بیشتر از " +
                             "${CarePlanLimits.MEDICATION_NAME_MAX_LENGTH} نویسه باشد.",
             )
 
-        val instructionResult =
-            validateRequiredBoundedText(
+        val instructionResult = validateRequiredBoundedText(
                 rawValue = rawInstruction,
                 field = CarePlanField.INSTRUCTION,
-                maximumLength =
-                    CarePlanLimits
+                maximumLength = CarePlanLimits
                         .INSTRUCTION_MAX_LENGTH,
-                emptyMessage =
-                    "دستور مصرف یا توضیح مراقبت نمی‌تواند خالی باشد.",
-                tooLongMessage =
-                    "دستور مصرف نباید بیشتر از " +
+                emptyMessage = "دستور مصرف یا توضیح مراقبت نمی‌تواند خالی باشد.",
+                tooLongMessage = "دستور مصرف نباید بیشتر از " +
                             "${CarePlanLimits.INSTRUCTION_MAX_LENGTH} نویسه باشد.",
             )
 
-        val medicationTypeResult =
-            validateOptionalBoundedText(
+        val medicationTypeResult = validateOptionalBoundedText(
                 rawValue = rawMedicationType,
                 field = CarePlanField.MEDICATION_TYPE,
-                maximumLength =
-                    CarePlanLimits
+                maximumLength = CarePlanLimits
                         .MEDICATION_TYPE_MAX_LENGTH,
-                tooLongMessage =
-                    "نوع دارو نباید بیشتر از " +
+                tooLongMessage = "نوع دارو نباید بیشتر از " +
                             "${CarePlanLimits.MEDICATION_TYPE_MAX_LENGTH} نویسه باشد.",
             )
 
-        val dosageTextResult =
-            validateOptionalBoundedText(
+        val dosageTextResult = validateOptionalBoundedText(
                 rawValue = rawDosageText,
                 field = CarePlanField.DOSAGE_TEXT,
-                maximumLength =
-                    CarePlanLimits
+                maximumLength = CarePlanLimits
                         .DOSAGE_TEXT_MAX_LENGTH,
-                tooLongMessage =
-                    "مقدار ثبت‌شده دارو نباید بیشتر از " +
+                tooLongMessage = "مقدار ثبت‌شده دارو نباید بیشتر از " +
                             "${CarePlanLimits.DOSAGE_TEXT_MAX_LENGTH} نویسه باشد.",
             )
 
-        val doseUnitResult =
-            validateOptionalBoundedText(
+        val doseUnitResult = validateOptionalBoundedText(
                 rawValue = rawDoseUnit,
                 field = CarePlanField.DOSE_UNIT,
-                maximumLength =
-                    CarePlanLimits
+                maximumLength = CarePlanLimits
                         .DOSE_UNIT_MAX_LENGTH,
-                tooLongMessage =
-                    "واحد دوز نباید بیشتر از " +
+                tooLongMessage = "واحد دوز نباید بیشتر از " +
                             "${CarePlanLimits.DOSE_UNIT_MAX_LENGTH} نویسه باشد.",
             )
 
-        val errors =
-            nameResult.errorsOrEmpty() +
-                    instructionResult.errorsOrEmpty() +
-                    medicationTypeResult.errorsOrEmpty() +
-                    dosageTextResult.errorsOrEmpty() +
-                    doseUnitResult.errorsOrEmpty()
+        val errors = nameResult.errorsOrEmpty() +
+                    instructionResult.errorsOrEmpty() + medicationTypeResult.errorsOrEmpty() +
+                    dosageTextResult.errorsOrEmpty() + doseUnitResult.errorsOrEmpty()
 
         return if (errors.isEmpty()) {
             ValidationResult.Valid(
                 ValidatedMedicationText(
-                    name =
-                        checkNotNull(
+                    name = checkNotNull(
                             nameResult.valueOrNull(),
                         ),
-                    instruction =
-                        checkNotNull(
+                    instruction = checkNotNull(
                             instructionResult.valueOrNull(),
                         ),
-                    medicationType =
-                        checkNotNull(
+                    medicationType = checkNotNull(
                             medicationTypeResult.valueOrNull(),
                         ),
-                    dosageText =
-                        checkNotNull(
+                    dosageText = checkNotNull(
                             dosageTextResult.valueOrNull(),
                         ),
-                    doseUnit =
-                        checkNotNull(
+                    doseUnit = checkNotNull(
                             doseUnitResult.valueOrNull(),
                         ),
                 ),
@@ -177,19 +147,16 @@ internal object CarePlanValidation {
         rawValue: String,
         existingMinutesOfDay: List<Int>,
     ): ValidationResult<Int> {
-        val minuteOfDay =
-            parseHourMinute(rawValue)
+        val minuteOfDay = parseHourMinute(rawValue)
                 ?: return invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
+                    message = "زمان باید به شکل معتبر ۲۴ ساعته مانند ۱۴:۳۰ باشد.",
                 )
 
         return if (
             hasDuplicateMinutes(
                 existingMinutesOfDay + minuteOfDay,
-            )
-        ) {
+            )) {
             invalid(
                 field = CarePlanField.TIMES,
                 message = "این زمان قبلاً اضافه شده است.",
@@ -203,38 +170,29 @@ internal object CarePlanValidation {
         rawStartDate: String,
         rawEndDate: String,
     ): ValidationResult<ValidatedScheduleDates> {
-        val startDate =
-            parseOptionalDate(rawStartDate)
+        val startDate = parseOptionalDate(rawStartDate)
 
-        val endDate =
-            parseOptionalDate(rawEndDate)
+        val endDate = parseOptionalDate(rawEndDate)
 
-        val errors =
-            buildList {
+        val errors = buildList {
                 if (
-                    rawStartDate.isNotBlank() &&
-                    startDate == null
+                    rawStartDate.isNotBlank() && startDate == null
                 ) {
                     add(
                         CarePlanValidationError(
-                            field =
-                                CarePlanField.START_DATE,
-                            message =
-                                "تاریخ شروع باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
+                            field = CarePlanField.START_DATE,
+                            message = "تاریخ شروع باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
                         ),
                     )
                 }
 
                 if (
-                    rawEndDate.isNotBlank() &&
-                    endDate == null
+                    rawEndDate.isNotBlank() && endDate == null
                 ) {
                     add(
                         CarePlanValidationError(
-                            field =
-                                CarePlanField.END_DATE,
-                            message =
-                                "تاریخ پایان باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
+                            field = CarePlanField.END_DATE,
+                            message = "تاریخ پایان باید به شکل جلالی ۱۴۰۵/۰۴/۰۳ باشد.",
                         ),
                     )
                 }
@@ -254,8 +212,7 @@ internal object CarePlanValidation {
 
     fun validateSchedulePattern(
         schedulePattern: SchedulePattern,
-    ): ValidationResult<SchedulePattern> =
-        when (schedulePattern) {
+    ): ValidationResult<SchedulePattern> = when (schedulePattern) {
             is FixedTimeSchedule ->
                 validateFixedTimePattern(
                     schedulePattern,
@@ -270,64 +227,49 @@ internal object CarePlanValidation {
     fun validateSchedule(
         weekdays: Set<DayOfWeek>,
         minutesOfDay: List<Int>,
-        schedulePattern: SchedulePattern =
-            FixedTimeSchedule(
-                minutesOfDay =
-                    minutesOfDay,
+        schedulePattern: SchedulePattern = FixedTimeSchedule(
+                minutesOfDay = minutesOfDay,
             ),
         startDate: LocalDate?,
         endDate: LocalDate?,
         rawZoneId: String,
     ): ValidationResult<ValidatedScheduleDefinition> {
-        val patternValidation =
-            validateSchedulePattern(
+        val patternValidation = validateSchedulePattern(
                 schedulePattern,
             )
 
-        val errors =
-            buildList {
+        val errors = buildList {
                 if (weekdays.isEmpty()) {
                     add(
                         CarePlanValidationError(
-                            field =
-                                CarePlanField.WEEKDAYS,
-                            message =
-                                "حداقل یک روز هفته را انتخاب کنید.",
+                            field = CarePlanField.WEEKDAYS,
+                            message = "حداقل یک روز هفته را انتخاب کنید.",
                         ),
                     )
                 }
 
                 if (
-                    startDate != null &&
-                    endDate != null &&
-                    startDate.isAfter(endDate)
-                ) {
+                    startDate != null && endDate != null &&
+                    startDate.isAfter(endDate)) {
                     add(
                         CarePlanValidationError(
-                            field =
-                                CarePlanField.END_DATE,
-                            message =
-                                "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.",
+                            field = CarePlanField.END_DATE,
+                            message = "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد.",
                         ),
                     )
                 }
             }.toMutableList()
 
-        errors +=
-            patternValidation.errorsOrEmpty()
+        errors += patternValidation.errorsOrEmpty()
 
-        val zoneId =
-            runCatching {
+        val zoneId = runCatching {
                 ZoneId.of(rawZoneId.trim())
             }.getOrNull()
 
         if (zoneId == null) {
-            errors +=
-                CarePlanValidationError(
-                    field =
-                        CarePlanField.ZONE_ID,
-                    message =
-                        "منطقه زمانی معتبر نیست.",
+            errors += CarePlanValidationError(
+                    field = CarePlanField.ZONE_ID,
+                    message = "منطقه زمانی معتبر نیست.",
                 )
         }
 
@@ -337,25 +279,20 @@ internal object CarePlanValidation {
             )
         }
 
-        val validPattern =
-            checkNotNull(
+        val validPattern = checkNotNull(
                 patternValidation.valueOrNull(),
             )
 
         return ValidationResult.Valid(
             ValidatedScheduleDefinition(
-                weekdayMask =
-                    weekdays.fold(0) { mask, day ->
+                weekdayMask = weekdays.fold(0) { mask, day ->
                         mask or
                                 (1 shl (day.value - 1))
                     },
-                minutesOfDay =
-                    validPattern
+                minutesOfDay = validPattern
                         .representativeMinutesOfDay,
-                schedulePattern =
-                    validPattern,
-                zoneId =
-                    checkNotNull(zoneId),
+                schedulePattern = validPattern,
+                zoneId = checkNotNull(zoneId),
                 startDate = startDate,
                 endDate = endDate,
             ),
@@ -364,32 +301,27 @@ internal object CarePlanValidation {
 
     fun isValidWeekdayMask(
         weekdayMask: Int,
-    ): Boolean =
-        weekdayMask != 0 &&
-                weekdayMask and VALID_WEEKDAY_MASK ==
-                weekdayMask
+    ): Boolean = weekdayMask != 0 &&
+                weekdayMask and VALID_WEEKDAY_MASK == weekdayMask
 
     private fun validateFixedTimePattern(
         schedulePattern: FixedTimeSchedule,
     ): ValidationResult<SchedulePattern> {
-        val minutesOfDay =
-            schedulePattern
+        val minutesOfDay = schedulePattern
                 .representativeMinutesOfDay
 
         return when {
             minutesOfDay.isEmpty() -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "حداقل یک زمان را اضافه کنید.",
+                    message = "حداقل یک زمان را اضافه کنید.",
                 )
             }
 
             minutesOfDay.any { it !in minuteOfDayRange } -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "یک یا چند زمان معتبر نیست.",
+                    message = "یک یا چند زمان معتبر نیست.",
                 )
             }
 
@@ -398,8 +330,7 @@ internal object CarePlanValidation {
             ) -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "زمان‌های تکراری مجاز نیستند.",
+                    message = "زمان‌های تکراری مجاز نیستند.",
                 )
             }
 
@@ -413,15 +344,13 @@ internal object CarePlanValidation {
 
     private fun validateIntervalPattern(
         schedulePattern: IntervalSchedule,
-    ): ValidationResult<SchedulePattern> =
-        when {
+    ): ValidationResult<SchedulePattern> = when {
             !SchedulePatternRules.isAllowedIntervalHours(
                 schedulePattern.intervalHours,
             ) -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "بازه زمانی باید یکی از مقدارهای ۶، ۸ یا ۱۲ ساعت باشد.",
+                    message = "بازه زمانی باید یکی از مقدارهای ۶، ۸ یا ۱۲ ساعت باشد.",
                 )
             }
 
@@ -430,18 +359,15 @@ internal object CarePlanValidation {
             ) -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "زمان اولین نوبت معتبر نیست.",
+                    message = "زمان اولین نوبت معتبر نیست.",
                 )
             }
 
-            schedulePattern
-                .representativeMinutesOfDay
+            schedulePattern.representativeMinutesOfDay
                 .isEmpty() -> {
                 invalid(
                     field = CarePlanField.TIMES,
-                    message =
-                        "الگوی زمان‌بندی معتبر نیست.",
+                    message = "الگوی زمان‌بندی معتبر نیست.",
                 )
             }
 
@@ -455,15 +381,12 @@ internal object CarePlanValidation {
     private fun parseHourMinute(
         rawValue: String,
     ): Int? {
-        val match =
-            hourMinutePattern.matchEntire(
+        val match = hourMinutePattern.matchEntire(
                 rawValue.trim(),
             ) ?: return null
 
-        val minuteOfDay =
-            match.groupValues[1].toInt() *
-                    MINUTES_PER_HOUR +
-                    match.groupValues[2].toInt()
+        val minuteOfDay = match.groupValues[1].toInt() *
+                    MINUTES_PER_HOUR + match.groupValues[2].toInt()
 
         return minuteOfDay.takeIf {
             it in minuteOfDayRange
@@ -473,25 +396,21 @@ internal object CarePlanValidation {
     private fun parseOptionalDate(
         rawValue: String,
     ): LocalDate? {
-        val normalized =
-            rawValue.trim()
+        val normalized = rawValue.trim()
 
         if (normalized.isEmpty()) {
             return null
         }
 
-        return JalaliPresentationDate
-            .parseNumeric(normalized)
-            ?.toLocalDate()
-            ?: runCatching {
+        return JalaliPresentationDate.parseNumeric(normalized)
+            ?.toLocalDate() ?: runCatching {
                 LocalDate.parse(normalized)
             }.getOrNull()
     }
 
     private fun hasDuplicateMinutes(
         minutesOfDay: List<Int>,
-    ): Boolean =
-        minutesOfDay.size !=
+    ): Boolean = minutesOfDay.size !=
                 minutesOfDay.distinct().size
 
     private fun validateRequiredBoundedText(
@@ -501,26 +420,21 @@ internal object CarePlanValidation {
         emptyMessage: String,
         tooLongMessage: String,
     ): ValidationResult<String> {
-        val normalized =
-            rawValue.trim()
+        val normalized = rawValue.trim()
 
         return when {
             normalized.isEmpty() -> {
                 invalid(
-                    field =
-                        field,
-                    message =
-                        emptyMessage,
+                    field = field,
+                    message = emptyMessage,
                 )
             }
 
             normalized.characterCount() >
                     maximumLength -> {
                 invalid(
-                    field =
-                        field,
-                    message =
-                        tooLongMessage,
+                    field = field,
+                    message = tooLongMessage,
                 )
             }
 
@@ -538,18 +452,14 @@ internal object CarePlanValidation {
         maximumLength: Int,
         tooLongMessage: String,
     ): ValidationResult<String> {
-        val normalized =
-            rawValue.trim()
+        val normalized = rawValue.trim()
 
         return if (
             normalized.characterCount() >
-            maximumLength
-        ) {
+            maximumLength) {
             invalid(
-                field =
-                    field,
-                message =
-                    tooLongMessage,
+                field = field,
+                message = tooLongMessage,
             )
         } else {
             ValidationResult.Valid(
@@ -561,8 +471,7 @@ internal object CarePlanValidation {
     private fun invalid(
         field: CarePlanField,
         message: String,
-    ): ValidationResult.Invalid =
-        ValidationResult.Invalid(
+    ): ValidationResult.Invalid = ValidationResult.Invalid(
             listOf(
                 CarePlanValidationError(
                     field = field,
@@ -571,19 +480,16 @@ internal object CarePlanValidation {
             ),
         )
 
-    private fun String.characterCount(): Int =
-        codePointCount(0, length)
+    private fun String.characterCount(): Int = codePointCount(0, length)
 }
 
-internal fun <T> ValidationResult<T>.valueOrNull():
-        T? =
+internal fun <T> ValidationResult<T>.valueOrNull(): T? =
     when (this) {
         is ValidationResult.Valid -> value
         is ValidationResult.Invalid -> null
     }
 
-internal fun ValidationResult<*>.errorsOrEmpty():
-        List<CarePlanValidationError> =
+internal fun ValidationResult<*>.errorsOrEmpty(): List<CarePlanValidationError> =
     when (this) {
         is ValidationResult.Valid -> emptyList()
         is ValidationResult.Invalid -> errors

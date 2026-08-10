@@ -6,14 +6,11 @@ import android.content.Intent
 
 sealed interface ExternalIntentLaunchResult {
 
-    data object Launched :
-        ExternalIntentLaunchResult
+    data object Launched : ExternalIntentLaunchResult
 
-    data object NoHandler :
-        ExternalIntentLaunchResult
+    data object NoHandler : ExternalIntentLaunchResult
 
-    data object Blocked :
-        ExternalIntentLaunchResult
+    data object Blocked : ExternalIntentLaunchResult
 }
 
 fun interface ExternalIntentLauncher {
@@ -27,14 +24,12 @@ class AndroidExternalIntentLauncher(
     context: Context,
 ) : ExternalIntentLauncher {
 
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
     override fun launch(
         intent: Intent,
     ): ExternalIntentLaunchResult {
-        val launchIntent =
-            Intent(intent).addFlags(
+        val launchIntent = Intent(intent).addFlags(
                 Intent.FLAG_ACTIVITY_NEW_TASK,
             )
 

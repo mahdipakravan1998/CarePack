@@ -8,8 +8,7 @@ fun interface DomainDataCleaner {
 }
 
 class RoomDomainDataCleaner(
-    private val database:
-    CarePackDatabase,
+    private val database: CarePackDatabase,
 ) : DomainDataCleaner {
 
     override suspend fun clearAllDomainData() {

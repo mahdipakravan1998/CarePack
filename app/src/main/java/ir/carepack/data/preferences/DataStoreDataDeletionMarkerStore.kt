@@ -19,27 +19,20 @@ class DataStoreDataDeletionMarkerStore internal constructor(
     private val dataStore: DataStore<Preferences>,
 ) : DataDeletionMarkerStore {
 
-    constructor(context: Context) :
-        this(
-            dataStore =
-                context.applicationContext
+    constructor(context: Context) : this(
+            dataStore = context.applicationContext
                     .carePackDataStore,
         )
 
-    override val state:
-        Flow<DataDeletionMarkerReadResult> =
-        dataStore
-            .data
+    override val state: Flow<DataDeletionMarkerReadResult> =
+        dataStore.data
             .map(
                 ::decodeMarker,
-            )
-            .catch { throwable ->
+            ).catch { throwable ->
                 if (throwable is IOException) {
                     emit(
-                        DataDeletionMarkerReadResult
-                            .Corrupted(
-                                reason =
-                                    DeletionMarkerCorruptionReason
+                        DataDeletionMarkerReadResult.Corrupted(
+                                reason = DeletionMarkerCorruptionReason
                                         .STORAGE_READ_FAILURE,
                             ),
                     )
@@ -53,8 +46,7 @@ class DataStoreDataDeletionMarkerStore internal constructor(
     ) {
         require(marker.hasValidChecksum())
 
-        dataStore
-            .edit { preferences ->
+        dataStore.edit { preferences ->
                 writeMarker(
                     preferences = preferences,
                     marker = marker,
@@ -69,13 +61,10 @@ class DataStoreDataDeletionMarkerStore internal constructor(
         val target = operationId.trim()
         require(target.isNotBlank())
 
-        dataStore
-            .edit { preferences ->
-                val marker =
-                    (
+        dataStore.edit { preferences ->
+                val marker = (
                         decodeMarker(preferences) as?
-                            DataDeletionMarkerReadResult.Valid
-                    )?.marker
+                            DataDeletionMarkerReadResult.Valid)?.marker
                         ?: error(
                             "Data deletion marker is not valid.",
                         )
@@ -95,16 +84,14 @@ class DataStoreDataDeletionMarkerStore internal constructor(
         val target = operationId.trim()
         require(target.isNotBlank())
 
-        dataStore
-            .edit { preferences ->
+        dataStore.edit { preferences ->
                 if (
                     preferences[
-                        DataDeletionPreferenceKeys.operationId
-                    ] == target
+                        DataDeletionPreferenceKeys.operationId] == target
                 ) {
-                    dataMarkerKeys().forEach { key ->
-                        preferences.remove(key)
-                    }
+                    preferences.removeDeletionMarkerKeys(
+                        dataMarkerKeys(),
+                    )
                 }
             }
     }
@@ -112,99 +99,74 @@ class DataStoreDataDeletionMarkerStore internal constructor(
     private fun decodeMarker(
         preferences: Preferences,
     ): DataDeletionMarkerReadResult {
-        val keys = preferences.asMap().keys
         val markerKeys = dataMarkerKeys()
 
-        if (keys.none { it in markerKeys }) {
-            return DataDeletionMarkerReadResult.Absent
+        when (preferences.deletionMarkerPresence(markerKeys)) {
+            DeletionMarkerPresence.ABSENT ->
+                return DataDeletionMarkerReadResult.Absent
+
+            DeletionMarkerPresence.PARTIAL ->
+                return DataDeletionMarkerReadResult.Corrupted(
+                        reason = DeletionMarkerCorruptionReason
+                                .PARTIAL_MARKER,
+                    )
+
+            DeletionMarkerPresence.COMPLETE -> Unit
         }
 
-        if (!keys.containsAll(markerKeys)) {
-            return DataDeletionMarkerReadResult
-                .Corrupted(
-                    reason =
-                        DeletionMarkerCorruptionReason
-                            .PARTIAL_MARKER,
-                )
-        }
-
-        val version =
-            preferences[DataDeletionPreferenceKeys.version]
-                ?: return DataDeletionMarkerReadResult
-                    .Corrupted(
-                        reason =
-                            DeletionMarkerCorruptionReason
+        val version = preferences[DataDeletionPreferenceKeys.version]
+                ?: return DataDeletionMarkerReadResult.Corrupted(
+                        reason = DeletionMarkerCorruptionReason
                                 .PARTIAL_MARKER,
                     )
 
         if (version != DataDeletionMarker.CURRENT_VERSION) {
-            return DataDeletionMarkerReadResult
-                .Corrupted(
-                    reason =
-                        DeletionMarkerCorruptionReason
+            return DataDeletionMarkerReadResult.Corrupted(
+                    reason = DeletionMarkerCorruptionReason
                             .UNKNOWN_VERSION,
                 )
         }
 
-        val stage =
-            preferences[DataDeletionPreferenceKeys.stage]
-                ?.let { storedStage ->
-                    DataDeletionMarkerStage.entries
-                        .firstOrNull { candidate ->
-                            candidate.name == storedStage
-                        }
-                }
-                ?: return DataDeletionMarkerReadResult
+        val stage = enumValueOrNull<DataDeletionMarkerStage>(
+                preferences[DataDeletionPreferenceKeys.stage],
+            ) ?: return DataDeletionMarkerReadResult
                     .Corrupted(
-                        reason =
-                            DeletionMarkerCorruptionReason
+                        reason = DeletionMarkerCorruptionReason
                                 .INVALID_STAGE,
                     )
 
-        val marker =
-            runCatching {
+        val marker = runCatching {
                 DataDeletionMarker(
                     version = version,
-                    operationId =
-                        checkNotNull(
+                    operationId = checkNotNull(
                             preferences[
-                                DataDeletionPreferenceKeys.operationId
-                            ],
+                                DataDeletionPreferenceKeys.operationId],
                         ),
                     stage = stage,
-                    startedAtEpochMillis =
-                        checkNotNull(
+                    startedAtEpochMillis = checkNotNull(
                             preferences[
-                                DataDeletionPreferenceKeys.startedAt
-                            ],
+                                DataDeletionPreferenceKeys.startedAt],
                         ),
-                    checksum =
-                        checkNotNull(
+                    checksum = checkNotNull(
                             preferences[
-                                DataDeletionPreferenceKeys.checksum
-                            ],
+                                DataDeletionPreferenceKeys.checksum],
                         ),
                 )
             }.getOrElse {
-                return DataDeletionMarkerReadResult
-                    .Corrupted(
-                        reason =
-                            DeletionMarkerCorruptionReason
+                return DataDeletionMarkerReadResult.Corrupted(
+                        reason = DeletionMarkerCorruptionReason
                                 .INVALID_VALUE,
                     )
             }
 
         if (!marker.hasValidChecksum()) {
-            return DataDeletionMarkerReadResult
-                .Corrupted(
-                    reason =
-                        DeletionMarkerCorruptionReason
+            return DataDeletionMarkerReadResult.Corrupted(
+                    reason = DeletionMarkerCorruptionReason
                             .CHECKSUM_MISMATCH,
                 )
         }
 
-        return DataDeletionMarkerReadResult
-            .Valid(
+        return DataDeletionMarkerReadResult.Valid(
                 marker = marker,
             )
     }
@@ -213,20 +175,14 @@ class DataStoreDataDeletionMarkerStore internal constructor(
         preferences: MutablePreferences,
         marker: DataDeletionMarker,
     ) {
-        preferences[DataDeletionPreferenceKeys.version] =
-            marker.version
-        preferences[DataDeletionPreferenceKeys.operationId] =
-            marker.operationId
-        preferences[DataDeletionPreferenceKeys.stage] =
-            marker.stage.name
-        preferences[DataDeletionPreferenceKeys.startedAt] =
-            marker.startedAtEpochMillis
-        preferences[DataDeletionPreferenceKeys.checksum] =
-            marker.checksum
+        preferences[DataDeletionPreferenceKeys.version] = marker.version
+        preferences[DataDeletionPreferenceKeys.operationId] = marker.operationId
+        preferences[DataDeletionPreferenceKeys.stage] = marker.stage.name
+        preferences[DataDeletionPreferenceKeys.startedAt] = marker.startedAtEpochMillis
+        preferences[DataDeletionPreferenceKeys.checksum] = marker.checksum
     }
 
-    private fun dataMarkerKeys():
-        Set<Preferences.Key<*>> =
+    private fun dataMarkerKeys(): Set<Preferences.Key<*>> =
         setOf(
             DataDeletionPreferenceKeys.version,
             DataDeletionPreferenceKeys.operationId,

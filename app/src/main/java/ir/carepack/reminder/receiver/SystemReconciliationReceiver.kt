@@ -24,29 +24,24 @@ class SystemReconciliationReceiver : BroadcastReceiver() {
         context: Context,
         intent: Intent,
     ) {
-        val reason =
-            intent.action.toReconciliationReason()
+        val reason = intent.action.toReconciliationReason()
                 ?: return
 
-        val application =
-            context.applicationContext as?
+        val application = context.applicationContext as?
                 CarePackApplication ?: return
 
-        val retryScheduler =
-            application.container
+        val retryScheduler = application.container
                 .systemReconciliationRetryScheduler
 
         ReceiverExecutionBoundary().launch(
             receiver = this,
             operation = {
-                val outcome =
-                    application.container.appReconciler
+                val outcome = application.container.appReconciler
                         .reconcile(reason)
 
                 dispatchSystemReconciliationOutcome(
                     outcome = outcome,
-                    onSuccessful =
-                        retryScheduler::markSuccessful,
+                    onSuccessful = retryScheduler::markSuccessful,
                     onRetry = {
                         retryScheduler.scheduleNextRetry()
                     },
@@ -58,8 +53,7 @@ class SystemReconciliationReceiver : BroadcastReceiver() {
         )
     }
 
-    private fun String?.toReconciliationReason():
-        ReconciliationReason? =
+    private fun String?.toReconciliationReason(): ReconciliationReason? =
         when (this) {
             Intent.ACTION_BOOT_COMPLETED ->
                 ReconciliationReason.BOOT_COMPLETED
@@ -70,16 +64,14 @@ class SystemReconciliationReceiver : BroadcastReceiver() {
             Intent.ACTION_MY_PACKAGE_REPLACED ->
                 ReconciliationReason.PACKAGE_REPLACED
             ACTION_EXACT_ALARM_PERMISSION_CHANGED ->
-                ReconciliationReason
-                    .EXACT_ALARM_CAPABILITY_CHANGED
+                ReconciliationReason.EXACT_ALARM_CAPABILITY_CHANGED
             ACTION_RETRY_RECONCILIATION ->
                 ReconciliationReason.MANUAL_RETRY
             else -> null
         }
 
     companion object {
-        const val ACTION_RETRY_RECONCILIATION =
-            "ir.carepack.action.RETRY_RECONCILIATION"
+        const val ACTION_RETRY_RECONCILIATION = "ir.carepack.action.RETRY_RECONCILIATION"
 
         private const val ACTION_EXACT_ALARM_PERMISSION_CHANGED =
             "android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED"

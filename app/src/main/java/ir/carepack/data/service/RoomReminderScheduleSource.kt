@@ -8,35 +8,26 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 class RoomReminderScheduleSource(
-    private val database:
-    CarePackDatabase,
+    private val database: CarePackDatabase,
 ) : ReminderScheduleSource {
 
-    override suspend fun getAllScheduleSeriesIds():
-            Set<String> {
-        return database
-            .scheduleDao()
-            .getAllSeriesIds()
-            .toSet()
+    override suspend fun getAllScheduleSeriesIds(): Set<String> {
+        return database.scheduleDao()
+            .getAllSeriesIds().toSet()
     }
 
-    override suspend fun hasActiveSchedule():
-            Boolean {
-        return database
-            .scheduleDao()
+    override suspend fun hasActiveSchedule(): Boolean {
+        return database.scheduleDao()
             .countActiveSeries() > 0
     }
 
     override suspend fun getNextEligibleTargets(
         now: Instant,
     ): List<ReminderTarget> {
-        return database
-            .occurrenceDao()
+        return database.occurrenceDao()
             .getNextReminderTargets(
-                nowEpochMillis =
-                    now.toEpochMilli(),
-            )
-            .map { row ->
+                nowEpochMillis = now.toEpochMilli(),
+            ).map { row ->
                 row.toDomain()
             }
     }
@@ -48,60 +39,42 @@ class RoomReminderScheduleSource(
             return null
         }
 
-        return database
-            .occurrenceDao()
+        return database.occurrenceDao()
             .getEligibleReminderOccurrence(
-                occurrenceId =
-                    occurrenceId,
-            )
-            ?.toDomain()
+                occurrenceId = occurrenceId,
+            )?.toDomain()
     }
 
-    private fun ReminderTargetRow.toDomain():
-            ReminderTarget {
+    private fun ReminderTargetRow.toDomain(): ReminderTarget {
         require(
-            minuteOfDay in
-                    MINUTE_OF_DAY_RANGE,
+            minuteOfDay in MINUTE_OF_DAY_RANGE,
         )
 
         return ReminderTarget(
-            alarmKey =
-                AlarmKey.forScheduleSeries(
-                    scheduleSeriesId =
-                        scheduleSeriesId,
+            alarmKey = AlarmKey.forScheduleSeries(
+                    scheduleSeriesId = scheduleSeriesId,
                 ),
-            occurrenceId =
-                occurrenceId,
-            scheduledAt =
-                Instant.ofEpochMilli(
+            occurrenceId = occurrenceId,
+            scheduledAt = Instant.ofEpochMilli(
                     scheduledAtEpochMillis,
                 ),
-            localDate =
-                LocalDate.ofEpochDay(
+            localDate = LocalDate.ofEpochDay(
                     localEpochDay,
                 ),
-            localTime =
-                LocalTime.of(
-                    minuteOfDay /
-                            MINUTES_PER_HOUR,
-                    minuteOfDay %
-                            MINUTES_PER_HOUR,
+            localTime = LocalTime.of(
+                    minuteOfDay / MINUTES_PER_HOUR,
+                    minuteOfDay % MINUTES_PER_HOUR,
                 ),
-            zoneId =
-                zoneIdSnapshot,
-            medicationName =
-                medicationNameSnapshot,
+            zoneId = zoneIdSnapshot,
+            medicationName = medicationNameSnapshot,
         )
     }
 
     private companion object {
-        const val MINUTES_PER_HOUR =
-            60
+        const val MINUTES_PER_HOUR = 60
 
-        const val MINUTES_PER_DAY =
-            24 * MINUTES_PER_HOUR
+        const val MINUTES_PER_DAY = 24 * MINUTES_PER_HOUR
 
-        val MINUTE_OF_DAY_RANGE =
-            0 until MINUTES_PER_DAY
+        val MINUTE_OF_DAY_RANGE = 0 until MINUTES_PER_DAY
     }
 }

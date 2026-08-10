@@ -9,20 +9,16 @@ sealed interface SchedulePattern {
 data class FixedTimeSchedule(
     val minutesOfDay: List<Int>,
 ) : SchedulePattern {
-    override val representativeMinutesOfDay: List<Int> =
-        minutesOfDay
-            .distinct()
-            .sorted()
+    override val representativeMinutesOfDay: List<Int> = minutesOfDay
+            .distinct().sorted()
 }
 
 data class IntervalSchedule(
     val intervalHours: Int,
     val anchorMinuteOfDay: Int,
 ) : SchedulePattern {
-    override val representativeMinutesOfDay: List<Int> =
-        if (
-            intervalHours in ALLOWED_INTERVAL_HOURS &&
-            anchorMinuteOfDay in MINUTE_OF_DAY_RANGE
+    override val representativeMinutesOfDay: List<Int> = if (
+            intervalHours in ALLOWED_INTERVAL_HOURS && anchorMinuteOfDay in MINUTE_OF_DAY_RANGE
         ) {
             intervalMinutesWithinDayInternal(
                 intervalHours = intervalHours,
@@ -34,23 +30,19 @@ data class IntervalSchedule(
 }
 
 object SchedulePatternRules {
-    val allowedIntervalHours: Set<Int> =
-        ALLOWED_INTERVAL_HOURS
+    val allowedIntervalHours: Set<Int> = ALLOWED_INTERVAL_HOURS
 
     fun isValidMinuteOfDay(
         minuteOfDay: Int,
-    ): Boolean =
-        minuteOfDay in MINUTE_OF_DAY_RANGE
+    ): Boolean = minuteOfDay in MINUTE_OF_DAY_RANGE
 
     fun isAllowedIntervalHours(
         intervalHours: Int,
-    ): Boolean =
-        intervalHours in ALLOWED_INTERVAL_HOURS
+    ): Boolean = intervalHours in ALLOWED_INTERVAL_HOURS
 
     fun minuteOfDayFrom(
         localTime: LocalTime,
-    ): Int =
-        localTime.hour * MINUTES_PER_HOUR +
+    ): Int = localTime.hour * MINUTES_PER_HOUR +
                 localTime.minute
 
     fun localTimeFrom(
@@ -82,11 +74,9 @@ private fun intervalMinutesWithinDayInternal(
     intervalHours: Int,
     anchorMinuteOfDay: Int,
 ): List<Int> {
-    val intervalMinutes =
-        intervalHours * MINUTES_PER_HOUR
+    val intervalMinutes = intervalHours * MINUTES_PER_HOUR
 
-    return (0 until MINUTES_PER_DAY)
-        .filter { minuteOfDay ->
+    return (0 until MINUTES_PER_DAY).filter { minuteOfDay ->
             positiveModulo(
                 value = minuteOfDay - anchorMinuteOfDay,
                 divisor = intervalMinutes,
@@ -97,11 +87,9 @@ private fun intervalMinutesWithinDayInternal(
 private fun positiveModulo(
     value: Int,
     divisor: Int,
-): Int =
-    ((value % divisor) + divisor) % divisor
+): Int = ((value % divisor) + divisor) % divisor
 
-private val ALLOWED_INTERVAL_HOURS =
-    setOf(
+private val ALLOWED_INTERVAL_HOURS = setOf(
         6,
         8,
         12,

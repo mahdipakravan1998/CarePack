@@ -17,8 +17,7 @@ fun tickingNow(
 
     return flow {
         while (
-            currentCoroutineContext()
-                .isActive
+            currentCoroutineContext().isActive
         ) {
             emit(clock.instant())
             delay(intervalMillis)

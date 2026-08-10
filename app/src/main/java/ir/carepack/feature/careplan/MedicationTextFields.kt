@@ -24,150 +24,110 @@ internal fun MedicationTextFields(
     doseUnit: String,
     errors: Map<CarePlanField, String>,
     enabled: Boolean,
-    onMedicationNameChanged:
-        (String) -> Unit,
-    onInstructionChanged:
-        (String) -> Unit,
-    onMedicationTypeChanged:
-        (String) -> Unit,
-    onDosageTextChanged:
-        (String) -> Unit,
-    onDoseUnitChanged:
-        (String) -> Unit,
+    onMedicationNameChanged: (String) -> Unit,
+    onInstructionChanged: (String) -> Unit,
+    onMedicationTypeChanged: (String) -> Unit,
+    onDosageTextChanged: (String) -> Unit,
+    onDoseUnitChanged: (String) -> Unit,
     instructionMinLines: Int,
-    medicationNameTestTag:
-    String? = null,
-    instructionTestTag:
-    String? = null,
-    medicationTypeTestTag:
-    String? = null,
-    dosageTextTestTag:
-    String? = null,
-    doseUnitTestTag:
-    String? = null,
+    medicationNameTestTag: String? = null,
+    instructionTestTag: String? = null,
+    medicationTypeTestTag: String? = null,
+    dosageTextTestTag: String? = null,
+    doseUnitTestTag: String? = null,
 ) {
     MedicationTextField(
-        value =
-            medicationName,
-        onValueChange =
-            onMedicationNameChanged,
+        value = medicationName,
+        onValueChange = onMedicationNameChanged,
         enabled = enabled,
-        labelResId =
-            R.string
+        labelResId = R.string
                 .medication_name_label,
         singleLine = true,
         minLines = 1,
-        field =
-            CarePlanField
+        field = CarePlanField
                 .MEDICATION_NAME,
         errors = errors,
-        testTag =
-            medicationNameTestTag,
+        testTag = medicationNameTestTag,
     )
 
     Spacer(
-        modifier =
-            Modifier.height(
+        modifier = Modifier.height(
                 12.dp,
             ),
     )
 
     MedicationTextField(
-        value =
-            instruction,
-        onValueChange =
-            onInstructionChanged,
+        value = instruction,
+        onValueChange = onInstructionChanged,
         enabled = enabled,
-        labelResId =
-            R.string
+        labelResId = R.string
                 .instruction_label,
         singleLine = false,
-        minLines =
-            instructionMinLines,
-        field =
-            CarePlanField
+        minLines = instructionMinLines,
+        field = CarePlanField
                 .INSTRUCTION,
         errors = errors,
-        testTag =
-            instructionTestTag,
+        testTag = instructionTestTag,
     )
 
     Spacer(
-        modifier =
-            Modifier.height(
+        modifier = Modifier.height(
                 12.dp,
             ),
     )
 
     MedicationTextField(
-        value =
-            medicationType,
-        onValueChange =
-            onMedicationTypeChanged,
+        value = medicationType,
+        onValueChange = onMedicationTypeChanged,
         enabled = enabled,
-        labelResId =
-            R.string
+        labelResId = R.string
                 .medication_type_label,
         singleLine = true,
         minLines = 1,
-        field =
-            CarePlanField
+        field = CarePlanField
                 .MEDICATION_TYPE,
         errors = errors,
-        testTag =
-            medicationTypeTestTag,
+        testTag = medicationTypeTestTag,
     )
 
     Spacer(
-        modifier =
-            Modifier.height(
+        modifier = Modifier.height(
                 12.dp,
             ),
     )
 
     MedicationTextField(
-        value =
-            dosageText,
-        onValueChange =
-            onDosageTextChanged,
+        value = dosageText,
+        onValueChange = onDosageTextChanged,
         enabled = enabled,
-        labelResId =
-            R.string
+        labelResId = R.string
                 .dosage_text_label,
         singleLine = true,
         minLines = 1,
-        field =
-            CarePlanField
+        field = CarePlanField
                 .DOSAGE_TEXT,
         errors = errors,
-        testTag =
-            dosageTextTestTag,
+        testTag = dosageTextTestTag,
     )
 
     Spacer(
-        modifier =
-            Modifier.height(
+        modifier = Modifier.height(
                 12.dp,
             ),
     )
 
     MedicationTextField(
-        value =
-            doseUnit,
-        onValueChange =
-            onDoseUnitChanged,
+        value = doseUnit,
+        onValueChange = onDoseUnitChanged,
         enabled = enabled,
-        labelResId =
-            R.string
+        labelResId = R.string
                 .dose_unit_label,
         singleLine = true,
         minLines = 1,
-        field =
-            CarePlanField
+        field = CarePlanField
                 .DOSE_UNIT,
         errors = errors,
-        testTag =
-            doseUnitTestTag,
+        testTag = doseUnitTestTag,
     )
 }
 
@@ -184,50 +144,39 @@ private fun MedicationTextField(
     testTag: String?,
 ) {
     OutlinedTextField(
-        value =
-            value,
-        onValueChange =
-            onValueChange,
+        value = value,
+        onValueChange = onValueChange,
         enabled = enabled,
         label = {
             Text(
-                text =
-                    stringResource(
+                text = stringResource(
                         labelResId,
                     ),
             )
         },
-        singleLine =
-            singleLine,
-        minLines =
-            minLines,
-        isError =
-            errors.containsKey(
+        singleLine = singleLine,
+        minLines = minLines,
+        isError = errors.containsKey(
                 field,
             ),
         supportingText = {
             errors[field]?.let {
                     errorMessage ->
                 Text(
-                    text =
-                        errorMessage,
-                    modifier =
-                        Modifier
+                    text = errorMessage,
+                    modifier = Modifier
                             .carePackPoliteLiveRegion(),
                 )
             }
         },
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .optionalTestTag(
+        modifier = Modifier
+                .fillMaxWidth().optionalTestTag(
                     testTag,
                 ),
     )
 }
 
-internal fun List<CarePlanValidationError>.toFieldErrors():
-        Map<CarePlanField, String> =
+internal fun List<CarePlanValidationError>.toFieldErrors(): Map<CarePlanField, String> =
     associate {
             error ->
         error.field to
@@ -236,8 +185,7 @@ internal fun List<CarePlanValidationError>.toFieldErrors():
 
 private fun Modifier.optionalTestTag(
     testTag: String?,
-): Modifier =
-    if (testTag == null) {
+): Modifier = if (testTag == null) {
         this
     } else {
         testTag(testTag)

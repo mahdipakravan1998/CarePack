@@ -49,31 +49,24 @@ object ManufacturerGuidanceClassifier {
     fun classify(
         manufacturer: String?,
     ): ManufacturerGuidance {
-        val normalized =
-            manufacturer
-                ?.trim()
-                ?.lowercase()
+        val normalized = manufacturer
+                ?.trim()?.lowercase()
                 .orEmpty()
 
         return when {
             normalized.contains(
                 other = "xiaomi",
-            ) ||
-                    normalized.contains(
+            ) || normalized.contains(
                         other = "redmi",
-                    ) ||
-                    normalized.contains(
+                    ) || normalized.contains(
                         other = "poco",
                     ) -> {
                 ManufacturerGuidance(
-                    type =
-                        ManufacturerGuidanceType.XIAOMI,
-                    title =
-                        "راهنمای گوشی شیائومی",
+                    type = ManufacturerGuidanceType.XIAOMI,
+                    title = "راهنمای گوشی شیائومی",
                     body =
                         "در MIUI یا HyperOS ممکن است Autostart، محدودیت باتری، اجرای پس‌زمینه یا نمایش پنجره در پس‌زمینه باعث تأخیر یا نمایش‌ندادن یادآور شود.",
-                    actionItems =
-                        listOf(
+                    actionItems = listOf(
                             "Autostart را برای کرپک بررسی کنید.",
                             "Battery restrictions را برای کرپک روی حالت آزادتر بگذارید.",
                             "Background activity و نمایش پنجره یا اعلان در پس‌زمینه را در صورت وجود بررسی کنید.",
@@ -86,14 +79,11 @@ object ManufacturerGuidanceClassifier {
                 other = "samsung",
             ) -> {
                 ManufacturerGuidance(
-                    type =
-                        ManufacturerGuidanceType.SAMSUNG,
-                    title =
-                        "راهنمای گوشی سامسونگ",
+                    type = ManufacturerGuidanceType.SAMSUNG,
+                    title = "راهنمای گوشی سامسونگ",
                     body =
                         "در One UI ممکن است Sleeping apps، Deep sleeping apps، Battery optimization یا تنظیمات دسته اعلان‌ها یادآورها را محدود یا با تأخیر نمایش دهد.",
-                    actionItems =
-                        listOf(
+                    actionItems = listOf(
                             "Sleeping apps و Deep sleeping apps را بررسی کنید.",
                             "Battery optimization را برای کرپک بررسی کنید.",
                             "Notification categories/settings کرپک را بررسی کنید.",
@@ -104,14 +94,11 @@ object ManufacturerGuidanceClassifier {
 
             else -> {
                 ManufacturerGuidance(
-                    type =
-                        ManufacturerGuidanceType.GENERIC,
-                    title =
-                        "راهنمای محدودیت‌های گوشی",
+                    type = ManufacturerGuidanceType.GENERIC,
+                    title = "راهنمای محدودیت‌های گوشی",
                     body =
                         "حالت کم‌مصرف، بهینه‌سازی باتری، تنظیمات اعلان و محدودیت‌های سازنده ممکن است یادآورها را با تأخیر نمایش دهند یا محدود کنند.",
-                    actionItems =
-                        listOf(
+                    actionItems = listOf(
                             "Battery Saver را بررسی کنید.",
                             "Battery optimization کرپک را بررسی کنید.",
                             "Notification settings کرپک را بررسی کنید.",
@@ -127,23 +114,18 @@ data class ReminderReadiness(
     val status: ReminderReadinessStatus,
     val canAttemptReminderDelivery: Boolean,
     val usesExactAlarm: Boolean,
-    val notificationPermission:
-    NotificationPermissionReadiness,
-    val exactAlarm:
-    ExactAlarmReadiness,
+    val notificationPermission: NotificationPermissionReadiness,
+    val exactAlarm: ExactAlarmReadiness,
     val approximateFallbackAvailable: Boolean,
     val remindersEnabled: Boolean,
     val hasActiveFutureOccurrence: Boolean,
-    val batteryOptimizationState:
-    BatteryOptimizationState,
-    val manufacturerGuidance:
-    ManufacturerGuidance,
+    val batteryOptimizationState: BatteryOptimizationState,
+    val manufacturerGuidance: ManufacturerGuidance,
     val manufacturerGuidanceNeeded: Boolean,
     val message: String,
 ) {
     val hasReadinessProblem: Boolean
-        get() =
-            status != ReminderReadinessStatus.READY
+        get() = status != ReminderReadinessStatus.READY
 }
 
 object ReminderReadinessPolicy {
@@ -153,24 +135,15 @@ object ReminderReadinessPolicy {
         hasActiveSchedule: Boolean,
         notificationPermissionGranted: Boolean,
         canScheduleExactAlarms: Boolean,
-    ): ReminderReadiness =
-        evaluate(
-            remindersEnabled =
-                remindersEnabled,
-            hasActiveSchedule =
-                hasActiveSchedule,
-            notificationRuntimePermissionRequired =
-                true,
-            notificationPermissionGranted =
-                notificationPermissionGranted,
-            canScheduleExactAlarms =
-                canScheduleExactAlarms,
-            exactAlarmRelevant =
-                true,
-            batteryOptimizationState =
-                BatteryOptimizationState.UNKNOWN,
-            manufacturer =
-                null,
+    ): ReminderReadiness = evaluate(
+            remindersEnabled = remindersEnabled,
+            hasActiveSchedule = hasActiveSchedule,
+            notificationRuntimePermissionRequired = true,
+            notificationPermissionGranted = notificationPermissionGranted,
+            canScheduleExactAlarms = canScheduleExactAlarms,
+            exactAlarmRelevant = true,
+            batteryOptimizationState = BatteryOptimizationState.UNKNOWN,
+            manufacturer = null,
         )
 
     fun evaluate(
@@ -180,105 +153,77 @@ object ReminderReadinessPolicy {
         notificationPermissionGranted: Boolean,
         canScheduleExactAlarms: Boolean,
         exactAlarmRelevant: Boolean,
-        batteryOptimizationState:
-        BatteryOptimizationState,
+        batteryOptimizationState: BatteryOptimizationState,
         manufacturer: String?,
     ): ReminderReadiness {
-        val notificationReadiness =
-            when {
+        val notificationReadiness = when {
                 !notificationRuntimePermissionRequired -> {
-                    NotificationPermissionReadiness
-                        .NOT_REQUIRED
+                    NotificationPermissionReadiness.NOT_REQUIRED
                 }
 
                 notificationPermissionGranted -> {
-                    NotificationPermissionReadiness
-                        .GRANTED
+                    NotificationPermissionReadiness.GRANTED
                 }
 
                 else -> {
-                    NotificationPermissionReadiness
-                        .DENIED
+                    NotificationPermissionReadiness.DENIED
                 }
             }
 
-        val exactReadiness =
-            when {
-                !exactAlarmRelevant ||
-                        !remindersEnabled ||
-                        !hasActiveSchedule ||
-                        notificationReadiness ==
-                        NotificationPermissionReadiness
-                            .DENIED -> {
-                    ExactAlarmReadiness
-                        .NOT_APPLICABLE
+        val exactReadiness = when {
+                !exactAlarmRelevant || !remindersEnabled ||
+                        !hasActiveSchedule || notificationReadiness ==
+                        NotificationPermissionReadiness.DENIED -> {
+                    ExactAlarmReadiness.NOT_APPLICABLE
                 }
 
                 canScheduleExactAlarms -> {
-                    ExactAlarmReadiness
-                        .AVAILABLE
+                    ExactAlarmReadiness.AVAILABLE
                 }
 
                 else -> {
-                    ExactAlarmReadiness
-                        .UNAVAILABLE
+                    ExactAlarmReadiness.UNAVAILABLE
                 }
             }
 
-        val guidance =
-            ManufacturerGuidanceClassifier
+        val guidance = ManufacturerGuidanceClassifier
                 .classify(
-                    manufacturer =
-                        manufacturer,
+                    manufacturer = manufacturer,
                 )
 
-        val activeAndDeliverable =
-            remindersEnabled &&
-                    hasActiveSchedule &&
-                    notificationReadiness !=
+        val activeAndDeliverable = remindersEnabled &&
+                    hasActiveSchedule && notificationReadiness !=
                     NotificationPermissionReadiness.DENIED
 
-        val manufacturerGuidanceNeeded =
-            activeAndDeliverable &&
-                    guidance.type !=
-                    ManufacturerGuidanceType.GENERIC
+        val manufacturerGuidanceNeeded = activeAndDeliverable &&
+                    guidance.type != ManufacturerGuidanceType.GENERIC
 
-        val status =
-            when {
+        val status = when {
                 !remindersEnabled -> {
-                    ReminderReadinessStatus
-                        .REMINDERS_DISABLED
+                    ReminderReadinessStatus.REMINDERS_DISABLED
                 }
 
                 !hasActiveSchedule -> {
-                    ReminderReadinessStatus
-                        .NO_ACTIVE_SCHEDULE
+                    ReminderReadinessStatus.NO_ACTIVE_SCHEDULE
                 }
 
-                notificationReadiness ==
-                        NotificationPermissionReadiness
+                notificationReadiness == NotificationPermissionReadiness
                             .DENIED -> {
-                    ReminderReadinessStatus
-                        .NOTIFICATION_PERMISSION_REQUIRED
+                    ReminderReadinessStatus.NOTIFICATION_PERMISSION_REQUIRED
                 }
 
-                exactReadiness ==
-                        ExactAlarmReadiness
+                exactReadiness == ExactAlarmReadiness
                             .UNAVAILABLE -> {
-                    ReminderReadinessStatus
-                        .APPROXIMATE_DELIVERY
+                    ReminderReadinessStatus.APPROXIMATE_DELIVERY
                 }
 
-                batteryOptimizationState ==
-                        BatteryOptimizationState
+                batteryOptimizationState == BatteryOptimizationState
                             .NOT_IGNORED -> {
-                    ReminderReadinessStatus
-                        .BATTERY_GUIDANCE_RECOMMENDED
+                    ReminderReadinessStatus.BATTERY_GUIDANCE_RECOMMENDED
                 }
 
                 manufacturerGuidanceNeeded -> {
-                    ReminderReadinessStatus
-                        .OEM_GUIDANCE_RECOMMENDED
+                    ReminderReadinessStatus.OEM_GUIDANCE_RECOMMENDED
                 }
 
                 else -> {
@@ -287,51 +232,33 @@ object ReminderReadinessPolicy {
             }
 
         return ReminderReadiness(
-            status =
-                status,
-            canAttemptReminderDelivery =
-                activeAndDeliverable,
-            usesExactAlarm =
-                exactReadiness ==
-                        ExactAlarmReadiness
-                            .AVAILABLE,
-            notificationPermission =
-                notificationReadiness,
-            exactAlarm =
-                exactReadiness,
-            approximateFallbackAvailable =
-                activeAndDeliverable &&
-                        exactReadiness ==
-                        ExactAlarmReadiness
+            status = status,
+            canAttemptReminderDelivery = activeAndDeliverable,
+            usesExactAlarm = exactReadiness ==
+                        ExactAlarmReadiness.AVAILABLE,
+            notificationPermission = notificationReadiness,
+            exactAlarm = exactReadiness,
+            approximateFallbackAvailable = activeAndDeliverable &&
+                        exactReadiness == ExactAlarmReadiness
                             .UNAVAILABLE,
-            remindersEnabled =
-                remindersEnabled,
-            hasActiveFutureOccurrence =
-                hasActiveSchedule,
-            batteryOptimizationState =
-                batteryOptimizationState,
-            manufacturerGuidance =
-                guidance,
-            manufacturerGuidanceNeeded =
-                manufacturerGuidanceNeeded ||
+            remindersEnabled = remindersEnabled,
+            hasActiveFutureOccurrence = hasActiveSchedule,
+            batteryOptimizationState = batteryOptimizationState,
+            manufacturerGuidance = guidance,
+            manufacturerGuidanceNeeded = manufacturerGuidanceNeeded ||
                         (
-                                activeAndDeliverable &&
-                                        batteryOptimizationState ==
-                                        BatteryOptimizationState
-                                            .NOT_IGNORED
+                                activeAndDeliverable && batteryOptimizationState ==
+                                        BatteryOptimizationState.NOT_IGNORED
                                 ),
-            message =
-                messageFor(
-                    status =
-                        status,
+            message = messageFor(
+                    status = status,
                 ),
         )
     }
 
     private fun messageFor(
         status: ReminderReadinessStatus,
-    ): String =
-        when (status) {
+    ): String = when (status) {
             ReminderReadinessStatus.READY -> {
                 "وضعیت فعلی برای تلاش جهت نمایش یادآور آماده است، اما اندروید یا تنظیمات باتری گوشی همچنان ممکن است آن را با تأخیر نمایش دهد یا محدود کند."
             }

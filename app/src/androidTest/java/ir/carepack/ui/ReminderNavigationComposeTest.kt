@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.app.CarePackApp
+import ir.carepack.app.CarePackUiDependencies
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.model.CaregiverReportState
@@ -555,60 +556,63 @@ class ReminderNavigationComposeTest {
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
-                    carePlanService =
-                        fixture.carePlanService,
-                    todayQueryService =
-                        fixture.todayQueryService,
-                    caregiverReportService =
-                        fixture.reportService,
-                    setupPreferenceStore =
-                        NavigationSetupPreferenceStore(
-                            setupComplete = true,
+                    dependencies =
+                        CarePackUiDependencies(
+                            carePlanService =
+                                fixture.carePlanService,
+                            todayQueryService =
+                                fixture.todayQueryService,
+                            caregiverReportService =
+                                fixture.reportService,
+                            setupPreferenceStore =
+                                NavigationSetupPreferenceStore(
+                                    setupComplete = true,
+                                ),
+                            reminderPreferenceStore =
+                                NavigationReminderPreferenceStore(),
+                            reminderCoordinator =
+                                reminderCoordinator,
+                            reminderTestCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedReminderTestCoordinator(),
+                            notificationPermissionGateway =
+                                NavigationNotificationPermissionGateway(),
+                            todayReportFormatter =
+                                RoomTodayReportFormatter(
+                                    database =
+                                        fixture.database,
+                                ),
+                            dateRangeSummaryService =
+                                ir.carepack.data.service.RoomDateRangeSummaryService(
+                                        database =
+                                            fixture.database,
+                                    ),
+                            rangeReportFormatter =
+                                ir.carepack.data.service.RoomRangeReportFormatter(
+                                        database =
+                                            fixture.database,
+                                        summaryService =
+                                            ir.carepack.data.service.RoomDateRangeSummaryService(
+                                                    database =
+                                                        fixture.database,
+                                                ),
+                                    ),
+                            privacyPreferenceStore =
+                                InstrumentedPrivacyPreferenceStore(),
+                            userExperiencePreferenceStore =
+                                InstrumentedUserExperiencePreferenceStore(),
+                            textShareGateway =
+                                RecordingTextShareGateway(),
+                            dataDeletionCoordinator =
+                                RecordingDataDeletionCoordinator(),
+                            medicationDeletionCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedMedicationDeletionCoordinator(),
+                            clock =
+                                fixture.clock,
+                            zoneProvider =
+                                zoneProvider,
                         ),
-                    reminderPreferenceStore =
-                        NavigationReminderPreferenceStore(),
-                    reminderCoordinator =
-                        reminderCoordinator,
-                    reminderTestCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedReminderTestCoordinator(),
-                    notificationPermissionGateway =
-                        NavigationNotificationPermissionGateway(),
-                    todayReportFormatter =
-                        RoomTodayReportFormatter(
-                            database =
-                                fixture.database,
-                        ),
-                    dateRangeSummaryService =
-                        ir.carepack.data.service.RoomDateRangeSummaryService(
-                                database =
-                                    fixture.database,
-                            ),
-                    rangeReportFormatter =
-                        ir.carepack.data.service.RoomRangeReportFormatter(
-                                database =
-                                    fixture.database,
-                                summaryService =
-                                    ir.carepack.data.service.RoomDateRangeSummaryService(
-                                            database =
-                                                fixture.database,
-                                        ),
-                            ),
-                    privacyPreferenceStore =
-                        InstrumentedPrivacyPreferenceStore(),
-                    userExperiencePreferenceStore =
-                        InstrumentedUserExperiencePreferenceStore(),
-                    textShareGateway =
-                        RecordingTextShareGateway(),
-                    dataDeletionCoordinator =
-                        RecordingDataDeletionCoordinator(),
-                    medicationDeletionCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedMedicationDeletionCoordinator(),
-                    clock =
-                        fixture.clock,
-                    zoneProvider =
-                        zoneProvider,
                     notificationOccurrenceId =
                         notificationOccurrenceId,
                     onNotificationOccurrenceHandled =

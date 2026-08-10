@@ -18,17 +18,13 @@ data class ReportDateRange(
     }
 
     val dayCount: Int
-        get() =
-            (
-                    endDate.toEpochDay() -
-                            startDate.toEpochDay() +
-                            1L
-                    ).toInt()
+        get() = (
+                    endDate.toEpochDay() - startDate.toEpochDay() +
+                            1L).toInt()
 
     operator fun contains(
         date: LocalDate,
-    ): Boolean =
-        !date.isBefore(startDate) &&
+    ): Boolean = !date.isBefore(startDate) &&
                 !date.isAfter(endDate)
 }
 
@@ -42,10 +38,8 @@ enum class RangeReportPeriod(
 
     fun rangeEndingAt(
         today: LocalDate,
-    ): ReportDateRange =
-        ReportDateRange(
-            startDate =
-                today.minusDays(
+    ): ReportDateRange = ReportDateRange(
+            startDate = today.minusDays(
                     dayCount.toLong() - 1L,
                 ),
             endDate = today,
@@ -98,15 +92,12 @@ data class DayRangeSummary(
         require(unknownCount >= 0)
         require(noReportCount >= 0)
         require(
-            totalOccurrenceCount ==
-                    givenCount +
-                    notGivenCount +
-                    unknownCount +
+            totalOccurrenceCount == givenCount +
+                    notGivenCount + unknownCount +
                     noReportCount,
         )
         require(
-            entries.size ==
-                    totalOccurrenceCount,
+            entries.size == totalOccurrenceCount,
         )
     }
 }
@@ -128,19 +119,15 @@ data class DateRangeSummary(
         require(unknownCount >= 0)
         require(noReportCount >= 0)
         require(
-            totalOccurrenceCount ==
-                    givenCount +
-                    notGivenCount +
-                    unknownCount +
+            totalOccurrenceCount == givenCount +
+                    notGivenCount + unknownCount +
                     noReportCount,
         )
         require(
-            daySummaries.size ==
-                    range.dayCount,
+            daySummaries.size == range.dayCount,
         )
         require(
-            daySummaries.zipWithNext()
-                .all { pair ->
+            daySummaries.zipWithNext().all { pair ->
                     pair.first.date <
                             pair.second.date
                 },
@@ -148,15 +135,13 @@ data class DateRangeSummary(
     }
 
     val entries: List<RangeOccurrenceEntry>
-        get() =
-            daySummaries.flatMap(
+        get() = daySummaries.flatMap(
                 DayRangeSummary::entries,
             )
 
     fun summaryFor(
         date: LocalDate,
-    ): DayRangeSummary? =
-        daySummaries.firstOrNull {
+    ): DayRangeSummary? = daySummaries.firstOrNull {
             it.date == date
         }
 }

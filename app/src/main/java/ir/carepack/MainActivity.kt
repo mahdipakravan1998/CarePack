@@ -33,6 +33,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import ir.carepack.app.AppReconciliationOutcome
 import ir.carepack.app.CarePackApp
+import ir.carepack.app.CarePackUiDependencies
 import ir.carepack.app.ForegroundGenerationErrorHost
 import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.reminder.ReconciliationReason
@@ -40,46 +41,57 @@ import ir.carepack.reminder.notification.ReminderNotificationContract
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import ir.carepack.ui.theme.CarePackTheme
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-class MainActivity :
-    ComponentActivity() {
+class MainActivity : ComponentActivity() {
 
     private val container
-        get() =
-            (
-                    application as
-                            CarePackApplication
+        get() = (
+                    application as CarePackApplication
                     ).container
 
-    private val foregroundGenerationError =
-        MutableStateFlow<String?>(null)
+    private val uiDependencies by lazy(LazyThreadSafetyMode.NONE) {
+        CarePackUiDependencies(
+            carePlanService = container.carePlanService,
+            todayQueryService = container.todayQueryService,
+            caregiverReportService = container.caregiverReportService,
+            setupPreferenceStore = container.setupPreferenceStore,
+            reminderPreferenceStore = container.reminderPreferenceStore,
+            reminderCoordinator = container.reminderCoordinator,
+            reminderTestCoordinator = container.reminderTestCoordinator,
+            notificationPermissionGateway = container.notificationPermissionGateway,
+            todayReportFormatter = container.todayReportFormatter,
+            dateRangeSummaryService = container.dateRangeSummaryService,
+            rangeReportFormatter = container.rangeReportFormatter,
+            privacyPreferenceStore = container.privacyPreferenceStore,
+            userExperiencePreferenceStore = container.userExperiencePreferenceStore,
+            textShareGateway = container.textShareGateway,
+            dataDeletionCoordinator = container.dataDeletionCoordinator,
+            medicationDeletionCoordinator = container.medicationDeletionCoordinator,
+            clock = container.clock,
+            zoneProvider = container.zoneProvider,
+        )
+    }
 
-    private val notificationOccurrenceId =
-        MutableStateFlow<String?>(null)
+    private val foregroundGenerationError = MutableStateFlow<String?>(null)
 
-    private val reminderSettingsRequested =
-        MutableStateFlow(false)
+    private val notificationOccurrenceId = MutableStateFlow<String?>(null)
 
-    private val startupDeletionState =
-        MutableStateFlow(
+    private val reminderSettingsRequested = MutableStateFlow(false)
+
+    private val startupDeletionState = MutableStateFlow(
             StartupDeletionState.CHECKING,
         )
 
-    private val startupDeletionFailure =
-        MutableStateFlow<ir.carepack.core.error.SafeAppFailure?>(null)
+    private val startupDeletionFailure = MutableStateFlow<ir.carepack.core.error.SafeAppFailure?>(null)
 
-    private var foregroundReconciliationJob:
-            Job? = null
+    private var foregroundReconciliationJob: Job? = null
 
-    private var notificationValidationJob:
-            Job? = null
+    private var notificationValidationJob: Job? = null
 
-    private var deletionRecoveryJob:
-            Job? = null
+    private var deletionRecoveryJob: Job? = null
 
     private var deferredNotificationIntent: Intent? = null
 
@@ -92,37 +104,28 @@ class MainActivity :
 
         setContent {
             val deletionState by
-            startupDeletionState
-                .collectAsStateWithLifecycle()
+            startupDeletionState.collectAsStateWithLifecycle()
 
             val deletionFailure by
-            startupDeletionFailure
-                .collectAsStateWithLifecycle()
+            startupDeletionFailure.collectAsStateWithLifecycle()
 
             val generationError by
-            foregroundGenerationError
-                .collectAsStateWithLifecycle()
+            foregroundGenerationError.collectAsStateWithLifecycle()
 
             val pendingNotificationOccurrenceId by
-            notificationOccurrenceId
-                .collectAsStateWithLifecycle()
+            notificationOccurrenceId.collectAsStateWithLifecycle()
 
             val pendingReminderSettingsRequest by
-            reminderSettingsRequested
-                .collectAsStateWithLifecycle()
+            reminderSettingsRequested.collectAsStateWithLifecycle()
 
             val userExperienceState by
-            container
-                .userExperiencePreferenceStore
-                .state
-                .collectAsStateWithLifecycle(
-                    initialValue =
-                        UserExperiencePreferenceState(),
+            container.userExperiencePreferenceStore
+                .state.collectAsStateWithLifecycle(
+                    initialValue = UserExperiencePreferenceState(),
                 )
 
             CarePackTheme(
-                seniorMode =
-                    userExperienceState
+                seniorMode = userExperienceState
                         .seniorMode,
             ) {
                 when (deletionState) {
@@ -136,91 +139,30 @@ class MainActivity :
                     }
 
                     StartupDeletionState.FAILED -> {
-                        val retryable =
-                            deletionFailure?.retryable != false
+                        val retryable = deletionFailure?.retryable != false
 
                         StartupDeletionRecoveryScreen(
                             isRetryAvailable = retryable,
                             isStorageResetRequired = !retryable,
-                            onRetry =
-                                ::recoverIncompleteDeletion,
-                            onOpenStorageSettings =
-                                ::openAppStorageSettings,
+                            onRetry = ::recoverIncompleteDeletion,
+                            onOpenStorageSettings = ::openAppStorageSettings,
                         )
                     }
 
                     StartupDeletionState.READY -> {
                         ForegroundGenerationErrorHost(
-                            errorMessage =
-                                generationError,
-                            onRetry =
-                                ::reconcileForegroundState,
+                            errorMessage = generationError,
+                            onRetry = ::reconcileForegroundState,
                         ) {
                             CarePackApp(
-                                carePlanService =
-                                    container
-                                        .carePlanService,
-                                todayQueryService =
-                                    container
-                                        .todayQueryService,
-                                caregiverReportService =
-                                    container
-                                        .caregiverReportService,
-                                setupPreferenceStore =
-                                    container
-                                        .setupPreferenceStore,
-                                reminderPreferenceStore =
-                                    container
-                                        .reminderPreferenceStore,
-                                reminderCoordinator =
-                                    container
-                                        .reminderCoordinator,
-                                reminderTestCoordinator =
-                                    container
-                                        .reminderTestCoordinator,
-                                notificationPermissionGateway =
-                                    container
-                                        .notificationPermissionGateway,
-                                todayReportFormatter =
-                                    container
-                                        .todayReportFormatter,
-                                dateRangeSummaryService =
-                                    container
-                                        .dateRangeSummaryService,
-                                rangeReportFormatter =
-                                    container
-                                        .rangeReportFormatter,
-                                privacyPreferenceStore =
-                                    container
-                                        .privacyPreferenceStore,
-                                userExperiencePreferenceStore =
-                                    container
-                                        .userExperiencePreferenceStore,
-                                textShareGateway =
-                                    container
-                                        .textShareGateway,
-                                dataDeletionCoordinator =
-                                    container
-                                        .dataDeletionCoordinator,
-                                medicationDeletionCoordinator =
-                                    container
-                                        .medicationDeletionCoordinator,
-                                clock =
-                                    container.clock,
-                                zoneProvider =
-                                    container
-                                        .zoneProvider,
-                                notificationOccurrenceId =
-                                    pendingNotificationOccurrenceId,
+                                dependencies = uiDependencies,
+                                notificationOccurrenceId = pendingNotificationOccurrenceId,
                                 onNotificationOccurrenceHandled = {
-                                    notificationOccurrenceId.value =
-                                        null
+                                    notificationOccurrenceId.value = null
                                 },
-                                openReminderSettingsRequested =
-                                    pendingReminderSettingsRequest,
+                                openReminderSettingsRequested = pendingReminderSettingsRequest,
                                 onReminderSettingsRequestHandled = {
-                                    reminderSettingsRequested.value =
-                                        false
+                                    reminderSettingsRequested.value = false
                                 },
                             )
                         }
@@ -237,8 +179,7 @@ class MainActivity :
         super.onPostResume()
 
         if (!isDeviceLocked()) {
-            deferredNotificationIntent
-                ?.also { pendingIntent ->
+            deferredNotificationIntent?.also { pendingIntent ->
                     deferredNotificationIntent = null
                     handleNotificationIntent(pendingIntent)
                 }
@@ -258,8 +199,7 @@ class MainActivity :
         super.onStart()
 
         if (
-            startupDeletionState.value ==
-            StartupDeletionState.READY
+            startupDeletionState.value == StartupDeletionState.READY
         ) {
             reconcileForegroundState()
         }
@@ -279,28 +219,23 @@ class MainActivity :
 
     private fun reconcileForegroundState() {
         if (
-            startupDeletionState.value !=
-            StartupDeletionState.READY
+            startupDeletionState.value != StartupDeletionState.READY
         ) {
             return
         }
 
         foregroundReconciliationJob?.cancel()
 
-        foregroundReconciliationJob =
-            lifecycleScope.launch {
+        foregroundReconciliationJob = lifecycleScope.launch {
                 foregroundGenerationError.value = null
 
                 when (
                     container.appReconciler.reconcile(
-                        ReconciliationReason
-                            .APPLICATION_FOREGROUND,
-                    )
-                ) {
+                        ReconciliationReason.APPLICATION_FOREGROUND,
+                    )) {
                     is AppReconciliationOutcome.Completed -> Unit
                     is AppReconciliationOutcome.Failed ->
-                        foregroundGenerationError.value =
-                            getString(R.string.storage_error)
+                        foregroundGenerationError.value = getString(R.string.storage_error)
                 }
             }
     }
@@ -318,20 +253,16 @@ class MainActivity :
         }
 
         if (
-            ReminderNotificationContract
-                .isOpenReminderSettingsIntent(intent)
+            ReminderNotificationContract.isOpenReminderSettingsIntent(intent)
         ) {
             reminderSettingsRequested.value = true
             return
         }
 
         notificationValidationJob?.cancel()
-        notificationValidationJob =
-            lifecycleScope.launch {
-                val occurrenceId =
-                    container
-                        .notificationNavigationValidator
-                        .validatedOccurrenceId(intent)
+        notificationValidationJob = lifecycleScope.launch {
+                val occurrenceId = container
+                        .notificationNavigationValidator.validatedOccurrenceId(intent)
                         ?: return@launch
 
                 notificationOccurrenceId.value = occurrenceId
@@ -340,30 +271,23 @@ class MainActivity :
 
     private fun recoverIncompleteDeletion() {
         deletionRecoveryJob?.cancel()
-        deletionRecoveryJob =
-            lifecycleScope.launch {
-                startupDeletionState.value =
-                    StartupDeletionState.CHECKING
+        deletionRecoveryJob = lifecycleScope.launch {
+                startupDeletionState.value = StartupDeletionState.CHECKING
                 startupDeletionFailure.value = null
 
-                val outcome =
-                    container.appReconciler.reconcile(
-                        ReconciliationReason
-                            .APPLICATION_FOREGROUND,
+                val outcome = container.appReconciler.reconcile(
+                        ReconciliationReason.APPLICATION_FOREGROUND,
                     )
 
                 when (outcome) {
                     is AppReconciliationOutcome.Completed -> {
                         startupDeletionFailure.value = null
-                        startupDeletionState.value =
-                            StartupDeletionState.READY
+                        startupDeletionState.value = StartupDeletionState.READY
                     }
 
                     is AppReconciliationOutcome.Failed -> {
-                        startupDeletionFailure.value =
-                            outcome.failure
-                        startupDeletionState.value =
-                            StartupDeletionState.FAILED
+                        startupDeletionFailure.value = outcome.failure
+                        startupDeletionState.value = StartupDeletionState.FAILED
                     }
                 }
             }
@@ -378,8 +302,7 @@ class MainActivity :
         )
     }
 
-    private fun isDeviceLocked(): Boolean =
-        checkNotNull(
+    private fun isDeviceLocked(): Boolean = checkNotNull(
             getSystemService(KeyguardManager::class.java),
         ).isDeviceLocked
 
@@ -403,48 +326,34 @@ private fun StartupDeletionRecoveryScreen(
             mutableStateOf(0)
         }
     Scaffold(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = Modifier
+                .fillMaxSize().testTag(
                     "startup_deletion_recovery_screen",
                 ),
     ) { paddingValues ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         paddingValues,
-                    )
-                    .padding(
+                    ).padding(
                         horizontal = 24.dp,
                     ),
-            horizontalAlignment =
-                Alignment.CenterHorizontally,
-            verticalArrangement =
-                Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
             if (isRetryAvailable || isStorageResetRequired) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             if (isStorageResetRequired) {
-                                R.string
-                                    .startup_recovery_corruption_title
+                                R.string.startup_recovery_corruption_title
                             } else {
-                                R.string
-                                    .carepack_delete_all_failed
+                                R.string.carepack_delete_all_failed
                             },
                         ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .headlineSmall,
-                    modifier =
-                        Modifier
-                            .carePackHeading()
-                            .carePackPoliteLiveRegion()
+                    style = MaterialTheme
+                            .typography.headlineSmall,
+                    modifier = Modifier
+                            .carePackHeading().carePackPoliteLiveRegion()
                             .testTag(
                                 "startup_deletion_recovery_error",
                             ),
@@ -453,18 +362,15 @@ private fun StartupDeletionRecoveryScreen(
                 if (isRetryAvailable) {
                     Button(
                         onClick = onRetry,
-                        modifier =
-                            Modifier
+                        modifier = Modifier
                                 .padding(
                                     top = 16.dp,
-                                )
-                                .testTag(
+                                ).testTag(
                                     "startup_deletion_recovery_retry",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
+                            text = stringResource(
                                     R.string.retry_action,
                                 ),
                         )
@@ -473,59 +379,45 @@ private fun StartupDeletionRecoveryScreen(
 
                 if (isStorageResetRequired) {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .startup_recovery_corruption_body,
+                        text = stringResource(
+                                R.string.startup_recovery_corruption_body,
                             ),
-                        modifier =
-                            Modifier.padding(top = 12.dp),
+                        modifier = Modifier.padding(top = 12.dp),
                     )
 
                     Button(
                         onClick = {
                             resetConfirmationStep = 1
                         },
-                        modifier =
-                            Modifier
-                                .padding(top = 16.dp)
-                                .testTag(
+                        modifier = Modifier
+                                .padding(top = 16.dp).testTag(
                                     "startup_deletion_recovery_reset",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .startup_recovery_reset_action,
+                            text = stringResource(
+                                    R.string.startup_recovery_reset_action,
                                 ),
                         )
                     }
                 }
             } else {
                 CircularProgressIndicator(
-                    modifier =
-                        Modifier.testTag(
+                    modifier = Modifier.testTag(
                             "startup_deletion_recovery_progress",
                         ),
                 )
 
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .carepack_delete_all_progress,
+                    text = stringResource(
+                            R.string.carepack_delete_all_progress,
                         ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyLarge,
-                    modifier =
-                        Modifier
+                    style = MaterialTheme
+                            .typography.bodyLarge,
+                    modifier = Modifier
                             .padding(
                                 top = 16.dp,
-                            )
-                            .carePackPoliteLiveRegion(),
+                            ).carePackPoliteLiveRegion(),
                 )
             }
         }
@@ -539,16 +431,14 @@ private fun StartupDeletionRecoveryScreen(
             title = {
                 Text(
                     stringResource(
-                        R.string
-                            .startup_recovery_reset_confirm_title,
+                        R.string.startup_recovery_reset_confirm_title,
                     ),
                 )
             },
             text = {
                 Text(
                     stringResource(
-                        R.string
-                            .startup_recovery_reset_confirm_body,
+                        R.string.startup_recovery_reset_confirm_body,
                     ),
                 )
             },
@@ -557,8 +447,7 @@ private fun StartupDeletionRecoveryScreen(
                     onClick = {
                         resetConfirmationStep = 2
                     },
-                    modifier =
-                        Modifier.testTag(
+                    modifier = Modifier.testTag(
                             "startup_deletion_recovery_reset_continue",
                         ),
                 ) {
@@ -589,16 +478,14 @@ private fun StartupDeletionRecoveryScreen(
             title = {
                 Text(
                     stringResource(
-                        R.string
-                            .startup_recovery_reset_final_title,
+                        R.string.startup_recovery_reset_final_title,
                     ),
                 )
             },
             text = {
                 Text(
                     stringResource(
-                        R.string
-                            .startup_recovery_reset_final_body,
+                        R.string.startup_recovery_reset_final_body,
                     ),
                 )
             },
@@ -608,15 +495,13 @@ private fun StartupDeletionRecoveryScreen(
                         resetConfirmationStep = 0
                         onOpenStorageSettings()
                     },
-                    modifier =
-                        Modifier.testTag(
+                    modifier = Modifier.testTag(
                             "startup_deletion_recovery_reset_open_settings",
                         ),
                 ) {
                     Text(
                         stringResource(
-                            R.string
-                                .startup_recovery_open_settings,
+                            R.string.startup_recovery_open_settings,
                         ),
                     )
                 }

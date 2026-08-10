@@ -26,8 +26,7 @@ data class CarePackExperience(
     companion object {
         fun forMode(
             seniorMode: SeniorMode,
-        ): CarePackExperience =
-            when (seniorMode) {
+        ): CarePackExperience = when (seniorMode) {
                 SeniorMode.STANDARD ->
                     CarePackExperience(
                         seniorMode = seniorMode,
@@ -59,13 +58,11 @@ data class CarePackExperience(
     }
 }
 
-val LocalCarePackExperience =
-    staticCompositionLocalOf {
+val LocalCarePackExperience = staticCompositionLocalOf {
         CarePackExperience.forMode(
             SeniorMode.STANDARD,
         )
     }
 
 @Composable
-fun carePackExperience(): CarePackExperience =
-    LocalCarePackExperience.current
+fun carePackExperience(): CarePackExperience = LocalCarePackExperience.current

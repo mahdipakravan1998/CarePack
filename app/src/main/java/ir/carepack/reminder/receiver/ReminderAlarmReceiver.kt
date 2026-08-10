@@ -19,8 +19,7 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
             return
         }
 
-        val application =
-            context.applicationContext as?
+        val application = context.applicationContext as?
                 CarePackApplication ?: return
 
         when (intent.getStringExtra(EXTRA_ALARM_TYPE)) {
@@ -36,16 +35,12 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         application: CarePackApplication,
         intent: Intent,
     ) {
-        val occurrenceId =
-            intent.getStringExtra(EXTRA_OCCURRENCE_ID)
-                ?.trim()
-                ?.takeIf(String::isNotEmpty)
+        val occurrenceId = intent.getStringExtra(EXTRA_OCCURRENCE_ID)
+                ?.trim()?.takeIf(String::isNotEmpty)
                 ?: return
 
-        application.container.reminderDiagnosticSink
-            .recordReminderDiagnostic(
-                type =
-                    ReminderDiagnosticEventType.RECEIVER_FIRED,
+        application.container.reminderDiagnosticSink.recordReminderDiagnostic(
+                type = ReminderDiagnosticEventType.RECEIVER_FIRED,
                 clock = application.container.clock,
                 occurrenceId = occurrenceId,
             )
@@ -53,47 +48,36 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         ReceiverExecutionBoundary().launch(
             receiver = this,
             operation = {
-                val maintenance =
-                    application.container.appReconciler
+                val maintenance = application.container.appReconciler
                         .reconcile(
                             ReconciliationReason.ALARM_FIRED,
                         )
 
                 when (maintenance) {
                     is AppReconciliationOutcome.Completed -> {
-                        application.container.reminderCoordinator
-                            .handleAlarmFired(occurrenceId)
-                        application.container
-                            .systemReconciliationRetryScheduler
+                        application.container.reminderCoordinator.handleAlarmFired(occurrenceId)
+                        application.container.systemReconciliationRetryScheduler
                             .markSuccessful()
                     }
 
                     is AppReconciliationOutcome.Failed -> {
-                        application.container.reminderPreferenceStore
-                            .markFailure(
+                        application.container.reminderPreferenceStore.markFailure(
                                 failure = maintenance.failure,
-                                failedAtEpochMillis =
-                                    application.container.clock
-                                        .instant()
-                                        .toEpochMilli(),
+                                failedAtEpochMillis = application.container.clock
+                                        .instant().toEpochMilli(),
                             )
-                        application.container
-                            .systemReconciliationRetryScheduler
+                        application.container.systemReconciliationRetryScheduler
                             .scheduleNextRetry()
                     }
                 }
             },
             onFailure = { failure ->
-                application.container.reminderPreferenceStore
-                    .markFailure(
+                application.container.reminderPreferenceStore.markFailure(
                         failure = failure,
-                        failedAtEpochMillis =
-                            application.container.clock
-                                .instant()
-                                .toEpochMilli(),
+                        failedAtEpochMillis = application.container.clock
+                                .instant().toEpochMilli(),
                     )
-                application.container
-                    .systemReconciliationRetryScheduler
+                application.container.systemReconciliationRetryScheduler
                     .scheduleNextRetry()
             },
         )
@@ -105,21 +89,16 @@ class ReminderAlarmReceiver : BroadcastReceiver() {
         ReceiverExecutionBoundary().launch(
             receiver = this,
             operation = {
-                application.container.reminderTestCoordinator
-                    .handleTestAlarmFired()
+                application.container.reminderTestCoordinator.handleTestAlarmFired()
             },
         )
     }
 
     companion object {
-        const val ACTION_FIRE_REMINDER =
-            "ir.carepack.action.FIRE_REMINDER"
-        const val EXTRA_ALARM_TYPE =
-            "ir.carepack.extra.ALARM_TYPE"
-        const val EXTRA_OCCURRENCE_ID =
-            "ir.carepack.extra.ALARM_OCCURRENCE_ID"
-        const val EXTRA_SCHEDULE_SERIES_ID =
-            "ir.carepack.extra.ALARM_SCHEDULE_SERIES_ID"
+        const val ACTION_FIRE_REMINDER = "ir.carepack.action.FIRE_REMINDER"
+        const val EXTRA_ALARM_TYPE = "ir.carepack.extra.ALARM_TYPE"
+        const val EXTRA_OCCURRENCE_ID = "ir.carepack.extra.ALARM_OCCURRENCE_ID"
+        const val EXTRA_SCHEDULE_SERIES_ID = "ir.carepack.extra.ALARM_SCHEDULE_SERIES_ID"
         const val ALARM_TYPE_OCCURRENCE = "occurrence"
         const val ALARM_TYPE_TEST = "test"
     }

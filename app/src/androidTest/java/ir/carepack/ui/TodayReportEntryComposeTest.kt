@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import ir.carepack.app.CarePackApp
+import ir.carepack.app.CarePackUiDependencies
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.model.TodayEmptyState
@@ -269,60 +270,63 @@ class TodayReportEntryComposeTest {
         composeRule.setContent {
             CarePackTheme {
                 CarePackApp(
-                    carePlanService =
-                        fixture.carePlanService,
-                    todayQueryService =
-                        fixture.todayQueryService,
-                    caregiverReportService =
-                        fixture.reportService,
-                    setupPreferenceStore =
-                        TodayReportEntrySetupPreferenceStore(
-                            setupComplete = true,
+                    dependencies =
+                        CarePackUiDependencies(
+                            carePlanService =
+                                fixture.carePlanService,
+                            todayQueryService =
+                                fixture.todayQueryService,
+                            caregiverReportService =
+                                fixture.reportService,
+                            setupPreferenceStore =
+                                TodayReportEntrySetupPreferenceStore(
+                                    setupComplete = true,
+                                ),
+                            reminderPreferenceStore =
+                                TodayReportEntryReminderPreferenceStore(),
+                            reminderCoordinator =
+                                TodayReportEntryReminderCoordinator(),
+                            reminderTestCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedReminderTestCoordinator(),
+                            notificationPermissionGateway =
+                                TodayReportEntryNotificationPermissionGateway(),
+                            todayReportFormatter =
+                                RoomTodayReportFormatter(
+                                    database =
+                                        fixture.database,
+                                ),
+                            dateRangeSummaryService =
+                                ir.carepack.data.service.RoomDateRangeSummaryService(
+                                        database =
+                                            fixture.database,
+                                    ),
+                            rangeReportFormatter =
+                                ir.carepack.data.service.RoomRangeReportFormatter(
+                                        database =
+                                            fixture.database,
+                                        summaryService =
+                                            ir.carepack.data.service.RoomDateRangeSummaryService(
+                                                    database =
+                                                        fixture.database,
+                                                ),
+                                    ),
+                            privacyPreferenceStore =
+                                InstrumentedPrivacyPreferenceStore(),
+                            userExperiencePreferenceStore =
+                                InstrumentedUserExperiencePreferenceStore(),
+                            textShareGateway =
+                                textShareGateway,
+                            dataDeletionCoordinator =
+                                RecordingDataDeletionCoordinator(),
+                            medicationDeletionCoordinator =
+                                ir.carepack.testing
+                                    .InstrumentedMedicationDeletionCoordinator(),
+                            clock =
+                                fixture.clock,
+                            zoneProvider =
+                                zoneProvider,
                         ),
-                    reminderPreferenceStore =
-                        TodayReportEntryReminderPreferenceStore(),
-                    reminderCoordinator =
-                        TodayReportEntryReminderCoordinator(),
-                    reminderTestCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedReminderTestCoordinator(),
-                    notificationPermissionGateway =
-                        TodayReportEntryNotificationPermissionGateway(),
-                    todayReportFormatter =
-                        RoomTodayReportFormatter(
-                            database =
-                                fixture.database,
-                        ),
-                    dateRangeSummaryService =
-                        ir.carepack.data.service.RoomDateRangeSummaryService(
-                                database =
-                                    fixture.database,
-                            ),
-                    rangeReportFormatter =
-                        ir.carepack.data.service.RoomRangeReportFormatter(
-                                database =
-                                    fixture.database,
-                                summaryService =
-                                    ir.carepack.data.service.RoomDateRangeSummaryService(
-                                            database =
-                                                fixture.database,
-                                        ),
-                            ),
-                    privacyPreferenceStore =
-                        InstrumentedPrivacyPreferenceStore(),
-                    userExperiencePreferenceStore =
-                        InstrumentedUserExperiencePreferenceStore(),
-                    textShareGateway =
-                        textShareGateway,
-                    dataDeletionCoordinator =
-                        RecordingDataDeletionCoordinator(),
-                    medicationDeletionCoordinator =
-                        ir.carepack.testing
-                            .InstrumentedMedicationDeletionCoordinator(),
-                    clock =
-                        fixture.clock,
-                    zoneProvider =
-                        zoneProvider,
                 )
             }
         }

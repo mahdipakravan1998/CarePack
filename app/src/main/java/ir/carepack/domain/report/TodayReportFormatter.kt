@@ -31,8 +31,7 @@ internal data class TodayReportEntry(
     val localTime: LocalTime,
     val medicationName: String,
     val medicationInstruction: String,
-    val reportState:
-    CaregiverReportState?,
+    val reportState: CaregiverReportState?,
     val medicationType: String = "",
     val dosageText: String = "",
     val doseUnit: String = "",
@@ -45,8 +44,7 @@ internal class TodayReportTextBuilder {
         recipientName: String?,
         entries: List<TodayReportEntry>,
     ): TodayReportText {
-        val orderedEntries =
-            entries.sortedWith(
+        val orderedEntries = entries.sortedWith(
                 compareBy<TodayReportEntry>(
                     TodayReportEntry::localTime,
                 ).thenBy(
@@ -54,52 +52,39 @@ internal class TodayReportTextBuilder {
                 ),
             )
 
-        val headerLines =
-            buildList {
+        val headerLines = buildList {
                 add(REPORT_TITLE)
 
                 add(
-                    "$DATE_LABEL: " +
-                            JalaliPresentationDate
-                                .from(date)
-                                .formatNumeric(),
+                    "$DATE_LABEL: " + JalaliPresentationDate
+                                .from(date).formatNumeric(),
                 )
 
-                recipientName
-                    ?.trim()
-                    ?.takeIf(String::isNotEmpty)
-                    ?.let { displayName ->
+                recipientName?.trim()
+                    ?.takeIf(String::isNotEmpty)?.let { displayName ->
                         add(
                             "$RECIPIENT_LABEL: $displayName",
                         )
                     }
             }
 
-        val givenCount =
-            orderedEntries.count {
-                it.reportState ==
-                        CaregiverReportState.GIVEN
+        val givenCount = orderedEntries.count {
+                it.reportState == CaregiverReportState.GIVEN
             }
 
-        val notGivenCount =
-            orderedEntries.count {
-                it.reportState ==
-                        CaregiverReportState.NOT_GIVEN
+        val notGivenCount = orderedEntries.count {
+                it.reportState == CaregiverReportState.NOT_GIVEN
             }
 
-        val unknownCount =
-            orderedEntries.count {
-                it.reportState ==
-                        CaregiverReportState.UNKNOWN
+        val unknownCount = orderedEntries.count {
+                it.reportState == CaregiverReportState.UNKNOWN
             }
 
-        val noReportCount =
-            orderedEntries.count {
+        val noReportCount = orderedEntries.count {
                 it.reportState == null
             }
 
-        val summary =
-            listOf(
+        val summary = listOf(
                 SUMMARY_TITLE,
                 countLine(TOTAL_LABEL, orderedEntries.size),
                 countLine(GIVEN_COUNT_LABEL, givenCount),
@@ -110,23 +95,19 @@ internal class TodayReportTextBuilder {
                 separator = "\n",
             )
 
-        val occurrences =
-            if (orderedEntries.isEmpty()) {
+        val occurrences = if (orderedEntries.isEmpty()) {
                 EMPTY_REPORT_MESSAGE
             } else {
-                orderedEntries
-                    .mapIndexed { index, entry ->
+                orderedEntries.mapIndexed { index, entry ->
                         entry.toReportBlock(
                             number = index + 1,
                         )
-                    }
-                    .joinToString(
+                    }.joinToString(
                         separator = "\n\n",
                     )
             }
 
-        val report =
-            listOf(
+        val report = listOf(
                 headerLines.joinToString(
                     separator = "\n",
                 ),
@@ -144,15 +125,13 @@ internal class TodayReportTextBuilder {
 
     private fun TodayReportEntry.toReportBlock(
         number: Int,
-    ): String =
-        buildString {
+    ): String = buildString {
             append(
                 number.toString().toPersianDigits(),
             )
             append(". ")
             append(
-                localTime
-                    .format(HOUR_MINUTE_FORMATTER)
+                localTime.format(HOUR_MINUTE_FORMATTER)
                     .toPersianDigits(),
             )
             append(" — ")
@@ -164,8 +143,7 @@ internal class TodayReportTextBuilder {
                 ),
             )
 
-            val recordingDetails =
-                recordingDetailsText()
+            val recordingDetails = recordingDetailsText()
 
             if (recordingDetails.isNotBlank()) {
                 append('\n')
@@ -180,49 +158,20 @@ internal class TodayReportTextBuilder {
             }
         }
 
-    private fun TodayReportEntry.recordingDetailsText():
-            String =
-        buildList {
-            medicationType
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$MEDICATION_TYPE_LABEL: $value",
-                    )
-                }
-
-            dosageText
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$DOSAGE_LABEL: $value",
-                    )
-                }
-
-            doseUnit
-                .trim()
-                .takeIf(String::isNotEmpty)
-                ?.let { value ->
-                    add(
-                        "$DOSE_UNIT_LABEL: $value",
-                    )
-                }
-        }.joinToString(
-            separator = "، ",
-        )
+    private fun TodayReportEntry.recordingDetailsText(): String = MedicationRecordingDetails(
+            medicationType = medicationType,
+            dosageText = dosageText,
+            doseUnit = doseUnit,
+        ).toDisplayText()
 
     private fun countLine(
         label: String,
         count: Int,
-    ): String =
-        "$label: ${count.toString().toPersianDigits()}"
+    ): String = "$label: ${count.toString().toPersianDigits()}"
 
     private fun reportStateText(
         state: CaregiverReportState?,
-    ): String =
-        when (state) {
+    ): String = when (state) {
             CaregiverReportState.GIVEN -> {
                 "مراقب: داده شد"
             }
@@ -241,56 +190,39 @@ internal class TodayReportTextBuilder {
         }
 
     private companion object {
-        const val REPORT_TITLE =
-            "گزارش امروز CarePack"
+        const val REPORT_TITLE = "گزارش امروز CarePack"
 
-        const val DATE_LABEL =
-            "تاریخ"
+        const val DATE_LABEL = "تاریخ"
 
-        const val RECIPIENT_LABEL =
-            "فرد تحت مراقبت"
+        const val RECIPIENT_LABEL = "فرد تحت مراقبت"
 
-        const val SUMMARY_TITLE =
-            "خلاصه"
+        const val SUMMARY_TITLE = "خلاصه"
 
-        const val TOTAL_LABEL =
-            "مجموع نوبت‌ها"
+        const val TOTAL_LABEL = "مجموع نوبت‌ها"
 
-        const val GIVEN_COUNT_LABEL =
-            "مراقب: داده شد"
+        const val GIVEN_COUNT_LABEL = "مراقب: داده شد"
 
-        const val NOT_GIVEN_COUNT_LABEL =
-            "مراقب: داده نشد"
+        const val NOT_GIVEN_COUNT_LABEL = "مراقب: داده نشد"
 
-        const val UNKNOWN_COUNT_LABEL =
-            "نامشخص"
+        const val UNKNOWN_COUNT_LABEL = "نامشخص"
 
-        const val NO_REPORT_COUNT_LABEL =
-            "ثبت نشده"
+        const val NO_REPORT_COUNT_LABEL = "ثبت نشده"
 
-        const val OCCURRENCES_TITLE =
-            "جزئیات"
+        const val OCCURRENCES_TITLE = "جزئیات"
 
-        const val INSTRUCTION_LABEL =
-            "توضیح"
+        const val INSTRUCTION_LABEL = "توضیح"
 
-        const val MEDICATION_TYPE_LABEL =
-            "نوع"
+        const val MEDICATION_TYPE_LABEL = "نوع"
 
-        const val DOSAGE_LABEL =
-            "مقدار ثبت‌شده"
+        const val DOSAGE_LABEL = "مقدار ثبت‌شده"
 
-        const val DOSE_UNIT_LABEL =
-            "واحد"
+        const val DOSE_UNIT_LABEL = "واحد"
 
-        const val EMPTY_REPORT_MESSAGE =
-            "موردی برای امروز وجود ندارد."
+        const val EMPTY_REPORT_MESSAGE = "موردی برای امروز وجود ندارد."
 
-        const val DISCLAIMER =
-            "این گزارش بر اساس ثبت‌های مراقب تهیه شده است و تأیید پزشکی مصرف دارو نیست."
+        const val DISCLAIMER = "این گزارش بر اساس ثبت‌های مراقب تهیه شده است و تأیید پزشکی مصرف دارو نیست."
 
-        val HOUR_MINUTE_FORMATTER:
-                DateTimeFormatter =
+        val HOUR_MINUTE_FORMATTER: DateTimeFormatter =
             DateTimeFormatter.ofPattern(
                 "HH:mm",
             )

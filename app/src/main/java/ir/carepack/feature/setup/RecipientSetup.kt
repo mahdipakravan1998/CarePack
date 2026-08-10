@@ -1,5 +1,7 @@
 package ir.carepack.feature.setup
 
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,13 +13,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,21 +25,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateRecipientCommand
 import ir.carepack.domain.careplan.CreateRecipientOutcome
+import ir.carepack.feature.careplan.RecipientNameField
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
-import ir.carepack.ui.accessibility.carePackInteractiveControl
 import ir.carepack.ui.accessibility.carePackPrimaryAction
 import ir.carepack.ui.experience.carePackExperience
 import kotlinx.coroutines.CancellationException
@@ -65,26 +61,20 @@ sealed interface RecipientSetupEvent {
 }
 
 class RecipientSetupViewModel(
-    private val carePlanService:
-    CarePlanService,
+    private val carePlanService: CarePlanService,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
+    private val mutableState = MutableStateFlow(
             RecipientSetupUiState(),
         )
 
-    val state =
-        mutableState.asStateFlow()
+    val state = mutableState.asStateFlow()
 
-    private val eventChannel =
-        Channel<RecipientSetupEvent>(
-            capacity =
-                Channel.BUFFERED,
+    private val eventChannel = Channel<RecipientSetupEvent>(
+            capacity = Channel.BUFFERED,
         )
 
-    val events =
-        eventChannel.receiveAsFlow()
+    val events = eventChannel.receiveAsFlow()
 
     fun onDisplayNameChanged(
         newValue: String,
@@ -92,17 +82,14 @@ class RecipientSetupViewModel(
         mutableState.update {
                 currentState ->
             currentState.copy(
-                displayName =
-                    newValue,
-                errorMessage =
-                    null,
+                displayName = newValue,
+                errorMessage = null,
             )
         }
     }
 
     fun save() {
-        val currentState =
-            mutableState.value
+        val currentState = mutableState.value
 
         if (currentState.isSaving) {
             return
@@ -118,27 +105,21 @@ class RecipientSetupViewModel(
             }
 
             try {
-                val displayName =
-                    mutableState
-                        .value
-                        .displayName
+                val displayName = mutableState
+                        .value.displayName
 
-                val outcome =
-                    carePlanService
+                val outcome = carePlanService
                         .createRecipient(
                             CreateRecipientCommand(
-                                displayName =
-                                    displayName,
+                                displayName = displayName,
                             ),
                         )
 
                 when (outcome) {
                     is CreateRecipientOutcome.Created -> {
                         eventChannel.send(
-                            RecipientSetupEvent
-                                .Continue(
-                                    recipientId =
-                                        outcome
+                            RecipientSetupEvent.Continue(
+                                    recipientId = outcome
                                             .recipientId,
                                 ),
                         )
@@ -146,43 +127,35 @@ class RecipientSetupViewModel(
 
                     is CreateRecipientOutcome.AlreadyExists -> {
                         eventChannel.send(
-                            RecipientSetupEvent
-                                .Continue(
-                                    recipientId =
-                                        outcome
+                            RecipientSetupEvent.Continue(
+                                    recipientId = outcome
                                             .recipientId,
                                 ),
                         )
                     }
 
                     is CreateRecipientOutcome.Invalid -> {
-                        val errorMessage =
-                            outcome
-                                .errors
-                                .firstOrNull()
-                                ?.message
-                                ?: "نام واردشده معتبر نیست."
+                        val errorMessage = outcome
+                                .errors.firstOrNull()
+                                ?.message ?: "نام واردشده معتبر نیست."
 
                         mutableState.update {
                                 state ->
                             state.copy(
-                                errorMessage =
-                                    errorMessage,
+                                errorMessage = errorMessage,
                             )
                         }
                     }
                 }
             } catch (
-                cancellationException:
-                CancellationException,
+                cancellationException: CancellationException,
             ) {
                 throw cancellationException
             } catch (_: Exception) {
                 mutableState.update {
                         state ->
                     state.copy(
-                        errorMessage =
-                            "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
+                        errorMessage = "ذخیره‌سازی انجام نشد. دوباره تلاش کنید.",
                     )
                 }
             } finally {
@@ -199,29 +172,22 @@ class RecipientSetupViewModel(
     companion object {
 
         fun factory(
-            carePlanService:
-            CarePlanService,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+            carePlanService: CarePlanService,
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     RecipientSetupViewModel(
-                        carePlanService =
-                            carePlanService,
+                        carePlanService = carePlanService,
                     )
-                }
             }
     }
 }
 
 @Composable
 fun RecipientSetupRoute(
-    viewModel:
-    RecipientSetupViewModel,
+    viewModel: RecipientSetupViewModel,
     onContinue: (String) -> Unit,
 ) {
     val state by
-    viewModel
-        .state
+    viewModel.state
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
@@ -241,164 +207,97 @@ fun RecipientSetupRoute(
 
     RecipientSetupScreen(
         state = state,
-        onDisplayNameChanged =
-            viewModel::onDisplayNameChanged,
-        onSave =
-            viewModel::save,
+        onDisplayNameChanged = viewModel::onDisplayNameChanged,
+        onSave = viewModel::save,
     )
 }
 
 @Composable
 fun RecipientSetupScreen(
-    state:
-    RecipientSetupUiState,
-    onDisplayNameChanged:
-        (String) -> Unit,
+    state: RecipientSetupUiState,
+    onDisplayNameChanged: (String) -> Unit,
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = modifier
+                .fillMaxSize().testTag(
                     "recipient_setup_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .navigationBarsPadding()
-                    .imePadding()
-                    .verticalScroll(
+                    ).navigationBarsPadding()
+                    .imePadding().verticalScroll(
                         rememberScrollState(),
-                    )
-                    .padding(
-                        horizontal =
-                            experience.screenHorizontalPadding,
-                        vertical =
-                            experience.screenVerticalPadding,
+                    ).padding(
+                        horizontal = experience.screenHorizontalPadding,
+                        vertical = experience.screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.Top,
+            verticalArrangement = Arrangement.Top,
         ) {
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .recipient_title,
+                text = stringResource(
+                        R.string.recipient_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineMedium,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "recipient_title",
                         ),
             )
 
             Spacer(
-                modifier =
-                    Modifier.height(
+                modifier = Modifier.height(
                         experience.compactSpacing,
                     ),
             )
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .recipient_description,
+                text = stringResource(
+                        R.string.recipient_description,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .bodyLarge,
+                style = MaterialTheme
+                        .typography.bodyLarge,
             )
 
             Spacer(
-                modifier =
-                    Modifier.height(
+                modifier = Modifier.height(
                         experience.sectionSpacing,
                     ),
             )
 
-            OutlinedTextField(
-                value =
-                    state.displayName,
-                onValueChange =
-                    onDisplayNameChanged,
-                enabled =
-                    !state.isSaving,
-                label = {
-                    Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .recipient_name_label,
-                            ),
-                    )
+            RecipientNameField(
+                value = state.displayName,
+                onValueChange = onDisplayNameChanged,
+                enabled = !state.isSaving,
+                isError = state.errorMessage != null,
+                onDone = {
+                    if (!state.isSaving) onSave()
                 },
-                singleLine = true,
-                isError =
-                    state.errorMessage !=
-                            null,
-                keyboardOptions =
-                    KeyboardOptions(
-                        imeAction =
-                            ImeAction.Done,
-                    ),
-                keyboardActions =
-                    KeyboardActions(
-                        onDone = {
-                            if (!state.isSaving) {
-                                onSave()
-                            }
-                        },
-                    ),
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackInteractiveControl()
-                        .testTag(
-                            "recipient_name",
-                        ),
+                testTag = "recipient_name",
             )
 
-            state.errorMessage
-                ?.let { errorMessage ->
+            state.errorMessage?.let { errorMessage ->
                     Spacer(
-                        modifier =
-                            Modifier.height(
+                        modifier = Modifier.height(
                                 8.dp,
                             ),
                     )
 
                     Text(
-                        text =
-                            errorMessage,
-                        color =
-                            MaterialTheme
-                                .colorScheme
-                                .error,
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
+                        text = errorMessage,
+                        color = MaterialTheme
+                                .colorScheme.error,
+                        style = MaterialTheme
+                                .typography.bodyMedium,
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPoliteLiveRegion()
                                 .testTag(
                                     "recipient_error",
                                 ),
@@ -406,38 +305,30 @@ fun RecipientSetupScreen(
                 }
 
             Spacer(
-                modifier =
-                    Modifier.height(
+                modifier = Modifier.height(
                         experience.sectionSpacing,
                     ),
             )
 
             Button(
-                onClick =
-                    onSave,
-                enabled =
-                    !state.isSaving,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackPrimaryAction()
+                onClick = onSave,
+                enabled = !state.isSaving,
+                modifier = Modifier
+                        .fillMaxWidth().carePackPrimaryAction()
                         .testTag(
                             "recipient_save",
                         ),
             ) {
                 if (state.isSaving) {
                     CircularProgressIndicator(
-                        modifier =
-                            Modifier.size(
+                        modifier = Modifier.size(
                                 24.dp,
                             ),
                     )
                 } else {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .save_and_continue,
+                        text = stringResource(
+                                R.string.save_and_continue,
                             ),
                     )
                 }

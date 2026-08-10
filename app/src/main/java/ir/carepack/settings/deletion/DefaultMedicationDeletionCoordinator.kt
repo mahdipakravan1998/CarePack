@@ -27,26 +27,21 @@ class DefaultMedicationDeletionCoordinator(
     private val reminderCoordinator: ReminderCoordinator,
     private val operationGate: AppOperationGate,
     private val clock: Clock,
-    private val ioDispatcher: CoroutineDispatcher =
-        Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : MedicationDeletionCoordinator {
 
     override suspend fun loadPreview(
         medicationId: String,
-    ): MedicationDeletionPreviewResult =
-        withContext(ioDispatcher) {
-            val trimmedMedicationId =
-                medicationId.trim()
+    ): MedicationDeletionPreviewResult = withContext(ioDispatcher) {
+            val trimmedMedicationId = medicationId.trim()
 
             if (trimmedMedicationId.isBlank()) {
                 return@withContext (
-                    MedicationDeletionPreviewResult.NotFound
-                )
+                    MedicationDeletionPreviewResult.NotFound)
             }
 
             try {
-                val preview =
-                    dataSource.loadPreview(
+                val preview = dataSource.loadPreview(
                         trimmedMedicationId,
                     )
 
@@ -60,46 +55,37 @@ class DefaultMedicationDeletionCoordinator(
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 MedicationDeletionPreviewResult.Failed(
-                    failure =
-                        throwable.toSafeAppFailure(
-                            AppOperationStage
-                                .DELETING_DATABASE_GRAPH,
+                    failure = throwable.toSafeAppFailure(
+                            AppOperationStage.DELETING_DATABASE_GRAPH,
                         ),
                 )
             }
         }
     override suspend fun deleteMedication(
         expectedPreview: MedicationDeletionPreview,
-    ): MedicationDeletionResult =
-        operationGate.withGate {
+    ): MedicationDeletionResult = operationGate.withGate {
             withContext(ioDispatcher) {
                 deleteInsideGate(expectedPreview)
             }
         }
 
-    override suspend fun resumeIncompleteDeletionIfNeeded():
-        MedicationDeletionRecoveryResult =
+    override suspend fun resumeIncompleteDeletionIfNeeded(): MedicationDeletionRecoveryResult =
         operationGate.withGate {
             withContext(ioDispatcher) {
                 when (val readResult = markerStore.state.first()) {
                     MedicationDeletionMarkerReadResult.Absent ->
-                        MedicationDeletionRecoveryResult
-                            .NoDeletionPending
+                        MedicationDeletionRecoveryResult.NoDeletionPending
 
                     is MedicationDeletionMarkerReadResult.Corrupted ->
                         MedicationDeletionRecoveryResult.Failed(
                             medicationId = null,
-                            stage =
-                                MedicationDeletionStage
+                            stage = MedicationDeletionStage
                                     .CHECKING_PENDING_OPERATION,
                             databaseDeleted = false,
-                            failure =
-                                SafeAppFailure(
-                                    kind =
-                                        ir.carepack.core.error
+                            failure = SafeAppFailure(
+                                    kind = ir.carepack.core.error
                                             .AppFailureKind.CORRUPTION,
-                                    stage =
-                                        AppOperationStage
+                                    stage = AppOperationStage
                                             .READING_OPERATION_MARKER,
                                     retryable = false,
                                 ),
@@ -107,37 +93,26 @@ class DefaultMedicationDeletionCoordinator(
 
                     is MedicationDeletionMarkerReadResult.Valid ->
                         when (
-                            val result =
-                                resumeMarker(readResult.marker)
+                            val result = resumeMarker(readResult.marker)
                         ) {
                             is MedicationDeletionResult.Completed,
                             MedicationDeletionResult.AlreadyDeleted,
-                                -> MedicationDeletionRecoveryResult
-                                    .Completed(
-                                        medicationId =
-                                            readResult.marker
-                                                .expectedPreview
-                                                .medicationId,
+                                -> MedicationDeletionRecoveryResult.Completed(
+                                        medicationId = readResult.marker
+                                                .expectedPreview.medicationId,
                                     )
 
                             is MedicationDeletionResult.ChangedSincePreview ->
                                 MedicationDeletionRecoveryResult.Failed(
-                                    medicationId =
-                                        readResult.marker
-                                            .expectedPreview
-                                            .medicationId,
-                                    stage =
-                                        MedicationDeletionStage
+                                    medicationId = readResult.marker
+                                            .expectedPreview.medicationId,
+                                    stage = MedicationDeletionStage
                                             .VALIDATING_PREVIEW,
                                     databaseDeleted = false,
-                                    failure =
-                                        SafeAppFailure(
-                                            kind =
-                                                ir.carepack.core.error
-                                                    .AppFailureKind
-                                                    .CORRUPTION,
-                                            stage =
-                                                AppOperationStage
+                                    failure = SafeAppFailure(
+                                            kind = ir.carepack.core.error
+                                                    .AppFailureKind.CORRUPTION,
+                                            stage = AppOperationStage
                                                     .RECOVERING_MEDICATION_DELETION,
                                             retryable = false,
                                         ),
@@ -145,13 +120,10 @@ class DefaultMedicationDeletionCoordinator(
 
                             is MedicationDeletionResult.Failed ->
                                 MedicationDeletionRecoveryResult.Failed(
-                                    medicationId =
-                                        readResult.marker
-                                            .expectedPreview
-                                            .medicationId,
+                                    medicationId = readResult.marker
+                                            .expectedPreview.medicationId,
                                     stage = result.stage,
-                                    databaseDeleted =
-                                        result.databaseDeleted,
+                                    databaseDeleted = result.databaseDeleted,
                                     failure = result.failure,
                                 )
                         }
@@ -165,17 +137,13 @@ class DefaultMedicationDeletionCoordinator(
         return when (val readResult = markerStore.state.first()) {
             is MedicationDeletionMarkerReadResult.Corrupted ->
                 failed(
-                    stage =
-                        MedicationDeletionStage
+                    stage = MedicationDeletionStage
                             .CHECKING_PENDING_OPERATION,
                     databaseDeleted = false,
-                    failure =
-                        SafeAppFailure(
-                            kind =
-                                ir.carepack.core.error
+                    failure = SafeAppFailure(
+                            kind = ir.carepack.core.error
                                     .AppFailureKind.CORRUPTION,
-                            stage =
-                                AppOperationStage
+                            stage = AppOperationStage
                                     .READING_OPERATION_MARKER,
                             retryable = false,
                         ),
@@ -183,24 +151,17 @@ class DefaultMedicationDeletionCoordinator(
 
             is MedicationDeletionMarkerReadResult.Valid -> {
                 if (
-                    readResult.marker.expectedPreview.medicationId !=
-                    expectedPreview.medicationId
+                    readResult.marker.expectedPreview.medicationId != expectedPreview.medicationId
                 ) {
                     failed(
-                        stage =
-                            MedicationDeletionStage
+                        stage = MedicationDeletionStage
                                 .CHECKING_PENDING_OPERATION,
-                        databaseDeleted =
-                            readResult.marker.stage >=
-                                MedicationDeletionMarkerStage
-                                    .DATABASE_DELETED,
-                        failure =
-                            SafeAppFailure(
-                                kind =
-                                    ir.carepack.core.error
+                        databaseDeleted = readResult.marker.stage >=
+                                MedicationDeletionMarkerStage.DATABASE_DELETED,
+                        failure = SafeAppFailure(
+                                kind = ir.carepack.core.error
                                         .AppFailureKind.CORRUPTION,
-                                stage =
-                                    AppOperationStage
+                                stage = AppOperationStage
                                         .RECOVERING_MEDICATION_DELETION,
                                 retryable = false,
                             ),
@@ -211,22 +172,18 @@ class DefaultMedicationDeletionCoordinator(
             }
 
             MedicationDeletionMarkerReadResult.Absent -> {
-                val graph =
-                    try {
+                val graph = try {
                         dataSource.loadGraph(
                             expectedPreview.medicationId,
                         )
                     } catch (throwable: Throwable) {
                         throwable.rethrowIfCancellation()
                         return failed(
-                            stage =
-                                MedicationDeletionStage
+                            stage = MedicationDeletionStage
                                     .VALIDATING_PREVIEW,
                             databaseDeleted = false,
-                            failure =
-                                throwable.toSafeAppFailure(
-                                    AppOperationStage
-                                        .DELETING_DATABASE_GRAPH,
+                            failure = throwable.toSafeAppFailure(
+                                    AppOperationStage.DELETING_DATABASE_GRAPH,
                                 ),
                         )
                     }
@@ -236,22 +193,16 @@ class DefaultMedicationDeletionCoordinator(
                 }
 
                 if (graph.preview != expectedPreview) {
-                    return MedicationDeletionResult
-                        .ChangedSincePreview(graph.preview)
+                    return MedicationDeletionResult.ChangedSincePreview(graph.preview)
                 }
 
-                val marker =
-                    MedicationDeletionMarker.create(
+                val marker = MedicationDeletionMarker.create(
                         expectedPreview = expectedPreview,
-                        scheduleSeriesIds =
-                            graph.scheduleSeriesIds.toSet(),
-                        occurrenceIds =
-                            graph.occurrenceIds.toSet(),
-                        stage =
-                            MedicationDeletionMarkerStage
+                        scheduleSeriesIds = graph.scheduleSeriesIds.toSet(),
+                        occurrenceIds = graph.occurrenceIds.toSet(),
+                        stage = MedicationDeletionMarkerStage
                                 .PLATFORM_CLEANUP_PENDING,
-                        startedAtEpochMillis =
-                            clock.instant().toEpochMilli(),
+                        startedAtEpochMillis = clock.instant().toEpochMilli(),
                     )
 
                 try {
@@ -259,14 +210,11 @@ class DefaultMedicationDeletionCoordinator(
                 } catch (throwable: Throwable) {
                     throwable.rethrowIfCancellation()
                     return failed(
-                        stage =
-                            MedicationDeletionStage
+                        stage = MedicationDeletionStage
                                 .SAVING_RECOVERY_MARKER,
                         databaseDeleted = false,
-                        failure =
-                            throwable.toSafeAppFailure(
-                                AppOperationStage
-                                    .WRITING_OPERATION_MARKER,
+                        failure = throwable.toSafeAppFailure(
+                                AppOperationStage.WRITING_OPERATION_MARKER,
                             ),
                     )
                 }
@@ -280,16 +228,12 @@ class DefaultMedicationDeletionCoordinator(
         initialMarker: MedicationDeletionMarker,
     ): MedicationDeletionResult {
         var marker = initialMarker
-        val medicationId =
-            marker.expectedPreview.medicationId
+        val medicationId = marker.expectedPreview.medicationId
 
         if (
-            marker.stage ==
-            MedicationDeletionMarkerStage
-                .PLATFORM_CLEANUP_PENDING
-        ) {
-            val platformFailure =
-                performTargetPlatformCleanup(marker)
+            marker.stage == MedicationDeletionMarkerStage
+                .PLATFORM_CLEANUP_PENDING) {
+            val platformFailure = performTargetPlatformCleanup(marker)
 
             if (platformFailure != null) {
                 return failed(
@@ -299,11 +243,9 @@ class DefaultMedicationDeletionCoordinator(
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
-                    MedicationDeletionMarkerStage
-                        .DATABASE_DELETE_PENDING,
+                    MedicationDeletionMarkerStage.DATABASE_DELETE_PENDING,
                 ) ?: return markerWriteFailure(
                     databaseDeleted = false,
                 )
@@ -312,28 +254,21 @@ class DefaultMedicationDeletionCoordinator(
         var counts: MedicationDeletionCounts? = null
 
         if (
-            marker.stage ==
-            MedicationDeletionMarkerStage
-                .DATABASE_DELETE_PENDING
-        ) {
-            val deletionResult =
-                try {
+            marker.stage == MedicationDeletionMarkerStage
+                .DATABASE_DELETE_PENDING) {
+            val deletionResult = try {
                     dataSource.deleteGraph(
                         medicationId = medicationId,
-                        expectedPreview =
-                            marker.expectedPreview,
+                        expectedPreview = marker.expectedPreview,
                     )
                 } catch (throwable: Throwable) {
                     throwable.rethrowIfCancellation()
                     return failed(
-                        stage =
-                            MedicationDeletionStage
+                        stage = MedicationDeletionStage
                                 .DELETING_DATABASE_GRAPH,
                         databaseDeleted = false,
-                        failure =
-                            throwable.toSafeAppFailure(
-                                AppOperationStage
-                                    .DELETING_DATABASE_GRAPH,
+                        failure = throwable.toSafeAppFailure(
+                                AppOperationStage.DELETING_DATABASE_GRAPH,
                             ),
                     )
                 }
@@ -345,45 +280,35 @@ class DefaultMedicationDeletionCoordinator(
                 MedicationGraphDeletionResult.NotFound ->
                     Unit
 
-                is MedicationGraphDeletionResult
-                    .ChangedSincePreview ->
-                    return MedicationDeletionResult
-                        .ChangedSincePreview(
+                is MedicationGraphDeletionResult.ChangedSincePreview ->
+                    return MedicationDeletionResult.ChangedSincePreview(
                             deletionResult.latestPreview,
                         )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
-                    MedicationDeletionMarkerStage
-                        .DATABASE_DELETED,
+                    MedicationDeletionMarkerStage.DATABASE_DELETED,
                 ) ?: return markerWriteFailure(
                     databaseDeleted = true,
                 )
         }
 
         if (
-            marker.stage ==
-            MedicationDeletionMarkerStage.DATABASE_DELETED
+            marker.stage == MedicationDeletionMarkerStage.DATABASE_DELETED
         ) {
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
-                    MedicationDeletionMarkerStage
-                        .FINAL_RECONCILIATION_PENDING,
+                    MedicationDeletionMarkerStage.FINAL_RECONCILIATION_PENDING,
                 ) ?: return markerWriteFailure(
                     databaseDeleted = true,
                 )
         }
 
         if (
-            marker.stage ==
-            MedicationDeletionMarkerStage
-                .FINAL_RECONCILIATION_PENDING
-        ) {
-            val platformFailure =
-                performTargetPlatformCleanup(marker)
+            marker.stage == MedicationDeletionMarkerStage
+                .FINAL_RECONCILIATION_PENDING) {
+            val platformFailure = performTargetPlatformCleanup(marker)
 
             if (platformFailure != null) {
                 return failed(
@@ -393,42 +318,33 @@ class DefaultMedicationDeletionCoordinator(
                 )
             }
 
-            val reconciliationResult =
-                try {
+            val reconciliationResult = try {
                     reminderCoordinator.reconcile(
                         ReconciliationReason.CARE_PLAN_CHANGED,
                     )
                 } catch (throwable: Throwable) {
                     throwable.rethrowIfCancellation()
                     return failed(
-                        stage =
-                            MedicationDeletionStage
+                        stage = MedicationDeletionStage
                                 .RECONCILING_REMAINING_REMINDERS,
                         databaseDeleted = true,
-                        failure =
-                            throwable.toSafeAppFailure(
-                                AppOperationStage
-                                    .RECONCILING_REMINDERS,
+                        failure = throwable.toSafeAppFailure(
+                                AppOperationStage.RECONCILING_REMINDERS,
                             ),
                     )
                 }
 
             if (
-                reconciliationResult is
-                    ReminderReconciliationResult.PartialFailure
+                reconciliationResult is ReminderReconciliationResult.PartialFailure
             ) {
                 return failed(
-                    stage =
-                        MedicationDeletionStage
+                    stage = MedicationDeletionStage
                             .RECONCILING_REMAINING_REMINDERS,
                     databaseDeleted = true,
-                    failure =
-                        SafeAppFailure(
-                            kind =
-                                ir.carepack.core.error
+                    failure = SafeAppFailure(
+                            kind = ir.carepack.core.error
                                     .AppFailureKind.PLATFORM,
-                            stage =
-                                AppOperationStage
+                            stage = AppOperationStage
                                     .RECONCILING_REMINDERS,
                             retryable = true,
                         ),
@@ -440,14 +356,11 @@ class DefaultMedicationDeletionCoordinator(
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 return failed(
-                    stage =
-                        MedicationDeletionStage
+                    stage = MedicationDeletionStage
                             .CLEARING_RECOVERY_MARKER,
                     databaseDeleted = true,
-                    failure =
-                        throwable.toSafeAppFailure(
-                            AppOperationStage
-                                .WRITING_OPERATION_MARKER,
+                    failure = throwable.toSafeAppFailure(
+                            AppOperationStage.WRITING_OPERATION_MARKER,
                         ),
                 )
             }
@@ -468,28 +381,21 @@ class DefaultMedicationDeletionCoordinator(
                 )
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
-                return MedicationDeletionStage
-                    .CANCELLING_SCHEDULE_ALARMS to
+                return MedicationDeletionStage.CANCELLING_SCHEDULE_ALARMS to
                     throwable.toSafeAppFailure(
                         AppOperationStage.CANCELLING_ALARMS,
                     )
             }
         }
 
-        val targetSnoozedOccurrenceIds =
-            try {
-                snoozedReminderStore
-                    .reminders
-                    .first()
-                    .asSequence()
-                    .map { it.occurrenceId }
-                    .filter { it in marker.occurrenceIds }
-                    .distinct()
-                    .toSet()
+        val targetSnoozedOccurrenceIds = try {
+                snoozedReminderStore.reminders
+                    .first().asSequence()
+                    .map { it.occurrenceId }.filter { it in marker.occurrenceIds }
+                    .distinct().toSet()
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
-                return MedicationDeletionStage
-                    .REMOVING_SNOOZED_REMINDERS to
+                return MedicationDeletionStage.REMOVING_SNOOZED_REMINDERS to
                     throwable.toSafeAppFailure(
                         AppOperationStage.CLEARING_SNOOZES,
                     )
@@ -504,8 +410,7 @@ class DefaultMedicationDeletionCoordinator(
                 )
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
-                return MedicationDeletionStage
-                    .CANCELLING_DELAYED_ALARMS to
+                return MedicationDeletionStage.CANCELLING_DELAYED_ALARMS to
                     throwable.toSafeAppFailure(
                         AppOperationStage.CANCELLING_ALARMS,
                     )
@@ -516,8 +421,7 @@ class DefaultMedicationDeletionCoordinator(
                     snoozedReminderStore.delete(occurrenceId)
                 } catch (throwable: Throwable) {
                     throwable.rethrowIfCancellation()
-                    return MedicationDeletionStage
-                        .REMOVING_SNOOZED_REMINDERS to
+                    return MedicationDeletionStage.REMOVING_SNOOZED_REMINDERS to
                         throwable.toSafeAppFailure(
                             AppOperationStage.CLEARING_SNOOZES,
                         )
@@ -528,11 +432,9 @@ class DefaultMedicationDeletionCoordinator(
                 notificationGateway.cancel(occurrenceId)
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
-                return MedicationDeletionStage
-                    .CANCELLING_NOTIFICATIONS to
+                return MedicationDeletionStage.CANCELLING_NOTIFICATIONS to
                     throwable.toSafeAppFailure(
-                        AppOperationStage
-                            .CANCELLING_NOTIFICATIONS,
+                        AppOperationStage.CANCELLING_NOTIFICATIONS,
                     )
             }
         }
@@ -543,11 +445,9 @@ class DefaultMedicationDeletionCoordinator(
     private suspend fun updateStage(
         marker: MedicationDeletionMarker,
         stage: MedicationDeletionMarkerStage,
-    ): MedicationDeletionMarker? =
-        try {
+    ): MedicationDeletionMarker? = try {
             markerStore.updateStage(
-                medicationId =
-                    marker.expectedPreview.medicationId,
+                medicationId = marker.expectedPreview.medicationId,
                 stage = stage,
             )
             marker.withStage(stage)
@@ -558,19 +458,14 @@ class DefaultMedicationDeletionCoordinator(
 
     private fun markerWriteFailure(
         databaseDeleted: Boolean,
-    ): MedicationDeletionResult.Failed =
-        failed(
-            stage =
-                MedicationDeletionStage
+    ): MedicationDeletionResult.Failed = failed(
+            stage = MedicationDeletionStage
                     .MARKING_DATABASE_DELETED,
             databaseDeleted = databaseDeleted,
-            failure =
-                SafeAppFailure(
-                    kind =
-                        ir.carepack.core.error
+            failure = SafeAppFailure(
+                    kind = ir.carepack.core.error
                             .AppFailureKind.STORAGE,
-                    stage =
-                        AppOperationStage
+                    stage = AppOperationStage
                             .WRITING_OPERATION_MARKER,
                     retryable = true,
                 ),
@@ -580,8 +475,7 @@ class DefaultMedicationDeletionCoordinator(
         stage: MedicationDeletionStage,
         databaseDeleted: Boolean,
         failure: SafeAppFailure,
-    ): MedicationDeletionResult.Failed =
-        MedicationDeletionResult.Failed(
+    ): MedicationDeletionResult.Failed = MedicationDeletionResult.Failed(
             stage = stage,
             databaseDeleted = databaseDeleted,
             failure = failure,

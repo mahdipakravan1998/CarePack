@@ -35,144 +35,101 @@ data class SchedulePreviewOccurrence(
 )
 
 class SchedulePreviewResolver(
-    private val candidateResolver:
-    OccurrenceCandidateResolver = OccurrenceCandidateResolver(),
+    private val candidateResolver: OccurrenceCandidateResolver = OccurrenceCandidateResolver(),
 ) {
 
     fun resolve(
         request: SchedulePreviewRequest,
     ): List<SchedulePreviewOccurrence> {
-        val zone =
-            runCatching {
+        val zone = runCatching {
                 ZoneId.of(
                     request.zoneId,
                 )
             }.getOrNull() ?: return emptyList()
 
-        val minutesOfDay =
-            request
-                .schedulePattern
-                .representativeMinutesOfDay
-                .distinct()
-                .sorted()
+        val minutesOfDay = request
+                .schedulePattern.representativeMinutesOfDay
+                .distinct().sorted()
 
         if (
-            request.weekdays.isEmpty() ||
-            minutesOfDay.isEmpty()
+            request.weekdays.isEmpty() || minutesOfDay.isEmpty()
         ) {
             return emptyList()
         }
 
-        val effectiveLocalDate =
-            request
-                .effectiveFrom
-                .atZone(
+        val effectiveLocalDate = request
+                .effectiveFrom.atZone(
                     zone,
-                )
-                .toLocalDate()
+                ).toLocalDate()
 
-        val previewAnchorDate =
-            request
-                .anchorDate
-                ?.takeIf {
+        val previewAnchorDate = request
+                .anchorDate?.takeIf {
                     it.isAfter(
                         effectiveLocalDate,
                     )
-                }
-                ?: effectiveLocalDate
+                } ?: effectiveLocalDate
 
-        val window =
-            OccurrenceGenerationWindow
+        val window = OccurrenceGenerationWindow
                 .exactForward(
-                    anchorDate =
-                        previewAnchorDate,
-                    dayCount =
-                        request.dayCount,
+                    anchorDate = previewAnchorDate,
+                    dayCount = request.dayCount,
                 )
 
-        return window
-            .dates()
+        return window.dates()
             .flatMap { localDate ->
-                minutesOfDay
-                    .asSequence()
+                minutesOfDay.asSequence()
                     .mapNotNull { minuteOfDay ->
                         candidateResolver.resolve(
-                            definition =
-                                request.toDefinition(
+                            definition = request.toDefinition(
                                     minuteOfDay,
                                 ),
-                            anchorDate =
-                                localDate,
+                            anchorDate = localDate,
                         )
                     }
-            }
-            .sortedWith(
+            }.sortedWith(
                 compareBy(
                     { it.scheduledAt },
                     { it.localDate },
                     { it.minuteOfDay },
                 ),
-            )
-            .map { candidate ->
+            ).map { candidate ->
                 SchedulePreviewOccurrence(
-                    localDate =
-                        candidate.localDate,
-                    dayOfWeek =
-                        candidate
-                            .localDate
-                            .dayOfWeek,
-                    minuteOfDay =
-                        candidate.minuteOfDay,
-                    zoneId =
-                        candidate.zoneId,
-                    scheduledAt =
-                        candidate.scheduledAt,
+                    localDate = candidate.localDate,
+                    dayOfWeek = candidate
+                            .localDate.dayOfWeek,
+                    minuteOfDay = candidate.minuteOfDay,
+                    zoneId = candidate.zoneId,
+                    scheduledAt = candidate.scheduledAt,
                 )
-            }
-            .toList()
+            }.toList()
     }
 
     private fun SchedulePreviewRequest.toDefinition(
         minuteOfDay: Int,
-    ): ScheduleDefinition =
-        ScheduleDefinition(
-            scheduleVersionId =
-                PREVIEW_VERSION_ID,
-            scheduleSeriesId =
-                PREVIEW_SERIES_ID,
-            medicationId =
-                PREVIEW_MEDICATION_ID,
-            weekdayMask =
-                weekdays.toWeekdayMask(),
-            minuteOfDay =
-                minuteOfDay,
-            schedulePattern =
-                schedulePattern.forPersistedDefinitionMinute(
+    ): ScheduleDefinition = ScheduleDefinition(
+            scheduleVersionId = PREVIEW_VERSION_ID,
+            scheduleSeriesId = PREVIEW_SERIES_ID,
+            medicationId = PREVIEW_MEDICATION_ID,
+            weekdayMask = weekdays.toWeekdayMask(),
+            minuteOfDay = minuteOfDay,
+            schedulePattern = schedulePattern.forPersistedDefinitionMinute(
                     minuteOfDay,
                 ),
-            zoneId =
-                zoneId,
-            effectiveFrom =
-                effectiveFrom,
+            zoneId = zoneId,
+            effectiveFrom = effectiveFrom,
             effectiveUntil = null,
-            startDate =
-                startDate,
-            endDate =
-                endDate,
-            medicationNameSnapshot =
-                "",
-            medicationInstructionSnapshot =
-                "",
+            startDate = startDate,
+            endDate = endDate,
+            medicationNameSnapshot = "",
+            medicationInstructionSnapshot = "",
         )
 
     private fun SchedulePattern.forPersistedDefinitionMinute(
         minuteOfDay: Int,
-    ): SchedulePattern =
-        when (this) {
+    ): SchedulePattern = when (this) {
             is FixedTimeSchedule ->
                 FixedTimeSchedule(
-                    minutesOfDay =
-                        listOf(
+                    minutesOfDay = listOf(
                             minuteOfDay,
                         ),
                 )
@@ -181,8 +138,7 @@ class SchedulePreviewResolver(
                 this
         }
 
-    private fun Set<DayOfWeek>.toWeekdayMask(): Int =
-        fold(0) { mask, day ->
+    private fun Set<DayOfWeek>.toWeekdayMask(): Int = fold(0) { mask, day ->
             mask or
                     (1 shl (day.value - 1))
         }

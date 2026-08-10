@@ -6,19 +6,16 @@ internal object DeletionMarkerChecksum {
     fun sha256(
         components: List<String>,
     ): String {
-        val canonical =
-            components.joinToString(
+        val canonical = components.joinToString(
                 separator = "\u001f",
             )
 
-        return MessageDigest
-            .getInstance("SHA-256")
+        return MessageDigest.getInstance("SHA-256")
             .digest(
                 canonical.toByteArray(
                     Charsets.UTF_8,
                 ),
-            )
-            .joinToString(
+            ).joinToString(
                 separator = "",
             ) { byte ->
                 "%02x".format(

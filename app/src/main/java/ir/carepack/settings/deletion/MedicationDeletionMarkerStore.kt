@@ -58,8 +58,7 @@ data class MedicationDeletionMarker(
 
     fun withStage(
         newStage: MedicationDeletionMarkerStage,
-    ): MedicationDeletionMarker =
-        copy(
+    ): MedicationDeletionMarker = copy(
             stage = newStage,
             checksum = checksumFor(
                 version = version,
@@ -71,8 +70,7 @@ data class MedicationDeletionMarker(
             ),
         )
 
-    fun hasValidChecksum(): Boolean =
-        checksum ==
+    fun hasValidChecksum(): Boolean = checksum ==
             checksumFor(
                 version = version,
                 expectedPreview = expectedPreview,
@@ -119,8 +117,7 @@ data class MedicationDeletionMarker(
             occurrenceIds: Set<String>,
             stage: MedicationDeletionMarkerStage,
             startedAtEpochMillis: Long,
-        ): String =
-            DeletionMarkerChecksum.sha256(
+        ): String = DeletionMarkerChecksum.sha256(
                 listOf(
                     version.toString(),
                     expectedPreview.medicationId,
@@ -141,8 +138,7 @@ data class MedicationDeletionMarker(
 }
 
 sealed interface MedicationDeletionMarkerReadResult {
-    data object Absent :
-        MedicationDeletionMarkerReadResult
+    data object Absent : MedicationDeletionMarkerReadResult
 
     data class Valid(
         val marker: MedicationDeletionMarker,

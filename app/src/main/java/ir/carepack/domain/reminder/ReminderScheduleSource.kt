@@ -4,11 +4,9 @@ import java.time.Instant
 
 interface ReminderScheduleSource {
 
-    suspend fun getAllScheduleSeriesIds():
-            Set<String>
+    suspend fun getAllScheduleSeriesIds(): Set<String>
 
-    suspend fun hasActiveSchedule():
-            Boolean
+    suspend fun hasActiveSchedule(): Boolean
 
     suspend fun getNextEligibleTargets(
         now: Instant,

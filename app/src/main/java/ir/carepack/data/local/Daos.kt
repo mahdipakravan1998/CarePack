@@ -176,8 +176,7 @@ interface MedicationDao {
             scheduleTime.minuteOfDay
         """,
     )
-    fun observeNonArchivedScheduleRows():
-            Flow<List<MedicationScheduleOverviewRow>>
+    fun observeNonArchivedScheduleRows(): Flow<List<MedicationScheduleOverviewRow>>
 
     @Query(
         """
@@ -616,8 +615,7 @@ interface ScheduleDao {
         ORDER BY createdAtEpochMillis, id
         """,
     )
-    suspend fun getAllSeriesIds():
-            List<String>
+    suspend fun getAllSeriesIds(): List<String>
 
     @Query(
         """

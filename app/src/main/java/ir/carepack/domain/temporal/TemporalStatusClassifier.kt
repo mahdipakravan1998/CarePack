@@ -16,8 +16,7 @@ class TemporalStatusClassifier {
             return TemporalStatus.UPCOMING
         }
 
-        val dueUntil =
-            scheduledAt.plus(DUE_DURATION)
+        val dueUntil = scheduledAt.plus(DUE_DURATION)
 
         return if (now.isBefore(dueUntil)) {
             TemporalStatus.DUE
@@ -31,15 +30,12 @@ class TemporalStatusClassifier {
         reportState: CaregiverReportState?,
         phase: TemporalStatus,
     ): Boolean {
-        return lifecycle ==
-                OccurrenceLifecycle.ACTIVE &&
-                phase == TemporalStatus.PAST &&
-                reportState == null
+        return lifecycle == OccurrenceLifecycle.ACTIVE &&
+                phase == TemporalStatus.PAST && reportState == null
     }
 
     private companion object {
-        val DUE_DURATION:
-                Duration =
+        val DUE_DURATION: Duration =
             Duration.ofMinutes(60)
     }
 }

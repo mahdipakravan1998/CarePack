@@ -1,5 +1,7 @@
 package ir.carepack.feature.careplan
 
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,8 +32,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import ir.carepack.R
 import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanService
@@ -53,13 +53,8 @@ import kotlinx.coroutines.launch
 
 data class MedicationTextEditUiState(
     val isLoading: Boolean = true,
-    val medicationName: String = "",
-    val instruction: String = "",
-    val medicationType: String = "",
-    val dosageText: String = "",
-    val doseUnit: String = "",
-    val errors:
-    Map<CarePlanField, String> =
+    val medication: MedicationTextDraft = MedicationTextDraft(),
+    val errors: Map<CarePlanField, String> =
         emptyMap(),
     val isSaving: Boolean = false,
     val generalError: String? = null,
@@ -67,32 +62,25 @@ data class MedicationTextEditUiState(
 
 sealed interface MedicationTextEditEvent {
 
-    data object Completed :
-        MedicationTextEditEvent
+    data object Completed : MedicationTextEditEvent
 }
 
 class MedicationTextEditViewModel(
     private val medicationId: String,
-    private val carePlanService:
-    CarePlanService,
+    private val carePlanService: CarePlanService,
 ) : ViewModel() {
 
-    private val mutableState =
-        MutableStateFlow(
+    private val mutableState = MutableStateFlow(
             MedicationTextEditUiState(),
         )
 
-    val state =
-        mutableState.asStateFlow()
+    val state = mutableState.asStateFlow()
 
-    private val eventChannel =
-        Channel<MedicationTextEditEvent>(
-            capacity =
-                Channel.BUFFERED,
+    private val eventChannel = Channel<MedicationTextEditEvent>(
+            capacity = Channel.BUFFERED,
         )
 
-    val events =
-        eventChannel.receiveAsFlow()
+    val events = eventChannel.receiveAsFlow()
 
     init {
         load()
@@ -101,95 +89,38 @@ class MedicationTextEditViewModel(
     fun onMedicationNameChanged(
         value: String,
     ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                medicationName =
-                    value,
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .MEDICATION_NAME,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.MEDICATION_NAME, value)
     }
 
     fun onInstructionChanged(
         value: String,
     ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                instruction =
-                    value,
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .INSTRUCTION,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.INSTRUCTION, value)
     }
 
     fun onMedicationTypeChanged(
         value: String,
     ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                medicationType =
-                    value,
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .MEDICATION_TYPE,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.MEDICATION_TYPE, value)
     }
 
     fun onDosageTextChanged(
         value: String,
     ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                dosageText =
-                    value,
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .DOSAGE_TEXT,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.DOSAGE_TEXT, value)
     }
 
     fun onDoseUnitChanged(
         value: String,
     ) {
-        mutableState.update {
-                current ->
-            current.copy(
-                doseUnit =
-                    value,
-                errors =
-                    current.errors -
-                            CarePlanField
-                                .DOSE_UNIT,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.DOSE_UNIT, value)
     }
 
     fun save() {
-        val current =
-            mutableState.value
+        val current = mutableState.value
 
         if (
-            current.isSaving ||
-            current.isLoading
+            current.isSaving || current.isLoading
         ) {
             return
         }
@@ -205,75 +136,52 @@ class MedicationTextEditViewModel(
             }
 
             try {
-                val state =
-                    mutableState.value
+                val state = mutableState.value
 
                 when (
-                    val outcome =
-                        carePlanService
+                    val outcome = carePlanService
                             .updateMedicationText(
                                 UpdateMedicationTextCommand(
-                                    medicationId =
-                                        medicationId,
-                                    medicationName =
-                                        state
-                                            .medicationName,
-                                    instruction =
-                                        state
-                                            .instruction,
-                                    medicationType =
-                                        state
-                                            .medicationType,
-                                    dosageText =
-                                        state
-                                            .dosageText,
-                                    doseUnit =
-                                        state
-                                            .doseUnit,
+                                    medicationId = medicationId,
+                                    medicationName = state.medication.medicationName,
+                                    instruction = state.medication.instruction,
+                                    medicationType = state.medication.medicationType,
+                                    dosageText = state.medication.dosageText,
+                                    doseUnit = state.medication.doseUnit,
                                 ),
-                            )
-                ) {
-                    UpdateMedicationTextOutcome
-                        .Updated,
-                    UpdateMedicationTextOutcome
-                        .Unchanged,
+                            )) {
+                    UpdateMedicationTextOutcome.Updated,
+                    UpdateMedicationTextOutcome.Unchanged,
                         -> {
                         eventChannel.send(
-                            MedicationTextEditEvent
-                                .Completed,
+                            MedicationTextEditEvent.Completed,
                         )
                     }
 
-                    UpdateMedicationTextOutcome
-                        .NotFound -> {
+                    UpdateMedicationTextOutcome.NotFound -> {
                         showGeneralError(
                             "دارو پیدا نشد.",
                         )
                     }
 
-                    UpdateMedicationTextOutcome
-                        .NotEditable -> {
+                    UpdateMedicationTextOutcome.NotEditable -> {
                         showGeneralError(
                             "این دارو قابل ویرایش نیست.",
                         )
                     }
 
-                    is UpdateMedicationTextOutcome
-                    .Invalid -> {
+                    is UpdateMedicationTextOutcome.Invalid -> {
                         mutableState.update {
                                 value ->
                             value.copy(
-                                errors =
-                                    outcome
-                                        .errors
-                                        .toFieldErrors(),
+                                errors = outcome
+                                        .errors.toFieldErrors(),
                             )
                         }
                     }
                 }
             } catch (
-                cancellationException:
-                CancellationException,
+                cancellationException: CancellationException,
             ) {
                 throw cancellationException
             } catch (_: Exception) {
@@ -294,23 +202,19 @@ class MedicationTextEditViewModel(
     private fun load() {
         viewModelScope.launch {
             try {
-                val snapshot =
-                    carePlanService
+                val snapshot = carePlanService
                         .getMedicationEditor(
                             medicationId,
                         )
 
                 if (
-                    snapshot == null ||
-                    snapshot.status !=
-                    MedicationStatus.ACTIVE
-                ) {
+                    snapshot == null || snapshot.status !=
+                    MedicationStatus.ACTIVE) {
                     mutableState.update {
                             current ->
                         current.copy(
                             isLoading = false,
-                            generalError =
-                                "داروی قابل ویرایش پیدا نشد.",
+                            generalError = "داروی قابل ویرایش پیدا نشد.",
                         )
                     }
 
@@ -321,23 +225,19 @@ class MedicationTextEditViewModel(
                         current ->
                     current.copy(
                         isLoading = false,
-                        medicationName =
-                            snapshot.name,
-                        instruction =
-                            snapshot.instruction,
-                        medicationType =
-                            snapshot.medicationType,
-                        dosageText =
-                            snapshot.dosageText,
-                        doseUnit =
-                            snapshot.doseUnit,
+                        medication = MedicationTextDraft(
+                            medicationName = snapshot.name,
+                            instruction = snapshot.instruction,
+                            medicationType = snapshot.medicationType,
+                            dosageText = snapshot.dosageText,
+                            doseUnit = snapshot.doseUnit,
+                        ),
                         errors = emptyMap(),
                         generalError = null,
                     )
                 }
             } catch (
-                cancellationException:
-                CancellationException,
+                cancellationException: CancellationException,
             ) {
                 throw cancellationException
             } catch (_: Exception) {
@@ -345,8 +245,7 @@ class MedicationTextEditViewModel(
                         current ->
                     current.copy(
                         isLoading = false,
-                        generalError =
-                            "خواندن اطلاعات دارو انجام نشد.",
+                        generalError = "خواندن اطلاعات دارو انجام نشد.",
                     )
                 }
             }
@@ -359,8 +258,20 @@ class MedicationTextEditViewModel(
         mutableState.update {
                 current ->
             current.copy(
-                generalError =
-                    message,
+                generalError = message,
+            )
+        }
+    }
+
+    private fun updateMedicationField(
+        field: CarePlanField,
+        value: String,
+    ) {
+        mutableState.update { current ->
+            current.copy(
+                medication = current.medication.withField(field, value),
+                errors = current.errors - field,
+                generalError = null,
             )
         }
     }
@@ -369,32 +280,24 @@ class MedicationTextEditViewModel(
 
         fun factory(
             medicationId: String,
-            carePlanService:
-            CarePlanService,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+            carePlanService: CarePlanService,
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     MedicationTextEditViewModel(
-                        medicationId =
-                            medicationId,
-                        carePlanService =
-                            carePlanService,
+                        medicationId = medicationId,
+                        carePlanService = carePlanService,
                     )
-                }
             }
     }
 }
 
 @Composable
 fun MedicationTextEditRoute(
-    viewModel:
-    MedicationTextEditViewModel,
+    viewModel: MedicationTextEditViewModel,
     onBack: () -> Unit,
     onCompleted: () -> Unit,
 ) {
     val state by
-    viewModel
-        .state
+    viewModel.state
         .collectAsStateWithLifecycle()
 
     LaunchedEffect(
@@ -403,8 +306,7 @@ fun MedicationTextEditRoute(
         viewModel.events.collect {
                 event ->
             when (event) {
-                MedicationTextEditEvent
-                    .Completed -> {
+                MedicationTextEditEvent.Completed -> {
                     onCompleted()
                 }
             }
@@ -414,110 +316,77 @@ fun MedicationTextEditRoute(
     MedicationTextEditScreen(
         state = state,
         onBack = onBack,
-        onMedicationNameChanged =
-            viewModel::
+        onMedicationNameChanged = viewModel::
             onMedicationNameChanged,
-        onInstructionChanged =
-            viewModel::
+        onInstructionChanged = viewModel::
             onInstructionChanged,
-        onMedicationTypeChanged =
-            viewModel::
+        onMedicationTypeChanged = viewModel::
             onMedicationTypeChanged,
-        onDosageTextChanged =
-            viewModel::
+        onDosageTextChanged = viewModel::
             onDosageTextChanged,
-        onDoseUnitChanged =
-            viewModel::
+        onDoseUnitChanged = viewModel::
             onDoseUnitChanged,
-        onSave =
-            viewModel::save,
+        onSave = viewModel::save,
     )
 }
 
 @Composable
 private fun MedicationTextEditScreen(
-    state:
-    MedicationTextEditUiState,
+    state: MedicationTextEditUiState,
     onBack: () -> Unit,
-    onMedicationNameChanged:
-        (String) -> Unit,
-    onInstructionChanged:
-        (String) -> Unit,
-    onMedicationTypeChanged:
-        (String) -> Unit,
-    onDosageTextChanged:
-        (String) -> Unit,
-    onDoseUnitChanged:
-        (String) -> Unit,
+    onMedicationNameChanged: (String) -> Unit,
+    onInstructionChanged: (String) -> Unit,
+    onMedicationTypeChanged: (String) -> Unit,
+    onDosageTextChanged: (String) -> Unit,
+    onDoseUnitChanged: (String) -> Unit,
     onSave: () -> Unit,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Scaffold(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = Modifier
+                .fillMaxSize().testTag(
                     "medication_text_edit_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .imePadding()
-                    .navigationBarsPadding()
-                    .verticalScroll(
+                    ).imePadding()
+                    .navigationBarsPadding().verticalScroll(
                         rememberScrollState(),
-                    )
-                    .padding(
-                        horizontal =
-                            experience.screenHorizontalPadding,
-                        vertical =
-                            experience.screenVerticalPadding,
+                    ).padding(
+                        horizontal = experience.screenHorizontalPadding,
+                        vertical = experience.screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.itemSpacing,
                 ),
         ) {
             TextButton(
                 onClick = onBack,
-                enabled =
-                    !state.isSaving,
-                modifier =
-                    Modifier
-                        .carePackInteractiveControl()
-                        .testTag(
+                enabled = !state.isSaving,
+                modifier = Modifier
+                        .carePackInteractiveControl().testTag(
                             "medication_text_edit_back",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
+                    text = stringResource(
                             R.string.back,
                         ),
                 )
             }
 
             Text(
-                text =
-                    stringResource(
-                        R.string
-                            .medication_text_edit_title,
+                text = stringResource(
+                        R.string.medication_text_edit_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineMedium,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineMedium,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "medication_text_edit_title",
                         ),
             )
@@ -525,81 +394,53 @@ private fun MedicationTextEditScreen(
             when {
                 state.isLoading -> {
                     Column(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPoliteLiveRegion()
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPoliteLiveRegion()
                                 .testTag(
                                     "medication_text_edit_loading",
                                 ),
-                        horizontalAlignment =
-                            Alignment.CenterHorizontally,
-                        verticalArrangement =
-                            Arrangement.spacedBy(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(
                                 experience.itemSpacing,
                             ),
                     ) {
                         CircularProgressIndicator()
 
                         Text(
-                            text =
-                                "در حال خواندن اطلاعات دارو…",
+                            text = "در حال خواندن اطلاعات دارو…",
                         )
                     }
                 }
 
                 else -> {
                     MedicationTextFields(
-                        medicationName =
-                            state.medicationName,
-                        instruction =
-                            state.instruction,
-                        medicationType =
-                            state.medicationType,
-                        dosageText =
-                            state.dosageText,
-                        doseUnit =
-                            state.doseUnit,
-                        errors =
-                            state.errors,
-                        enabled =
-                            !state.isSaving,
-                        onMedicationNameChanged =
-                            onMedicationNameChanged,
-                        onInstructionChanged =
-                            onInstructionChanged,
-                        onMedicationTypeChanged =
-                            onMedicationTypeChanged,
-                        onDosageTextChanged =
-                            onDosageTextChanged,
-                        onDoseUnitChanged =
-                            onDoseUnitChanged,
+                        medicationName = state.medication.medicationName,
+                        instruction = state.medication.instruction,
+                        medicationType = state.medication.medicationType,
+                        dosageText = state.medication.dosageText,
+                        doseUnit = state.medication.doseUnit,
+                        errors = state.errors,
+                        enabled = !state.isSaving,
+                        onMedicationNameChanged = onMedicationNameChanged,
+                        onInstructionChanged = onInstructionChanged,
+                        onMedicationTypeChanged = onMedicationTypeChanged,
+                        onDosageTextChanged = onDosageTextChanged,
+                        onDoseUnitChanged = onDoseUnitChanged,
                         instructionMinLines = 4,
-                        medicationNameTestTag =
-                            "medication_text_edit_name",
-                        instructionTestTag =
-                            "medication_text_edit_instruction",
-                        medicationTypeTestTag =
-                            "medication_text_edit_type",
-                        dosageTextTestTag =
-                            "medication_text_edit_dosage",
-                        doseUnitTestTag =
-                            "medication_text_edit_unit",
+                        medicationNameTestTag = "medication_text_edit_name",
+                        instructionTestTag = "medication_text_edit_instruction",
+                        medicationTypeTestTag = "medication_text_edit_type",
+                        dosageTextTestTag = "medication_text_edit_dosage",
+                        doseUnitTestTag = "medication_text_edit_unit",
                     )
 
-                    state.generalError
-                        ?.let { error ->
+                    state.generalError?.let { error ->
                             Text(
-                                text =
-                                    error,
-                                color =
-                                    MaterialTheme
-                                        .colorScheme
-                                        .error,
-                                modifier =
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .carePackPoliteLiveRegion()
+                                text = error,
+                                color = MaterialTheme
+                                        .colorScheme.error,
+                                modifier = Modifier
+                                        .fillMaxWidth().carePackPoliteLiveRegion()
                                         .testTag(
                                             "medication_text_edit_error",
                                         ),
@@ -607,37 +448,30 @@ private fun MedicationTextEditScreen(
                         }
 
                     Spacer(
-                        modifier =
-                            Modifier.height(
+                        modifier = Modifier.height(
                                 experience.compactSpacing,
                             ),
                     )
 
                     Button(
                         onClick = onSave,
-                        enabled =
-                            !state.isSaving,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPrimaryAction()
+                        enabled = !state.isSaving,
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPrimaryAction()
                                 .testTag(
                                     "medication_text_edit_save",
                                 ),
                     ) {
                         if (state.isSaving) {
                             CircularProgressIndicator(
-                                modifier =
-                                    Modifier.size(
+                                modifier = Modifier.size(
                                         24.dp,
                                     ),
                             )
                         } else {
                             Text(
-                                text =
-                                    stringResource(
-                                        R.string
-                                            .save_changes,
+                                text = stringResource(
+                                        R.string.save_changes,
                                     ),
                             )
                         }

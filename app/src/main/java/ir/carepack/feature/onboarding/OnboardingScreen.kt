@@ -21,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import ir.carepack.R
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackInteractiveControl
@@ -37,237 +36,175 @@ fun OnboardingScreen(
     onKeepStandardMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val experience =
-        carePackExperience()
+    val experience = carePackExperience()
 
     Scaffold(
-        modifier =
-            modifier
-                .fillMaxSize()
-                .testTag(
+        modifier = modifier
+                .fillMaxSize().testTag(
                     "onboarding_screen",
                 ),
     ) { contentPadding ->
         Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .padding(
+            modifier = Modifier
+                    .fillMaxSize().padding(
                         contentPadding,
-                    )
-                    .verticalScroll(
+                    ).verticalScroll(
                         rememberScrollState(),
-                    )
-                    .navigationBarsPadding()
+                    ).navigationBarsPadding()
                     .padding(
-                        horizontal =
-                            experience.screenHorizontalPadding,
-                        vertical =
-                            experience.screenVerticalPadding,
+                        horizontal = experience.screenHorizontalPadding,
+                        vertical = experience.screenVerticalPadding,
                     ),
-            verticalArrangement =
-                Arrangement.spacedBy(
+            verticalArrangement = Arrangement.spacedBy(
                     experience.itemSpacing,
                 ),
         ) {
             Text(
-                text =
-                    stringResource(
+                text = stringResource(
                         R.string.onboarding_title,
                     ),
-                style =
-                    MaterialTheme
-                        .typography
-                        .headlineLarge,
-                modifier =
-                    Modifier
-                        .carePackHeading()
-                        .testTag(
+                style = MaterialTheme
+                        .typography.headlineLarge,
+                modifier = Modifier
+                        .carePackHeading().testTag(
                             "onboarding_title",
                         ),
             )
 
             Spacer(
-                modifier =
-                    Modifier.height(
+                modifier = Modifier.height(
                         experience.compactSpacing,
                     ),
             )
 
             Card(
-                modifier =
-                    Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .onboarding_local_summary,
+                    text = stringResource(
+                            R.string.onboarding_local_summary,
                         ),
-                    modifier =
-                        Modifier
+                    modifier = Modifier
                             .padding(
                                 experience.screenHorizontalPadding,
-                            )
-                            .testTag(
+                            ).testTag(
                                 "onboarding_local_summary",
                             ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyLarge,
+                    style = MaterialTheme
+                            .typography.bodyLarge,
                 )
             }
 
             Card(
-                modifier =
-                    Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .onboarding_non_medical_summary,
+                    text = stringResource(
+                            R.string.onboarding_non_medical_summary,
                         ),
-                    modifier =
-                        Modifier
+                    modifier = Modifier
                             .padding(
                                 experience.screenHorizontalPadding,
-                            )
-                            .testTag(
+                            ).testTag(
                                 "onboarding_non_medical_summary",
                             ),
-                    style =
-                        MaterialTheme
-                            .typography
-                            .bodyLarge,
+                    style = MaterialTheme
+                            .typography.bodyLarge,
                 )
             }
 
             TextButton(
                 onClick = onOpenPrivacy,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackInteractiveControl()
+                modifier = Modifier
+                        .fillMaxWidth().carePackInteractiveControl()
                         .testTag(
                             "onboarding_open_privacy",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .onboarding_privacy_action,
+                    text = stringResource(
+                            R.string.onboarding_privacy_action,
                         ),
                 )
             }
 
             Card(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .testTag(
+                modifier = Modifier
+                        .fillMaxWidth().testTag(
                             "onboarding_simple_mode_card",
                         ),
             ) {
                 Column(
-                    modifier =
-                        Modifier.padding(
+                    modifier = Modifier.padding(
                             experience.screenHorizontalPadding,
                         ),
-                    verticalArrangement =
-                        Arrangement.spacedBy(
+                    verticalArrangement = Arrangement.spacedBy(
                             experience.itemSpacing,
                         ),
                 ) {
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .onboarding_simple_mode_title,
+                        text = stringResource(
+                                R.string.onboarding_simple_mode_title,
                             ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .titleMedium,
-                        modifier =
-                            Modifier.testTag(
+                        style = MaterialTheme
+                                .typography.titleMedium,
+                        modifier = Modifier.testTag(
                                 "onboarding_simple_mode_title",
                             ),
                     )
 
                     Text(
-                        text =
-                            stringResource(
-                                R.string
-                                    .onboarding_simple_mode_summary,
+                        text = stringResource(
+                                R.string.onboarding_simple_mode_summary,
                             ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyLarge,
-                        modifier =
-                            Modifier.testTag(
+                        style = MaterialTheme
+                                .typography.bodyLarge,
+                        modifier = Modifier.testTag(
                                 "onboarding_simple_mode_summary",
                             ),
                     )
 
                     Text(
-                        text =
-                            stringResource(
+                        text = stringResource(
                                 if (simpleModeEnabled) {
-                                    R.string
-                                        .onboarding_simple_mode_enabled
+                                    R.string.onboarding_simple_mode_enabled
                                 } else {
-                                    R.string
-                                        .onboarding_simple_mode_standard
+                                    R.string.onboarding_simple_mode_standard
                                 },
                             ),
-                        style =
-                            MaterialTheme
-                                .typography
-                                .bodyMedium,
-                        modifier =
-                            Modifier.testTag(
+                        style = MaterialTheme
+                                .typography.bodyMedium,
+                        modifier = Modifier.testTag(
                                 "onboarding_simple_mode_status",
                             ),
                     )
 
                     Button(
                         onClick = onEnableSimpleMode,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackPrimaryAction()
+                        modifier = Modifier
+                                .fillMaxWidth().carePackPrimaryAction()
                                 .testTag(
                                     "onboarding_simple_mode_enable",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .onboarding_simple_mode_enable,
+                            text = stringResource(
+                                    R.string.onboarding_simple_mode_enable,
                                 ),
                         )
                     }
 
                     OutlinedButton(
                         onClick = onKeepStandardMode,
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .carePackInteractiveControl()
+                        modifier = Modifier
+                                .fillMaxWidth().carePackInteractiveControl()
                                 .testTag(
                                     "onboarding_simple_mode_defer",
                                 ),
                     ) {
                         Text(
-                            text =
-                                stringResource(
-                                    R.string
-                                        .onboarding_simple_mode_defer,
+                            text = stringResource(
+                                    R.string.onboarding_simple_mode_defer,
                                 ),
                         )
                     }
@@ -275,27 +212,22 @@ fun OnboardingScreen(
             }
 
             Spacer(
-                modifier =
-                    Modifier.height(
+                modifier = Modifier.height(
                         experience.compactSpacing,
                     ),
             )
 
             Button(
                 onClick = onContinue,
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .carePackPrimaryAction()
+                modifier = Modifier
+                        .fillMaxWidth().carePackPrimaryAction()
                         .testTag(
                             "onboarding_continue",
                         ),
             ) {
                 Text(
-                    text =
-                        stringResource(
-                            R.string
-                                .onboarding_continue,
+                    text = stringResource(
+                            R.string.onboarding_continue,
                         ),
                 )
             }

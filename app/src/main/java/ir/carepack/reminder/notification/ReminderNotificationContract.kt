@@ -7,12 +7,9 @@ import ir.carepack.MainActivity
 
 object ReminderNotificationContract {
     const val CHANNEL_ID = "carepack_reminders"
-    const val ACTION_OPEN_OCCURRENCE =
-        "ir.carepack.action.OPEN_REMINDER_OCCURRENCE"
-    const val ACTION_OPEN_REMINDER_SETTINGS =
-        "ir.carepack.action.OPEN_REMINDER_SETTINGS"
-    const val EXTRA_OCCURRENCE_ID =
-        "ir.carepack.extra.OCCURRENCE_ID"
+    const val ACTION_OPEN_OCCURRENCE = "ir.carepack.action.OPEN_REMINDER_OCCURRENCE"
+    const val ACTION_OPEN_REMINDER_SETTINGS = "ir.carepack.action.OPEN_REMINDER_SETTINGS"
+    const val EXTRA_OCCURRENCE_ID = "ir.carepack.extra.OCCURRENCE_ID"
 
     private const val URI_SCHEME = "carepack"
     private const val URI_AUTHORITY = "reminder"
@@ -29,25 +26,19 @@ object ReminderNotificationContract {
             action = ACTION_OPEN_OCCURRENCE
             data = createOccurrenceUri(occurrenceId)
             putExtra(EXTRA_OCCURRENCE_ID, occurrenceId)
-            flags =
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
     }
 
     fun createOpenReminderSettingsIntent(
         context: Context,
-    ): Intent =
-        Intent(context, MainActivity::class.java).apply {
+    ): Intent = Intent(context, MainActivity::class.java).apply {
             action = ACTION_OPEN_REMINDER_SETTINGS
-            data =
-                Uri.Builder()
-                    .scheme(URI_SCHEME)
-                    .authority(URI_AUTHORITY)
-                    .appendPath(URI_SETTINGS_PATH)
-                    .build()
-            flags =
-                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+            data = Uri.Builder()
+                    .scheme(URI_SCHEME).authority(URI_AUTHORITY)
+                    .appendPath(URI_SETTINGS_PATH).build()
+            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or
                     Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
 
@@ -61,14 +52,10 @@ object ReminderNotificationContract {
             return null
         }
 
-        val uriOccurrenceId =
-            extractOccurrenceId(intent.data) ?: return null
-        val extraOccurrenceId =
-            intent
-                .getStringExtra(EXTRA_OCCURRENCE_ID)
-                ?.trim()
-                ?.takeIf(String::isNotEmpty)
-                ?: return null
+        val uriOccurrenceId = extractOccurrenceId(intent.data) ?: return null
+        val extraOccurrenceId = intent
+                .getStringExtra(EXTRA_OCCURRENCE_ID)?.trim()
+                ?.takeIf(String::isNotEmpty) ?: return null
 
         return uriOccurrenceId.takeIf {
             it == extraOccurrenceId
@@ -77,41 +64,32 @@ object ReminderNotificationContract {
 
     fun isOpenReminderSettingsIntent(
         intent: Intent?,
-    ): Boolean =
-        intent?.action == ACTION_OPEN_REMINDER_SETTINGS &&
-            intent.data?.scheme == URI_SCHEME &&
-            intent.data?.authority == URI_AUTHORITY &&
-            intent.data?.pathSegments ==
-            listOf(URI_SETTINGS_PATH)
+    ): Boolean = intent?.action == ACTION_OPEN_REMINDER_SETTINGS &&
+            intent.data?.scheme == URI_SCHEME && intent.data?.authority == URI_AUTHORITY &&
+            intent.data?.pathSegments == listOf(URI_SETTINGS_PATH)
 
     private fun createOccurrenceUri(
         occurrenceId: String,
-    ): Uri =
-        Uri.Builder()
-            .scheme(URI_SCHEME)
-            .authority(URI_AUTHORITY)
-            .appendPath(URI_OCCURRENCE_PATH)
-            .appendPath(occurrenceId)
+    ): Uri = Uri.Builder()
+            .scheme(URI_SCHEME).authority(URI_AUTHORITY)
+            .appendPath(URI_OCCURRENCE_PATH).appendPath(occurrenceId)
             .build()
 
     private fun extractOccurrenceId(uri: Uri?): String? {
         if (
-            uri?.scheme != URI_SCHEME ||
-            uri.authority != URI_AUTHORITY
+            uri?.scheme != URI_SCHEME || uri.authority != URI_AUTHORITY
         ) {
             return null
         }
 
         val pathSegments = uri.pathSegments
         if (
-            pathSegments.size != 2 ||
-            pathSegments[0] != URI_OCCURRENCE_PATH
+            pathSegments.size != 2 || pathSegments[0] != URI_OCCURRENCE_PATH
         ) {
             return null
         }
 
-        return pathSegments[1]
-            .trim()
+        return pathSegments[1].trim()
             .takeIf(String::isNotEmpty)
     }
 

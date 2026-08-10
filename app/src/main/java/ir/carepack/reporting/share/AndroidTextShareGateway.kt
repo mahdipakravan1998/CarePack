@@ -21,23 +21,20 @@ fun interface ClipboardWriter {
 class AndroidClipboardWriter(
     context: Context,
 ) : ClipboardWriter {
-    private val applicationContext =
-        context.applicationContext
+    private val applicationContext = context.applicationContext
 
     override fun write(
         label: String,
         text: String,
     ): Boolean {
-        val clipboardManager =
-            applicationContext.getSystemService(
+        val clipboardManager = applicationContext.getSystemService(
                 ClipboardManager::class.java,
             ) ?: return false
 
         val clipData = ClipData.newPlainText(label, text)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            clipData.description.extras =
-                PersistableBundle().apply {
+            clipData.description.extras = PersistableBundle().apply {
                     putBoolean(
                         ClipDescription.EXTRA_IS_SENSITIVE,
                         true,
@@ -60,10 +57,8 @@ class AndroidClipboardWriter(
 
 class AndroidTextShareGateway(
     context: Context,
-    private val externalIntentLauncher: ExternalIntentLauncher =
-        AndroidExternalIntentLauncher(context),
-    private val clipboardWriter: ClipboardWriter =
-        AndroidClipboardWriter(context),
+    private val externalIntentLauncher: ExternalIntentLauncher = AndroidExternalIntentLauncher(context),
+    private val clipboardWriter: ClipboardWriter = AndroidClipboardWriter(context),
 ) : TextShareGateway {
 
     override fun share(
@@ -74,14 +69,12 @@ class AndroidTextShareGateway(
             return ShareTextResult.InvalidText
         }
 
-        val sendIntent =
-            Intent(Intent.ACTION_SEND).apply {
+        val sendIntent = Intent(Intent.ACTION_SEND).apply {
                 type = MIME_TYPE_TEXT
                 putExtra(Intent.EXTRA_TEXT, text)
             }
 
-        val chooserIntent =
-            Intent.createChooser(
+        val chooserIntent = Intent.createChooser(
                 sendIntent,
                 descriptor.chooserTitle,
             )
@@ -108,8 +101,7 @@ class AndroidTextShareGateway(
             clipboardWriter.write(
                 label = descriptor.clipboardLabel,
                 text = text,
-            )
-        ) {
+            )) {
             CopyTextResult.Copied
         } else {
             CopyTextResult.Blocked

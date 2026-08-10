@@ -2,8 +2,7 @@ package ir.carepack.domain.reminder
 
 interface ReminderCoordinator {
 
-    suspend fun currentStatus():
-            ReminderStatus
+    suspend fun currentStatus(): ReminderStatus
 
     suspend fun reconcile(
         reason: ReconciliationReason,
@@ -16,8 +15,7 @@ interface ReminderCoordinator {
     suspend fun remindLater(
         occurrenceId: String,
         delayMinutes: Long = DEFAULT_REMIND_LATER_MINUTES,
-    ): RemindLaterOutcome =
-        RemindLaterOutcome.SchedulingFailed
+    ): RemindLaterOutcome = RemindLaterOutcome.SchedulingFailed
 
     suspend fun cancelReminderDelay(
         occurrenceId: String,
@@ -28,7 +26,6 @@ interface ReminderCoordinator {
     suspend fun cancelAllOwnedReminderState()
 
     companion object {
-        const val DEFAULT_REMIND_LATER_MINUTES =
-            10L
+        const val DEFAULT_REMIND_LATER_MINUTES = 10L
     }
 }

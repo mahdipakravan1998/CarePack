@@ -1,50 +1,11 @@
 package ir.carepack.feature.setup
 
-import android.Manifest
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
+import ir.carepack.ui.viewmodel.carePackViewModelFactory
+
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.calendar.FirstDayOfWeekPolicy
@@ -56,43 +17,24 @@ import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
 import ir.carepack.domain.careplan.CreateMedicationScheduleOutcome
 import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
-import ir.carepack.domain.reminder.ManufacturerGuidance
-import ir.carepack.domain.reminder.ManufacturerGuidanceClassifier
-import ir.carepack.reminder.permission.AndroidBatteryOptimizationGateway
-import ir.carepack.reminder.permission.AndroidExactAlarmCapabilityGateway
-import ir.carepack.reminder.permission.AndroidNotificationPermissionGateway
 import ir.carepack.reminder.permission.BatteryOptimizationState
-import ir.carepack.feature.careplan.MedicationTextFields
-import ir.carepack.feature.careplan.ScheduleFormCallbacks
-import ir.carepack.feature.careplan.ScheduleFormFields
+import ir.carepack.feature.careplan.MedicationTextDraft
 import ir.carepack.feature.careplan.ScheduleFormUiState
+import ir.carepack.feature.careplan.ScheduleFormEditor
+import ir.carepack.feature.careplan.ScheduleFormUpdate
+import ir.carepack.feature.careplan.SchedulePreviewTimestampPolicy
 import ir.carepack.feature.careplan.ScheduleInputMode
-import ir.carepack.feature.careplan.addDraftTime
 import ir.carepack.feature.careplan.clearErrors
 import ir.carepack.feature.careplan.effectiveMinutesOfDay
 import ir.carepack.feature.careplan.parseDates
 import ir.carepack.feature.careplan.removeTime
 import ir.carepack.feature.careplan.toFieldErrors
-import ir.carepack.feature.careplan.toHourMinuteText
-import ir.carepack.feature.careplan.toMinuteOfDay
 import ir.carepack.feature.careplan.toSchedulePattern
 import ir.carepack.feature.careplan.toggleWeekday
 import ir.carepack.feature.careplan.withDateErrors
-import ir.carepack.feature.careplan.withEndDate
-import ir.carepack.feature.careplan.withInputMode
-import ir.carepack.feature.careplan.withIntervalAnchorDraft
-import ir.carepack.feature.careplan.withIntervalHours
 import ir.carepack.feature.careplan.withIntervalHoursDefault
 import ir.carepack.feature.careplan.withPreviewEffectiveFrom
-import ir.carepack.feature.careplan.withStartDate
-import ir.carepack.feature.careplan.withTimeDraft
 import ir.carepack.feature.careplan.withValidationErrors
-import ir.carepack.ui.accessibility.carePackHeading
-import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
-import ir.carepack.ui.accessibility.carePackPrimaryAction
-import ir.carepack.ui.experience.CarePackExperience
-import ir.carepack.ui.experience.LocalCarePackExperience
-import ir.carepack.ui.experience.carePackExperience
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.Instant
@@ -107,11 +49,7 @@ import kotlinx.coroutines.launch
 
 
 data class MedicationScheduleUiState(
-    val medicationName: String = "",
-    val instruction: String = "",
-    val medicationType: String = "",
-    val dosageText: String = "",
-    val doseUnit: String = "",
+    val medication: MedicationTextDraft = MedicationTextDraft(),
     val schedule: ScheduleFormUiState,
     val firstDayOfWeek: DayOfWeek = DayOfWeek.MONDAY,
     val previewAnchorDate: LocalDate = LocalDate.now(),
@@ -132,8 +70,7 @@ data class FirstSetupReminderReadinessUiState(
     val notificationPermissionCanBeRequested: Boolean = true,
     val exactAlarmRelevant: Boolean = true,
     val exactAlarmAvailable: Boolean = false,
-    val batteryOptimizationState:
-    BatteryOptimizationState =
+    val batteryOptimizationState: BatteryOptimizationState =
         BatteryOptimizationState.UNKNOWN,
     val manufacturer: String? = null,
 )
@@ -154,70 +91,57 @@ private sealed interface MedicationScheduleMode {
 class MedicationScheduleViewModel private constructor(
     private val mode: MedicationScheduleMode,
     private val carePlanService: CarePlanService,
-    private val setupPreferenceStore:
-    SetupPreferenceStore,
-    private val userExperiencePreferenceStore:
-    UserExperiencePreferenceStore,
+    private val setupPreferenceStore: SetupPreferenceStore,
+    private val userExperiencePreferenceStore: UserExperiencePreferenceStore,
     private val clock: Clock,
     private val zoneProvider: ZoneProvider,
 ) : ViewModel() {
 
-    private val currentZone =
-        zoneProvider.currentZone()
+    private val scheduleEditor = ScheduleFormEditor(
+            clock = clock,
+            zoneProvider = zoneProvider,
+            previewTimestampPolicy = SchedulePreviewTimestampPolicy.FRESH_CLOCK_READ,
+        )
 
-    private val mutableState =
-        MutableStateFlow(
+    private val currentZone = scheduleEditor.currentZone
+
+    private val mutableState = MutableStateFlow(
             MedicationScheduleUiState(
-                schedule =
-                    ScheduleFormUiState(
-                        weekdays =
-                            DayOfWeek.entries.toSet(),
-                        minutesOfDay =
-                            emptyList(),
+                schedule = ScheduleFormUiState(
+                        weekdays = DayOfWeek.entries.toSet(),
+                        minutesOfDay = emptyList(),
                         timeDraft = "",
                         startDateText = "",
                         endDateText = "",
-                        zoneId =
-                            currentZone.id,
-                        previewEffectiveFrom =
-                            currentEffectiveFrom(),
+                        zoneId = currentZone.id,
+                        previewEffectiveFrom = currentEffectiveFrom(),
                     ).withIntervalHoursDefault(),
-                previewAnchorDate =
-                    currentPreviewDate(),
-                isAddScheduleOnly =
-                    mode is MedicationScheduleMode
+                previewAnchorDate = currentPreviewDate(),
+                isAddScheduleOnly = mode is MedicationScheduleMode
                     .AddSchedule,
-                showInitialReminderGuidance =
-                    mode is MedicationScheduleMode
+                showInitialReminderGuidance = mode is MedicationScheduleMode
                     .CreateMedication,
             ),
         )
 
-    val state =
-        mutableState.asStateFlow()
+    val state = mutableState.asStateFlow()
 
 
     init {
         viewModelScope.launch {
-            userExperiencePreferenceStore
-                .state
+            userExperiencePreferenceStore.state
                 .collect { preferenceState ->
                     mutableState.update {
                             currentState ->
                         currentState.copy(
-                            firstDayOfWeek =
-                                FirstDayOfWeekPolicy
+                            firstDayOfWeek = FirstDayOfWeekPolicy
                                     .resolve(
-                                        preference =
-                                            preferenceState
+                                        preference = preferenceState
                                                 .firstDayOfWeekPreference,
-                                        zoneId =
-                                            currentZone,
-                                        locale =
-                                            Locale.getDefault(),
+                                        zoneId = currentZone,
+                                        locale = Locale.getDefault(),
                                     ),
-                            seniorMode =
-                                preferenceState
+                            seniorMode = preferenceState
                                     .seniorMode,
                         )
                     }
@@ -228,95 +152,38 @@ class MedicationScheduleViewModel private constructor(
     fun onMedicationNameChanged(
         value: String,
     ) {
-        mutableState.update {
-                currentState ->
-            currentState.copy(
-                medicationName = value,
-                medicationErrors =
-                    currentState
-                        .medicationErrors -
-                            CarePlanField
-                                .MEDICATION_NAME,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.MEDICATION_NAME, value)
     }
 
     fun onInstructionChanged(
         value: String,
     ) {
-        mutableState.update {
-                currentState ->
-            currentState.copy(
-                instruction = value,
-                medicationErrors =
-                    currentState
-                        .medicationErrors -
-                            CarePlanField
-                                .INSTRUCTION,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.INSTRUCTION, value)
     }
 
     fun onMedicationTypeChanged(
         value: String,
     ) {
-        mutableState.update {
-                currentState ->
-            currentState.copy(
-                medicationType = value,
-                medicationErrors =
-                    currentState
-                        .medicationErrors -
-                            CarePlanField
-                                .MEDICATION_TYPE,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.MEDICATION_TYPE, value)
     }
 
     fun onDosageTextChanged(
         value: String,
     ) {
-        mutableState.update {
-                currentState ->
-            currentState.copy(
-                dosageText = value,
-                medicationErrors =
-                    currentState
-                        .medicationErrors -
-                            CarePlanField
-                                .DOSAGE_TEXT,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.DOSAGE_TEXT, value)
     }
 
     fun onDoseUnitChanged(
         value: String,
     ) {
-        mutableState.update {
-                currentState ->
-            currentState.copy(
-                doseUnit = value,
-                medicationErrors =
-                    currentState
-                        .medicationErrors -
-                            CarePlanField
-                                .DOSE_UNIT,
-                generalError = null,
-            )
-        }
+        updateMedicationField(CarePlanField.DOSE_UNIT, value)
     }
 
     fun onWeekdayToggled(
         dayOfWeek: DayOfWeek,
     ) {
         updateSchedule {
-            it.toggleWeekday(
-                dayOfWeek,
-            )
+            scheduleEditor.toggleWeekday(it, dayOfWeek)
         }
     }
 
@@ -324,9 +191,7 @@ class MedicationScheduleViewModel private constructor(
         mode: ScheduleInputMode,
     ) {
         updateSchedule {
-            it.withInputMode(
-                mode,
-            )
+            scheduleEditor.selectInputMode(it, mode)
         }
     }
 
@@ -334,15 +199,13 @@ class MedicationScheduleViewModel private constructor(
         value: String,
     ) {
         updateSchedule {
-            it.withTimeDraft(
-                value,
-            )
+            scheduleEditor.changeTimeDraft(it, value)
         }
     }
 
     fun addTime() {
         updateSchedule {
-            it.addDraftTime()
+            scheduleEditor.addTime(it)
         }
     }
 
@@ -350,9 +213,7 @@ class MedicationScheduleViewModel private constructor(
         minuteOfDay: Int,
     ) {
         updateSchedule {
-            it.removeTime(
-                minuteOfDay,
-            )
+            scheduleEditor.removeTime(it, minuteOfDay)
         }
     }
 
@@ -360,9 +221,7 @@ class MedicationScheduleViewModel private constructor(
         hours: Int,
     ) {
         updateSchedule {
-            it.withIntervalHours(
-                hours,
-            )
+            scheduleEditor.selectIntervalHours(it, hours)
         }
     }
 
@@ -370,9 +229,7 @@ class MedicationScheduleViewModel private constructor(
         value: String,
     ) {
         updateSchedule {
-            it.withIntervalAnchorDraft(
-                value,
-            )
+            scheduleEditor.changeIntervalAnchor(it, value)
         }
     }
 
@@ -380,9 +237,7 @@ class MedicationScheduleViewModel private constructor(
         value: String,
     ) {
         updateSchedule {
-            it.withStartDate(
-                value,
-            )
+            scheduleEditor.changeStartDate(it, value)
         }
     }
 
@@ -390,9 +245,7 @@ class MedicationScheduleViewModel private constructor(
         value: String,
     ) {
         updateSchedule {
-            it.withEndDate(
-                value,
-            )
+            scheduleEditor.changeEndDate(it, value)
         }
     }
 
@@ -400,8 +253,7 @@ class MedicationScheduleViewModel private constructor(
         mutableState.update {
                 state ->
             state.copy(
-                showInitialReminderGuidance =
-                    false,
+                showInitialReminderGuidance = false,
             )
         }
     }
@@ -431,37 +283,29 @@ class MedicationScheduleViewModel private constructor(
         }
     }
     fun save() {
-        val effectiveFrom =
-            currentEffectiveFrom()
+        val effectiveFrom = currentEffectiveFrom()
 
         mutableState.update { current ->
             current.copy(
-                schedule =
-                    current.schedule
+                schedule = current.schedule
                         .withPreviewEffectiveFrom(
                             effectiveFrom,
                         ),
-                previewAnchorDate =
-                    effectiveFrom
+                previewAnchorDate = effectiveFrom
                         .atZone(
                             currentZone,
-                        )
-                        .toLocalDate(),
+                        ).toLocalDate(),
             )
         }
-        val current =
-            mutableState.value
+        val current = mutableState.value
 
-        val pendingTimeError =
-            current.schedule.errors[
-                CarePlanField.TIMES
-            ]
+        val pendingTimeError = current.schedule.errors[
+                CarePlanField.TIMES]
 
         if (pendingTimeError != null) {
             mutableState.update { state ->
                 state.copy(
-                    generalError =
-                        pendingTimeError,
+                    generalError = pendingTimeError,
                 )
             }
 
@@ -472,25 +316,18 @@ class MedicationScheduleViewModel private constructor(
             return
         }
 
-        val parsedDates =
-            current
-                .schedule
-                .parseDates()
+        val parsedDates = current
+                .schedule.parseDates()
 
         if (
-            parsedDates
-                .errors
-                .isNotEmpty()
-        ) {
+            parsedDates.errors
+                .isNotEmpty()) {
             mutableState.update {
                     state ->
                 state.copy(
-                    schedule =
-                        state
-                            .schedule
-                            .withDateErrors(
-                                parsedDates
-                                    .errors,
+                    schedule = state
+                            .schedule.withDateErrors(
+                                parsedDates.errors,
                             ),
                 )
             }
@@ -504,51 +341,36 @@ class MedicationScheduleViewModel private constructor(
                 state.copy(
                     isSaving = true,
                     generalError = null,
-                    schedule =
-                        state
-                            .schedule
-                            .clearErrors()
+                    schedule = state
+                            .schedule.clearErrors()
                             .withPreviewEffectiveFrom(
                                 currentEffectiveFrom(),
                             ),
-                    previewAnchorDate =
-                        currentPreviewDate(),
+                    previewAnchorDate = currentPreviewDate(),
                 )
             }
 
             try {
-                val latest =
-                    mutableState.value
+                val latest = mutableState.value
 
                 when (
-                    val currentMode =
-                        mode
+                    val currentMode = mode
                 ) {
-                    is MedicationScheduleMode
-                    .CreateMedication -> {
+                    is MedicationScheduleMode.CreateMedication -> {
                         saveMedicationAndSchedule(
-                            mode =
-                                currentMode,
-                            latest =
-                                latest,
-                            startDate =
-                                parsedDates.startDate,
-                            endDate =
-                                parsedDates.endDate,
+                            mode = currentMode,
+                            latest = latest,
+                            startDate = parsedDates.startDate,
+                            endDate = parsedDates.endDate,
                         )
                     }
 
-                    is MedicationScheduleMode
-                    .AddSchedule -> {
+                    is MedicationScheduleMode.AddSchedule -> {
                         saveAdditionalSchedule(
-                            mode =
-                                currentMode,
-                            latest =
-                                latest,
-                            startDate =
-                                parsedDates.startDate,
-                            endDate =
-                                parsedDates.endDate,
+                            mode = currentMode,
+                            latest = latest,
+                            startDate = parsedDates.startDate,
+                            endDate = parsedDates.endDate,
                         )
                     }
                 }
@@ -577,68 +399,45 @@ class MedicationScheduleViewModel private constructor(
         startDate: LocalDate?,
         endDate: LocalDate?,
     ) {
-        val outcome =
-            carePlanService
+        val outcome = carePlanService
                 .createMedicationAndSchedule(
                     CreateMedicationScheduleCommand(
-                        recipientId =
-                            mode.recipientId,
-                        medicationName =
-                            latest.medicationName,
-                        instruction =
-                            latest.instruction,
-                        weekdays =
-                            latest
-                                .schedule
-                                .weekdays,
-                        minutesOfDay =
-                            latest
-                                .schedule
-                                .effectiveMinutesOfDay(),
-                        schedulePattern =
-                            latest
-                                .schedule
-                                .toSchedulePattern(),
-                        startDate =
-                            startDate,
-                        endDate =
-                            endDate,
-                        zoneId =
-                            latest
-                                .schedule
-                                .zoneId,
-                        medicationType =
-                            latest.medicationType,
-                        dosageText =
-                            latest.dosageText,
-                        doseUnit =
-                            latest.doseUnit,
+                        recipientId = mode.recipientId,
+                        medicationName = latest.medication.medicationName,
+                        instruction = latest.medication.instruction,
+                        weekdays = latest
+                                .schedule.weekdays,
+                        minutesOfDay = latest
+                                .schedule.effectiveMinutesOfDay(),
+                        schedulePattern = latest
+                                .schedule.toSchedulePattern(),
+                        startDate = startDate,
+                        endDate = endDate,
+                        zoneId = latest
+                                .schedule.zoneId,
+                        medicationType = latest.medication.medicationType,
+                        dosageText = latest.medication.dosageText,
+                        doseUnit = latest.medication.doseUnit,
                     ),
                 )
 
         when (outcome) {
             is CreateMedicationScheduleOutcome.Created -> {
                 if (mode.completeInitialSetup) {
-                    setupPreferenceStore
-                        .markSetupComplete()
+                    setupPreferenceStore.markSetupComplete()
 
-                    val seniorMode =
-                        userExperiencePreferenceStore
-                            .state
-                            .first()
+                    val seniorMode = userExperiencePreferenceStore
+                            .state.first()
                             .seniorMode
 
                     if (
-                        seniorMode ==
-                        SeniorMode.STANDARD
+                        seniorMode == SeniorMode.STANDARD
                     ) {
                         mutableState.update {
                                 state ->
                             state.copy(
-                                seniorMode =
-                                    seniorMode,
-                                showPostSetupSimpleModeSuggestion =
-                                    true,
+                                seniorMode = seniorMode,
+                                showPostSetupSimpleModeSuggestion = true,
                             )
                         }
 
@@ -649,18 +448,15 @@ class MedicationScheduleViewModel private constructor(
                 requestCompletion()
             }
 
-            CreateMedicationScheduleOutcome
-                .RecipientNotFound -> {
+            CreateMedicationScheduleOutcome.RecipientNotFound -> {
                 showGeneralError(
                     "فرد تحت مراقبت پیدا نشد.",
                 )
             }
 
-            is CreateMedicationScheduleOutcome
-            .Invalid -> {
+            is CreateMedicationScheduleOutcome.Invalid -> {
                 applyValidationErrors(
-                    outcome
-                        .errors
+                    outcome.errors
                         .toFieldErrors(),
                 )
             }
@@ -673,31 +469,19 @@ class MedicationScheduleViewModel private constructor(
         startDate: LocalDate?,
         endDate: LocalDate?,
     ) {
-        val outcome =
-            carePlanService.addSchedule(
+        val outcome = carePlanService.addSchedule(
                 AddScheduleCommand(
-                    medicationId =
-                        mode.medicationId,
-                    weekdays =
-                        latest
-                            .schedule
-                            .weekdays,
-                    minutesOfDay =
-                        latest
-                            .schedule
-                            .effectiveMinutesOfDay(),
-                    schedulePattern =
-                        latest
-                            .schedule
-                            .toSchedulePattern(),
-                    startDate =
-                        startDate,
-                    endDate =
-                        endDate,
-                    zoneId =
-                        latest
-                            .schedule
-                            .zoneId,
+                    medicationId = mode.medicationId,
+                    weekdays = latest
+                            .schedule.weekdays,
+                    minutesOfDay = latest
+                            .schedule.effectiveMinutesOfDay(),
+                    schedulePattern = latest
+                            .schedule.toSchedulePattern(),
+                    startDate = startDate,
+                    endDate = endDate,
+                    zoneId = latest
+                            .schedule.zoneId,
                 ),
             )
 
@@ -720,8 +504,7 @@ class MedicationScheduleViewModel private constructor(
 
             is AddScheduleOutcome.Invalid -> {
                 applyValidationErrors(
-                    outcome
-                        .errors
+                    outcome.errors
                         .toFieldErrors(),
                 )
             }
@@ -744,8 +527,7 @@ class MedicationScheduleViewModel private constructor(
             }
 
             try {
-                userExperiencePreferenceStore
-                    .setSeniorMode(seniorMode)
+                userExperiencePreferenceStore.setSeniorMode(seniorMode)
 
                 mutableState.update { state ->
                     state.copy(
@@ -762,8 +544,7 @@ class MedicationScheduleViewModel private constructor(
             } catch (_: Exception) {
                 mutableState.update { state ->
                     state.copy(
-                        generalError =
-                            "ذخیره حالت نمایش انجام نشد. دوباره تلاش کنید.",
+                        generalError = "ذخیره حالت نمایش انجام نشد. دوباره تلاش کنید.",
                     )
                 }
             } finally {
@@ -791,54 +572,39 @@ class MedicationScheduleViewModel private constructor(
         mutableState.update {
                 state ->
             state.copy(
-                generalError =
-                    errors.values.firstOrNull(),
-                medicationErrors =
-                    if (state.isAddScheduleOnly) {
+                generalError = errors.values.firstOrNull(),
+                medicationErrors = if (state.isAddScheduleOnly) {
                         emptyMap()
                     } else {
                         errors.filterKeys {
                                 field ->
-                            field ==
-                                    CarePlanField
-                                        .MEDICATION_NAME ||
-                                    field ==
-                                    CarePlanField
-                                        .INSTRUCTION
+                            field == CarePlanField
+                                        .MEDICATION_NAME || field ==
+                                    CarePlanField.INSTRUCTION
                         }
                     },
-                schedule =
-                    state
-                        .schedule
-                        .withValidationErrors(
+                schedule = state
+                        .schedule.withValidationErrors(
                             errors,
-                        )
-                        .withPreviewEffectiveFrom(
+                        ).withPreviewEffectiveFrom(
                             currentEffectiveFrom(),
                         ),
-                previewAnchorDate =
-                    currentPreviewDate(),
+                previewAnchorDate = currentPreviewDate(),
             )
         }
     }
 
     private fun updateSchedule(
-        transform:
-            (
+        transform: (
             ScheduleFormUiState,
-        ) -> ScheduleFormUiState,
+        ) -> ScheduleFormUpdate,
     ) {
         mutableState.update {
                 state ->
+            val update = transform(state.schedule)
             state.copy(
-                schedule =
-                    transform(
-                        state.schedule,
-                    ).withPreviewEffectiveFrom(
-                        currentEffectiveFrom(),
-                    ),
-                previewAnchorDate =
-                    currentPreviewDate(),
+                schedule = update.schedule,
+                previewAnchorDate = update.previewAnchorDate,
                 generalError = null,
             )
         }
@@ -855,87 +621,69 @@ class MedicationScheduleViewModel private constructor(
         }
     }
 
-    private fun currentEffectiveFrom():
-            Instant =
-        clock.instant()
-
-    private fun currentPreviewDate():
-            LocalDate =
-        currentEffectiveFrom()
-            .atZone(
-                currentZone,
+    private fun updateMedicationField(
+        field: CarePlanField,
+        value: String,
+    ) {
+        mutableState.update { current ->
+            current.copy(
+                medication = current.medication.withField(field, value),
+                medicationErrors = current.medicationErrors - field,
+                generalError = null,
             )
-            .toLocalDate()
+        }
+    }
+
+    private fun currentEffectiveFrom(): Instant =
+        scheduleEditor.currentEffectiveFrom()
+
+    private fun currentPreviewDate(): LocalDate =
+        scheduleEditor.currentPreviewDate()
 
     companion object {
 
         fun factory(
             recipientId: String,
-            carePlanService:
-            CarePlanService,
-            setupPreferenceStore:
-            SetupPreferenceStore,
-            userExperiencePreferenceStore:
-            UserExperiencePreferenceStore,
+            carePlanService: CarePlanService,
+            setupPreferenceStore: SetupPreferenceStore,
+            userExperiencePreferenceStore: UserExperiencePreferenceStore,
             completeInitialSetup: Boolean,
             clock: Clock,
             zoneProvider: ZoneProvider,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     MedicationScheduleViewModel(
-                        mode =
-                            MedicationScheduleMode
+                        mode = MedicationScheduleMode
                                 .CreateMedication(
-                                    recipientId =
-                                        recipientId,
-                                    completeInitialSetup =
-                                        completeInitialSetup,
+                                    recipientId = recipientId,
+                                    completeInitialSetup = completeInitialSetup,
                                 ),
-                        carePlanService =
-                            carePlanService,
-                        setupPreferenceStore =
-                            setupPreferenceStore,
-                        userExperiencePreferenceStore =
-                            userExperiencePreferenceStore,
+                        carePlanService = carePlanService,
+                        setupPreferenceStore = setupPreferenceStore,
+                        userExperiencePreferenceStore = userExperiencePreferenceStore,
                         clock = clock,
-                        zoneProvider =
-                            zoneProvider,
+                        zoneProvider = zoneProvider,
                     )
-                }
             }
 
         fun addScheduleFactory(
             medicationId: String,
-            carePlanService:
-            CarePlanService,
-            setupPreferenceStore:
-            SetupPreferenceStore,
-            userExperiencePreferenceStore:
-            UserExperiencePreferenceStore,
+            carePlanService: CarePlanService,
+            setupPreferenceStore: SetupPreferenceStore,
+            userExperiencePreferenceStore: UserExperiencePreferenceStore,
             clock: Clock,
             zoneProvider: ZoneProvider,
-        ): ViewModelProvider.Factory =
-            viewModelFactory {
-                initializer {
+        ): ViewModelProvider.Factory = carePackViewModelFactory {
                     MedicationScheduleViewModel(
-                        mode =
-                            MedicationScheduleMode
+                        mode = MedicationScheduleMode
                                 .AddSchedule(
-                                    medicationId =
-                                        medicationId,
+                                    medicationId = medicationId,
                                 ),
-                        carePlanService =
-                            carePlanService,
-                        setupPreferenceStore =
-                            setupPreferenceStore,
-                        userExperiencePreferenceStore =
-                            userExperiencePreferenceStore,
+                        carePlanService = carePlanService,
+                        setupPreferenceStore = setupPreferenceStore,
+                        userExperiencePreferenceStore = userExperiencePreferenceStore,
                         clock = clock,
-                        zoneProvider =
-                            zoneProvider,
+                        zoneProvider = zoneProvider,
                     )
-                }
             }
     }
 }

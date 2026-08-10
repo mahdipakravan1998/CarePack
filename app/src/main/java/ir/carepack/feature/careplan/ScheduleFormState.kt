@@ -1,5 +1,6 @@
 package ir.carepack.feature.careplan
 
+import ir.carepack.core.text.normalizePersianAndArabicDigits
 import ir.carepack.domain.calendar.JalaliPresentationDate
 import ir.carepack.domain.careplan.CarePlanField
 import ir.carepack.domain.careplan.CarePlanValidation
@@ -53,76 +54,58 @@ internal data class ParsedScheduleDates(
 internal fun ScheduleFormUiState.toggleWeekday(
     day: DayOfWeek,
 ): ScheduleFormUiState {
-    val updatedWeekdays =
-        weekdays.toMutableSet()
+    val updatedWeekdays = weekdays.toMutableSet()
 
     if (!updatedWeekdays.add(day)) {
         updatedWeekdays.remove(day)
     }
 
     return copy(
-        weekdays =
-            updatedWeekdays,
-        errors =
-            errors -
+        weekdays = updatedWeekdays,
+        errors = errors -
                     CarePlanField.WEEKDAYS,
     )
 }
 
 internal fun ScheduleFormUiState.withInputMode(
     mode: ScheduleInputMode,
-): ScheduleFormUiState =
-    copy(
+): ScheduleFormUiState = copy(
         inputMode = mode,
-        errors =
-            errors -
+        errors = errors -
                     CarePlanField.TIMES,
     )
 
 internal fun ScheduleFormUiState.withTimeDraft(
     value: String,
-): ScheduleFormUiState =
-    copy(
+): ScheduleFormUiState = copy(
         timeDraft = value,
-        errors =
-            errors -
+        errors = errors -
                     CarePlanField.TIMES,
     )
 
-internal fun ScheduleFormUiState.addDraftTime():
-        ScheduleFormUiState =
+internal fun ScheduleFormUiState.addDraftTime(): ScheduleFormUiState =
     when (
-        val result =
-            CarePlanValidation
+        val result = CarePlanValidation
                 .validateScheduleTime(
-                    rawValue =
-                        timeDraft,
-                    existingMinutesOfDay =
-                        minutesOfDay,
-                )
-    ) {
+                    rawValue = timeDraft,
+                    existingMinutesOfDay = minutesOfDay,
+                )) {
         is ValidationResult.Valid -> {
             copy(
-                minutesOfDay =
-                    (
-                            minutesOfDay +
-                                    result.value
-                            )
-                        .distinct()
+                minutesOfDay = (
+                            minutesOfDay + result.value
+                            ).distinct()
                         .sorted(),
                 timeDraft = "",
-                errors =
-                    errors -
+                errors = errors -
                             CarePlanField.TIMES,
             )
         }
 
         is ValidationResult.Invalid -> {
             copy(
-                errors =
-                    errors +
-                            result
-                                .errors
+                errors = errors +
+                            result.errors
                                 .toFieldErrors(),
             )
         }
@@ -130,35 +113,26 @@ internal fun ScheduleFormUiState.addDraftTime():
 
 internal fun ScheduleFormUiState.removeTime(
     minuteOfDay: Int,
-): ScheduleFormUiState =
-    copy(
-        minutesOfDay =
-            minutesOfDay -
+): ScheduleFormUiState = copy(
+        minutesOfDay = minutesOfDay -
                     minuteOfDay,
-        errors =
-            errors -
+        errors = errors -
                     CarePlanField.TIMES,
     )
 
 internal fun ScheduleFormUiState.withIntervalHours(
     hours: Int,
-): ScheduleFormUiState =
-    copy(
+): ScheduleFormUiState = copy(
         intervalHours = hours,
-        errors =
-            errors -
+        errors = errors -
                     CarePlanField.TIMES,
     )
 
-internal fun ScheduleFormUiState.withIntervalHoursDefault():
-        ScheduleFormUiState =
+internal fun ScheduleFormUiState.withIntervalHoursDefault(): ScheduleFormUiState =
     copy(
-        intervalHours =
-            if (
-                intervalHours in
-                SchedulePatternRules
-                    .allowedIntervalHours
-            ) {
+        intervalHours = if (
+                intervalHours in SchedulePatternRules
+                    .allowedIntervalHours) {
                 intervalHours
             } else {
                 DEFAULT_INTERVAL_HOURS
@@ -167,176 +141,131 @@ internal fun ScheduleFormUiState.withIntervalHoursDefault():
 
 internal fun ScheduleFormUiState.withIntervalAnchorDraft(
     value: String,
-): ScheduleFormUiState =
-    copy(
-        intervalAnchorDraft =
-            value.keepHourMinuteDraftCharacters(),
-        errors =
-            errors -
+): ScheduleFormUiState = copy(
+        intervalAnchorDraft = value.keepHourMinuteDraftCharacters(),
+        errors = errors -
                     CarePlanField.TIMES,
     )
 
 internal fun ScheduleFormUiState.withStartDate(
     value: String,
-): ScheduleFormUiState =
-    copy(
-        startDateText =
-            value.keepDateDraftCharacters(),
-        errors =
-            errors -
+): ScheduleFormUiState = copy(
+        startDateText = value.keepDateDraftCharacters(),
+        errors = errors -
                     CarePlanField.START_DATE,
     )
 
 internal fun ScheduleFormUiState.withEndDate(
     value: String,
-): ScheduleFormUiState =
-    copy(
-        endDateText =
-            value.keepDateDraftCharacters(),
-        errors =
-            errors -
+): ScheduleFormUiState = copy(
+        endDateText = value.keepDateDraftCharacters(),
+        errors = errors -
                     CarePlanField.END_DATE,
     )
 
 internal fun ScheduleFormUiState.withStartDate(
     value: LocalDate?,
-): ScheduleFormUiState =
-    withStartDate(
-        value
-            ?.toJalaliDateText()
+): ScheduleFormUiState = withStartDate(
+        value?.toJalaliDateText()
             .orEmpty(),
     )
 
 internal fun ScheduleFormUiState.withEndDate(
     value: LocalDate?,
-): ScheduleFormUiState =
-    withEndDate(
-        value
-            ?.toJalaliDateText()
+): ScheduleFormUiState = withEndDate(
+        value?.toJalaliDateText()
             .orEmpty(),
     )
 
-internal fun ScheduleFormUiState.startDateSelection():
-        LocalDate? =
+internal fun ScheduleFormUiState.startDateSelection(): LocalDate? =
     parseDateSelection(
         startDateText,
     )
 
-internal fun ScheduleFormUiState.endDateSelection():
-        LocalDate? =
+internal fun ScheduleFormUiState.endDateSelection(): LocalDate? =
     parseDateSelection(
         endDateText,
     )
 
-internal fun ScheduleFormUiState.parseDates():
-        ParsedScheduleDates {
-    val result =
-        CarePlanValidation
+internal fun ScheduleFormUiState.parseDates(): ParsedScheduleDates {
+    val result = CarePlanValidation
             .parseScheduleDates(
-                rawStartDate =
-                    startDateText,
-                rawEndDate =
-                    endDateText,
+                rawStartDate = startDateText,
+                rawEndDate = endDateText,
             )
 
-    val value =
-        result.valueOrNull()
+    val value = result.valueOrNull()
 
-    val dateErrors =
-        result
-            .errorsOrEmpty()
-            .toFieldErrors()
+    val dateErrors = result
+            .errorsOrEmpty().toFieldErrors()
             .toMutableMap()
 
     if (
-        value?.startDate != null &&
-        value.endDate != null &&
+        value?.startDate != null && value.endDate != null &&
         value.startDate.isAfter(
             value.endDate,
-        )
-    ) {
-        dateErrors[CarePlanField.END_DATE] =
-            "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."
+        )) {
+        dateErrors[CarePlanField.END_DATE] = "تاریخ پایان نمی‌تواند قبل از تاریخ شروع باشد."
     }
 
     return ParsedScheduleDates(
-        startDate =
-            value?.startDate,
-        endDate =
-            value?.endDate,
-        errors =
-            dateErrors,
+        startDate = value?.startDate,
+        endDate = value?.endDate,
+        errors = dateErrors,
     )
 }
 
 internal fun ScheduleFormUiState.withValidationErrors(
-    validationErrors:
-    Map<CarePlanField, String>,
-): ScheduleFormUiState =
-    copy(
-        errors =
-            validationErrors
+    validationErrors: Map<CarePlanField, String>,
+): ScheduleFormUiState = copy(
+        errors = validationErrors
                 .filterKeys {
                     it in SCHEDULE_FIELDS
                 },
     )
 
 internal fun ScheduleFormUiState.withDateErrors(
-    dateErrors:
-    Map<CarePlanField, String>,
-): ScheduleFormUiState =
-    copy(
-        errors =
-            errors +
+    dateErrors: Map<CarePlanField, String>,
+): ScheduleFormUiState = copy(
+        errors = errors +
                     dateErrors,
     )
 
 internal fun ScheduleFormUiState.withPreviewEffectiveFrom(
     effectiveFrom: Instant,
-): ScheduleFormUiState =
-    copy(
-        previewEffectiveFrom =
-            effectiveFrom,
+): ScheduleFormUiState = copy(
+        previewEffectiveFrom = effectiveFrom,
     )
 
-internal fun ScheduleFormUiState.clearErrors():
-        ScheduleFormUiState =
+internal fun ScheduleFormUiState.clearErrors(): ScheduleFormUiState =
     copy(
-        errors =
-            emptyMap(),
+        errors = emptyMap(),
     )
 
-internal fun ScheduleFormUiState.effectiveMinutesOfDay():
-        List<Int> =
+internal fun ScheduleFormUiState.effectiveMinutesOfDay(): List<Int> =
     when (inputMode) {
         ScheduleInputMode.FIXED_TIMES -> {
-            minutesOfDay
-                .distinct()
+            minutesOfDay.distinct()
                 .sorted()
         }
 
         ScheduleInputMode.EVERY_X_HOURS -> {
-            toSchedulePattern()
-                .representativeMinutesOfDay
+            toSchedulePattern().representativeMinutesOfDay
         }
     }
 
-internal fun ScheduleFormUiState.toSchedulePattern():
-        SchedulePattern =
+internal fun ScheduleFormUiState.toSchedulePattern(): SchedulePattern =
     when (inputMode) {
         ScheduleInputMode.FIXED_TIMES -> {
             FixedTimeSchedule(
-                minutesOfDay =
-                    minutesOfDay,
+                minutesOfDay = minutesOfDay,
             )
         }
 
         ScheduleInputMode.EVERY_X_HOURS -> {
             IntervalSchedule(
-                intervalHours =
-                    intervalHours,
-                anchorMinuteOfDay =
-                    intervalAnchorMinuteOrDefault(),
+                intervalHours = intervalHours,
+                anchorMinuteOfDay = intervalAnchorMinuteOrDefault(),
             )
         }
     }
@@ -345,95 +274,66 @@ internal fun ScheduleFormUiState.previewItems(
     anchorDate: LocalDate,
     dayCount: Int = PREVIEW_DAY_COUNT,
 ): List<SchedulePreviewItem> {
-    val parsedDates =
-        parseDates()
+    val parsedDates = parseDates()
 
     if (
-        parsedDates
-            .errors
-            .isNotEmpty()
+        parsedDates.errors
+            .isNotEmpty()) {
+        return emptyList()
+    }
+
+    val pattern = toSchedulePattern()
+
+    if (
+        weekdays.isEmpty() || pattern
+            .representativeMinutesOfDay.isEmpty()
     ) {
         return emptyList()
     }
 
-    val pattern =
-        toSchedulePattern()
-
-    if (
-        weekdays.isEmpty() ||
-        pattern
-            .representativeMinutesOfDay
-            .isEmpty()
-    ) {
-        return emptyList()
-    }
-
-    return SchedulePreviewResolver()
-        .resolve(
+    return SchedulePreviewResolver().resolve(
             SchedulePreviewRequest(
-                weekdays =
-                    weekdays,
-                schedulePattern =
-                    pattern,
-                zoneId =
-                    zoneId,
-                effectiveFrom =
-                    previewEffectiveFrom,
-                startDate =
-                    parsedDates.startDate,
-                endDate =
-                    parsedDates.endDate,
-                anchorDate =
-                    anchorDate,
-                dayCount =
-                    dayCount,
+                weekdays = weekdays,
+                schedulePattern = pattern,
+                zoneId = zoneId,
+                effectiveFrom = previewEffectiveFrom,
+                startDate = parsedDates.startDate,
+                endDate = parsedDates.endDate,
+                anchorDate = anchorDate,
+                dayCount = dayCount,
             ),
-        )
-        .map { occurrence ->
+        ).map { occurrence ->
             SchedulePreviewItem(
-                localDate =
-                    occurrence.localDate,
-                dayOfWeek =
-                    occurrence.dayOfWeek,
-                minuteOfDay =
-                    occurrence.minuteOfDay,
+                localDate = occurrence.localDate,
+                dayOfWeek = occurrence.dayOfWeek,
+                minuteOfDay = occurrence.minuteOfDay,
             )
         }
 }
 
-internal fun Int.toHourMinuteText():
-        String =
-    SchedulePatternRules
-        .localTimeFrom(
+internal fun Int.toHourMinuteText(): String =
+    SchedulePatternRules.localTimeFrom(
             this,
-        )
-        .toHourMinuteText()
+        ).toHourMinuteText()
 
-internal fun LocalTime.toMinuteOfDay():
-        Int =
-    SchedulePatternRules
-        .minuteOfDayFrom(
+internal fun LocalTime.toMinuteOfDay(): Int =
+    SchedulePatternRules.minuteOfDayFrom(
             this,
         )
 
-internal fun LocalTime.toHourMinuteText():
-        String =
+internal fun LocalTime.toHourMinuteText(): String =
     "%02d:%02d".format(
         Locale.ROOT,
         hour,
         minute,
     )
 
-internal fun LocalDate.toJalaliDateText():
-        String =
-    JalaliPresentationDate
-        .from(
+internal fun LocalDate.toJalaliDateText(): String =
+    JalaliPresentationDate.from(
             this,
-        )
-        .formatNumeric()
+        ).formatNumeric()
 
-private fun ScheduleFormUiState.intervalAnchorMinuteOrDefault():
-        Int =
+private fun ScheduleFormUiState.intervalAnchorMinuteOrDefault(): Int =
     parseHourMinuteDraft(
         intervalAnchorDraft,
     ) ?: DEFAULT_ANCHOR_MINUTE
@@ -441,112 +341,64 @@ private fun ScheduleFormUiState.intervalAnchorMinuteOrDefault():
 private fun parseHourMinuteDraft(
     rawValue: String,
 ): Int? {
-    val normalized =
-        rawValue
-            .trim()
-            .normalizePersianDigits()
+    val normalized = rawValue
+            .trim().normalizePersianAndArabicDigits()
             .replace(
                 oldChar = '：',
                 newChar = ':',
             )
 
-    val match =
-        HOUR_MINUTE_PATTERN
+    val match = HOUR_MINUTE_PATTERN
             .matchEntire(
                 normalized,
             ) ?: return null
 
-    val hour =
-        match.groupValues[1].toInt()
+    val hour = match.groupValues[1].toInt()
 
-    val minute =
-        match.groupValues[2].toInt()
+    val minute = match.groupValues[2].toInt()
 
     return hour * MINUTES_PER_HOUR + minute
 }
 
-private fun String.keepHourMinuteDraftCharacters():
-        String =
+private fun String.keepHourMinuteDraftCharacters(): String =
     filter { character ->
-        character.isDigit() ||
-                character == ':' ||
+        character.isDigit() || character == ':' ||
                 character == '：'
-    }
-        .replace(
+    }.replace(
             oldChar = '：',
             newChar = ':',
-        )
-        .take(
+        ).take(
             MAX_TIME_DRAFT_LENGTH,
         )
 
-private fun String.keepDateDraftCharacters():
-        String =
+private fun String.keepDateDraftCharacters(): String =
     filter { character ->
-        character.isDigit() ||
-                character == '/' ||
+        character.isDigit() || character == '/' ||
                 character == '-'
-    }
-        .take(
+    }.take(
             MAX_DATE_DRAFT_LENGTH,
         )
 
 private fun parseDateSelection(
     rawValue: String,
 ): LocalDate? {
-    val normalized =
-        rawValue.trim()
+    val normalized = rawValue.trim()
 
     if (normalized.isBlank()) {
         return null
     }
 
-    return JalaliPresentationDate
-        .parseNumeric(
+    return JalaliPresentationDate.parseNumeric(
             normalized,
-        )
-        ?.toLocalDate()
+        )?.toLocalDate()
         ?: runCatching {
             LocalDate.parse(
-                normalized
-                    .normalizePersianDigits(),
+                normalized.normalizePersianAndArabicDigits(),
             )
         }.getOrNull()
 }
 
-private fun String.normalizePersianDigits():
-        String =
-    map { character ->
-        when (character) {
-            '۰' -> '0'
-            '۱' -> '1'
-            '۲' -> '2'
-            '۳' -> '3'
-            '۴' -> '4'
-            '۵' -> '5'
-            '۶' -> '6'
-            '۷' -> '7'
-            '۸' -> '8'
-            '۹' -> '9'
-            '٠' -> '0'
-            '١' -> '1'
-            '٢' -> '2'
-            '٣' -> '3'
-            '٤' -> '4'
-            '٥' -> '5'
-            '٦' -> '6'
-            '٧' -> '7'
-            '٨' -> '8'
-            '٩' -> '9'
-            else -> character
-        }
-    }
-        .joinToString(
-            separator = "",
-        )
-
-private val SCHEDULE_FIELDS =
-    setOf(
+private val SCHEDULE_FIELDS = setOf(
         CarePlanField.WEEKDAYS,
         CarePlanField.TIMES,
         CarePlanField.START_DATE,

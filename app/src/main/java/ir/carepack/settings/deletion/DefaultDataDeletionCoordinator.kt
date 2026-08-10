@@ -22,17 +22,14 @@ class DefaultDataDeletionCoordinator(
     private val domainDataCleaner: DomainDataCleaner,
     private val preferenceDataCleaner: PreferenceDataCleaner,
     private val temporaryDataCleaner: TemporaryDataCleaner,
-    private val auxiliaryDeletionStateCleaner:
-        AuxiliaryDeletionStateCleaner,
+    private val auxiliaryDeletionStateCleaner: AuxiliaryDeletionStateCleaner,
     private val operationGate: AppOperationGate,
     private val idSource: IdSource,
     private val clock: Clock,
-    private val ioDispatcher: CoroutineDispatcher =
-        Dispatchers.IO,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : DataDeletionCoordinator {
 
-    override suspend fun deleteEverything(): DataDeletionResult =
-        operationGate.withGate {
+    override suspend fun deleteEverything(): DataDeletionResult = operationGate.withGate {
             withContext(ioDispatcher) {
                 when (val readResult = markerStore.state.first()) {
                     is DataDeletionMarkerReadResult.Corrupted ->
@@ -42,14 +39,11 @@ class DefaultDataDeletionCoordinator(
                         resumeMarker(readResult.marker)
 
                     DataDeletionMarkerReadResult.Absent -> {
-                        val marker =
-                            DataDeletionMarker.create(
+                        val marker = DataDeletionMarker.create(
                                 operationId = idSource.nextId(),
-                                stage =
-                                    DataDeletionMarkerStage
+                                stage = DataDeletionMarkerStage
                                         .PLATFORM_CLEANUP_PENDING,
-                                startedAtEpochMillis =
-                                    clock.instant().toEpochMilli(),
+                                startedAtEpochMillis = clock.instant().toEpochMilli(),
                             )
 
                         try {
@@ -57,12 +51,10 @@ class DefaultDataDeletionCoordinator(
                         } catch (throwable: Throwable) {
                             throwable.rethrowIfCancellation()
                             return@withContext failed(
-                                stage =
-                                    DataDeletionStage
+                                stage = DataDeletionStage
                                         .MARKING_DELETION_IN_PROGRESS,
                                 throwable = throwable,
-                                operationStage =
-                                    AppOperationStage
+                                operationStage = AppOperationStage
                                         .WRITING_OPERATION_MARKER,
                             )
                         }
@@ -73,8 +65,7 @@ class DefaultDataDeletionCoordinator(
             }
         }
 
-    override suspend fun resumeIncompleteDeletionIfNeeded():
-        DataDeletionResult =
+    override suspend fun resumeIncompleteDeletionIfNeeded(): DataDeletionResult =
         operationGate.withGate {
             withContext(ioDispatcher) {
                 when (val readResult = markerStore.state.first()) {
@@ -96,8 +87,7 @@ class DefaultDataDeletionCoordinator(
         var marker = initialMarker
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage.PLATFORM_CLEANUP_PENDING
+            marker.stage == DataDeletionMarkerStage.PLATFORM_CLEANUP_PENDING
         ) {
             try {
                 reminderCoordinator.cancelAllOwnedReminderState()
@@ -106,30 +96,25 @@ class DefaultDataDeletionCoordinator(
                 return failed(
                     stage = DataDeletionStage.CANCELLING_REMINDERS,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage.CANCELLING_ALARMS,
+                    operationStage = AppOperationStage.CANCELLING_ALARMS,
                 )
             }
 
             try {
                 notificationGateway.cancelAll()
-                auxiliaryDeletionStateCleaner
-                    .clearAllAuxiliaryState()
+                auxiliaryDeletionStateCleaner.clearAllAuxiliaryState()
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 return failed(
-                    stage =
-                        DataDeletionStage
+                    stage = DataDeletionStage
                             .CANCELLING_NOTIFICATIONS,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage
+                    operationStage = AppOperationStage
                             .CANCELLING_NOTIFICATIONS,
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
                     DataDeletionMarkerStage.DOMAIN_DATA_PENDING,
                 ) ?: return markerFailure(
@@ -138,8 +123,7 @@ class DefaultDataDeletionCoordinator(
         }
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage.DOMAIN_DATA_PENDING
+            marker.stage == DataDeletionMarkerStage.DOMAIN_DATA_PENDING
         ) {
             try {
                 domainDataCleaner.clearAllDomainData()
@@ -148,13 +132,11 @@ class DefaultDataDeletionCoordinator(
                 return failed(
                     stage = DataDeletionStage.CLEARING_DOMAIN_DATA,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage.CLEARING_DATABASE,
+                    operationStage = AppOperationStage.CLEARING_DATABASE,
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
                     DataDeletionMarkerStage.PREFERENCES_PENDING,
                 ) ?: return markerFailure(
@@ -163,86 +145,69 @@ class DefaultDataDeletionCoordinator(
         }
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage.PREFERENCES_PENDING
+            marker.stage == DataDeletionMarkerStage.PREFERENCES_PENDING
         ) {
             try {
-                preferenceDataCleaner
-                    .clearAllPreservingOperationMarkers()
+                preferenceDataCleaner.clearAllPreservingOperationMarkers()
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 return failed(
                     stage = DataDeletionStage.CLEARING_PREFERENCES,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage.CLEARING_PREFERENCES,
+                    operationStage = AppOperationStage.CLEARING_PREFERENCES,
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
-                    DataDeletionMarkerStage
-                        .TEMPORARY_DATA_PENDING,
+                    DataDeletionMarkerStage.TEMPORARY_DATA_PENDING,
                 ) ?: return markerFailure(
                     DataDeletionStage.CLEARING_TEMPORARY_DATA,
                 )
         }
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage.TEMPORARY_DATA_PENDING
+            marker.stage == DataDeletionMarkerStage.TEMPORARY_DATA_PENDING
         ) {
             try {
                 temporaryDataCleaner.clearAllTemporaryData()
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 return failed(
-                    stage =
-                        DataDeletionStage
+                    stage = DataDeletionStage
                             .CLEARING_TEMPORARY_DATA,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage
+                    operationStage = AppOperationStage
                             .CLEARING_TEMPORARY_DATA,
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
-                    DataDeletionMarkerStage
-                        .FINAL_PLATFORM_VERIFICATION_PENDING,
+                    DataDeletionMarkerStage.FINAL_PLATFORM_VERIFICATION_PENDING,
                 ) ?: return markerFailure(
-                    DataDeletionStage
-                        .VERIFYING_PLATFORM_CLEANUP,
+                    DataDeletionStage.VERIFYING_PLATFORM_CLEANUP,
                 )
         }
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage
-                .FINAL_PLATFORM_VERIFICATION_PENDING
-        ) {
+            marker.stage == DataDeletionMarkerStage
+                .FINAL_PLATFORM_VERIFICATION_PENDING) {
             try {
                 reminderCoordinator.cancelAllOwnedReminderState()
                 notificationGateway.cancelAll()
-                auxiliaryDeletionStateCleaner
-                    .clearAllAuxiliaryState()
+                auxiliaryDeletionStateCleaner.clearAllAuxiliaryState()
             } catch (throwable: Throwable) {
                 throwable.rethrowIfCancellation()
                 return failed(
-                    stage =
-                        DataDeletionStage
+                    stage = DataDeletionStage
                             .VERIFYING_PLATFORM_CLEANUP,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage.CANCELLING_ALARMS,
+                    operationStage = AppOperationStage.CANCELLING_ALARMS,
                 )
             }
 
-            marker =
-                updateStage(
+            marker = updateStage(
                     marker,
                     DataDeletionMarkerStage.COMPLETION_PENDING,
                 ) ?: return markerFailure(
@@ -251,8 +216,7 @@ class DefaultDataDeletionCoordinator(
         }
 
         if (
-            marker.stage ==
-            DataDeletionMarkerStage.COMPLETION_PENDING
+            marker.stage == DataDeletionMarkerStage.COMPLETION_PENDING
         ) {
             try {
                 markerStore.clear(marker.operationId)
@@ -261,8 +225,7 @@ class DefaultDataDeletionCoordinator(
                 return failed(
                     stage = DataDeletionStage.COMPLETING_DELETION,
                     throwable = throwable,
-                    operationStage =
-                        AppOperationStage
+                    operationStage = AppOperationStage
                             .WRITING_OPERATION_MARKER,
                 )
             }
@@ -274,8 +237,7 @@ class DefaultDataDeletionCoordinator(
     private suspend fun updateStage(
         marker: DataDeletionMarker,
         stage: DataDeletionMarkerStage,
-    ): DataDeletionMarker? =
-        try {
+    ): DataDeletionMarker? = try {
             markerStore.updateStage(
                 operationId = marker.operationId,
                 stage = stage,
@@ -288,30 +250,23 @@ class DefaultDataDeletionCoordinator(
 
     private fun markerFailure(
         stage: DataDeletionStage,
-    ): DataDeletionResult.Failed =
-        DataDeletionResult.Failed(
+    ): DataDeletionResult.Failed = DataDeletionResult.Failed(
             stage = stage,
-            failure =
-                SafeAppFailure(
+            failure = SafeAppFailure(
                     kind = AppFailureKind.STORAGE,
-                    stage =
-                        AppOperationStage
+                    stage = AppOperationStage
                             .WRITING_OPERATION_MARKER,
                     retryable = true,
                 ),
         )
 
-    private fun corruptionFailure():
-        DataDeletionResult.Failed =
+    private fun corruptionFailure(): DataDeletionResult.Failed =
         DataDeletionResult.Failed(
-            stage =
-                DataDeletionStage
+            stage = DataDeletionStage
                     .CHECKING_PENDING_OPERATION,
-            failure =
-                SafeAppFailure(
+            failure = SafeAppFailure(
                     kind = AppFailureKind.CORRUPTION,
-                    stage =
-                        AppOperationStage
+                    stage = AppOperationStage
                             .READING_OPERATION_MARKER,
                     retryable = false,
                 ),
@@ -321,10 +276,8 @@ class DefaultDataDeletionCoordinator(
         stage: DataDeletionStage,
         throwable: Throwable,
         operationStage: AppOperationStage,
-    ): DataDeletionResult.Failed =
-        DataDeletionResult.Failed(
+    ): DataDeletionResult.Failed = DataDeletionResult.Failed(
             stage = stage,
-            failure =
-                throwable.toSafeAppFailure(operationStage),
+            failure = throwable.toSafeAppFailure(operationStage),
         )
 }

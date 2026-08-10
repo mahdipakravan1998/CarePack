@@ -31,27 +31,21 @@ class CarePackLocalDateTimeResolver {
 
         return when (validOffsets.size) {
             0 -> {
-                val transition =
-                    checkNotNull(
+                val transition = checkNotNull(
                         rules.getTransition(localDateTime),
                     )
 
-                val resolvedLocalDateTime =
-                    transition.dateTimeAfter
-                val offset =
-                    transition.offsetAfter
+                val resolvedLocalDateTime = transition.dateTimeAfter
+                val offset = transition.offsetAfter
 
                 LocalDateTimeResolution(
                     requestedLocalDateTime = localDateTime,
-                    resolvedLocalDateTime =
-                        resolvedLocalDateTime,
+                    resolvedLocalDateTime = resolvedLocalDateTime,
                     zoneId = zoneId,
                     offset = offset,
-                    instant =
-                        resolvedLocalDateTime
+                    instant = resolvedLocalDateTime
                             .toInstant(offset),
-                    kind =
-                        LocalDateTimeResolutionKind
+                    kind = LocalDateTimeResolutionKind
                             .GAP_ADJUSTED,
                 )
             }
@@ -64,18 +58,14 @@ class CarePackLocalDateTimeResolver {
                     resolvedLocalDateTime = localDateTime,
                     zoneId = zoneId,
                     offset = offset,
-                    instant =
-                        localDateTime.toInstant(offset),
-                    kind =
-                        LocalDateTimeResolutionKind.NORMAL,
+                    instant = localDateTime.toInstant(offset),
+                    kind = LocalDateTimeResolutionKind.NORMAL,
                 )
             }
 
             else -> {
-                val offset =
-                    validOffsets.minBy { candidateOffset ->
-                        localDateTime
-                            .toInstant(candidateOffset)
+                val offset = validOffsets.minBy { candidateOffset ->
+                        localDateTime.toInstant(candidateOffset)
                     }
 
                 LocalDateTimeResolution(
@@ -83,10 +73,8 @@ class CarePackLocalDateTimeResolver {
                     resolvedLocalDateTime = localDateTime,
                     zoneId = zoneId,
                     offset = offset,
-                    instant =
-                        localDateTime.toInstant(offset),
-                    kind =
-                        LocalDateTimeResolutionKind
+                    instant = localDateTime.toInstant(offset),
+                    kind = LocalDateTimeResolutionKind
                             .OVERLAP_EARLIER_OFFSET,
                 )
             }

@@ -54,11 +54,9 @@ data class ReminderDiagnosticEvent(
     }
 
     private companion object {
-        const val MAX_TOKEN_LENGTH =
-            16
+        const val MAX_TOKEN_LENGTH = 16
 
-        const val MAX_OUTCOME_LENGTH =
-            80
+        const val MAX_OUTCOME_LENGTH = 80
     }
 }
 
@@ -69,8 +67,7 @@ fun interface ReminderDiagnosticSink {
     )
 }
 
-object NoOpReminderDiagnosticSink :
-    ReminderDiagnosticSink {
+object NoOpReminderDiagnosticSink : ReminderDiagnosticSink {
 
     override fun record(
         event: ReminderDiagnosticEvent,
@@ -84,52 +81,41 @@ object ReminderDiagnosticTokens {
     fun forIdentifier(
         rawValue: String?,
     ): String? {
-        val normalized =
-            rawValue
-                ?.trim()
-                ?.takeIf(
+        val normalized = rawValue
+                ?.trim()?.takeIf(
                     String::isNotEmpty,
-                )
-                ?: return null
+                ) ?: return null
 
         return sha256Token(
-            value =
-                normalized,
+            value = normalized,
         )
     }
 
     fun forAlarmKey(
         alarmKey: AlarmKey?,
-    ): String? =
-        alarmKey
-            ?.stableToken
-            ?.take(TOKEN_LENGTH)
+    ): String? = alarmKey
+            ?.stableToken?.take(TOKEN_LENGTH)
 
     private fun sha256Token(
         value: String,
     ): String {
-        val digest =
-            MessageDigest
-                .getInstance("SHA-256")
-                .digest(
+        val digest = MessageDigest
+                .getInstance("SHA-256").digest(
                     value.toByteArray(
                         Charsets.UTF_8,
                     ),
                 )
 
-        return digest
-            .joinToString(
+        return digest.joinToString(
                 separator = "",
             ) { byte ->
                 "%02x".format(
                     byte.toInt() and 0xff,
                 )
-            }
-            .take(TOKEN_LENGTH)
+            }.take(TOKEN_LENGTH)
     }
 
-    private const val TOKEN_LENGTH =
-        12
+    private const val TOKEN_LENGTH = 12
 }
 
 fun ReminderDiagnosticSink.recordReminderDiagnostic(
@@ -144,36 +130,26 @@ fun ReminderDiagnosticSink.recordReminderDiagnostic(
     record(
         ReminderDiagnosticEvent(
             type = type,
-            occurredAtEpochMillis =
-                clock
-                    .instant()
-                    .toEpochMilli(),
-            occurrenceToken =
-                ReminderDiagnosticTokens
+            occurredAtEpochMillis = clock
+                    .instant().toEpochMilli(),
+            occurrenceToken = ReminderDiagnosticTokens
                     .forIdentifier(
                         occurrenceId,
                     ),
-            alarmKeyToken =
-                ReminderDiagnosticTokens
+            alarmKeyToken = ReminderDiagnosticTokens
                     .forAlarmKey(
                         alarmKey,
                     ),
-            availability =
-                availability,
-            deliveryMode =
-                deliveryMode,
-            outcome =
-                outcome
-                    ?.trim()
-                    ?.replace(
+            availability = availability,
+            deliveryMode = deliveryMode,
+            outcome = outcome
+                    ?.trim()?.replace(
                         oldChar = '\n',
                         newChar = ' ',
-                    )
-                    ?.replace(
+                    )?.replace(
                         oldChar = '\r',
                         newChar = ' ',
-                    )
-                    ?.take(MAX_SAFE_OUTCOME_LENGTH)
+                    )?.take(MAX_SAFE_OUTCOME_LENGTH)
                     ?.takeIf(
                         String::isNotEmpty,
                     ),
@@ -181,5 +157,4 @@ fun ReminderDiagnosticSink.recordReminderDiagnostic(
     )
 }
 
-private const val MAX_SAFE_OUTCOME_LENGTH =
-    80
+private const val MAX_SAFE_OUTCOME_LENGTH = 80

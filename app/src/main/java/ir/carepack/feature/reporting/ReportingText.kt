@@ -9,8 +9,7 @@ import ir.carepack.domain.model.TemporalStatus
 @Composable
 internal fun reportStateText(
     reportState: CaregiverReportState?,
-): String =
-    when (reportState) {
+): String = when (reportState) {
         null -> {
             stringResource(
                 R.string.report_no_report,
@@ -39,8 +38,7 @@ internal fun reportStateText(
 @Composable
 internal fun temporalStatusText(
     phase: TemporalStatus,
-): String =
-    when (phase) {
+): String = when (phase) {
         TemporalStatus.UPCOMING -> {
             stringResource(
                 R.string.temporal_status_upcoming,

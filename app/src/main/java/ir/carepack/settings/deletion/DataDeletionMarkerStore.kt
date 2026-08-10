@@ -27,8 +27,7 @@ data class DataDeletionMarker(
 
     fun withStage(
         newStage: DataDeletionMarkerStage,
-    ): DataDeletionMarker =
-        copy(
+    ): DataDeletionMarker = copy(
             stage = newStage,
             checksum = checksumFor(
                 version = version,
@@ -38,8 +37,7 @@ data class DataDeletionMarker(
             ),
         )
 
-    fun hasValidChecksum(): Boolean =
-        checksum ==
+    fun hasValidChecksum(): Boolean = checksum ==
             checksumFor(
                 version = version,
                 operationId = operationId,
@@ -76,8 +74,7 @@ data class DataDeletionMarker(
             operationId: String,
             stage: DataDeletionMarkerStage,
             startedAtEpochMillis: Long,
-        ): String =
-            DeletionMarkerChecksum.sha256(
+        ): String = DeletionMarkerChecksum.sha256(
                 listOf(
                     version.toString(),
                     operationId,
@@ -89,8 +86,7 @@ data class DataDeletionMarker(
 }
 
 sealed interface DataDeletionMarkerReadResult {
-    data object Absent :
-        DataDeletionMarkerReadResult
+    data object Absent : DataDeletionMarkerReadResult
 
     data class Valid(
         val marker: DataDeletionMarker,
