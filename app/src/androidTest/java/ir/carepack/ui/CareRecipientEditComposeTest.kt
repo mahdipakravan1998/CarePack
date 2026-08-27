@@ -104,12 +104,12 @@ class CareRecipientEditComposeTest {
 
         waitForTag(
             tag =
-                "settings_edit_recipient_name",
+                "settings_edit_recipient",
         )
 
         composeRule
             .onNodeWithTag(
-                "settings_edit_recipient_name",
+                "settings_edit_recipient",
             )
             .assertIsDisplayed()
             .performClick()
@@ -211,12 +211,12 @@ class CareRecipientEditComposeTest {
 
         waitForTag(
             tag =
-                "settings_edit_recipient_name",
+                "settings_edit_recipient",
         )
 
         composeRule
             .onNodeWithTag(
-                "settings_edit_recipient_name",
+                "settings_edit_recipient",
             )
             .performClick()
 

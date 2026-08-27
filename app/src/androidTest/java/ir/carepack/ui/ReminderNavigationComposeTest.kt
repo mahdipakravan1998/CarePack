@@ -636,15 +636,21 @@ class ReminderNavigationComposeTest {
                     ),
             )
 
-        return fixture
-            .occurrenceOn(
-                medicationId =
-                    plan.medicationId,
-                date = TODAY_DATE,
-                minuteOfDay =
-                    NOON_MINUTE_OF_DAY,
-            )
-            .id
+        val occurrenceId =
+            fixture
+                .occurrenceOn(
+                    medicationId =
+                        plan.medicationId,
+                    date = TODAY_DATE,
+                    minuteOfDay =
+                        NOON_MINUTE_OF_DAY,
+                )
+                .id
+
+        fixture.clock.currentInstant =
+            NOON_INSTANT
+
+        return occurrenceId
     }
 
     private suspend fun createCancelledNoonOccurrenceId():
@@ -744,6 +750,11 @@ class ReminderNavigationComposeTest {
         val TODAY_DATE: LocalDate =
             LocalDate.parse(
                 "2026-06-24",
+            )
+
+        val NOON_INSTANT: Instant =
+            Instant.parse(
+                "2026-06-24T12:00:00Z",
             )
 
         const val NOON_MINUTE_OF_DAY =
