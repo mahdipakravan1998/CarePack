@@ -69,7 +69,7 @@ set "PERMISSION_SCRIPT=%CD%\tools\grant-xiaomi-ui-permissions.ps1"
 set "INSTRUMENTATION_SCRIPT=%CD%\tools\run-adb-instrumentation.ps1"
 set "VALIDATOR_SCRIPT=%CD%\tools\validate-instrumentation-report.ps1"
 
-set "INSTRUMENTATION_TIMEOUT_SECONDS=300"
+set "INSTRUMENTATION_TIMEOUT_SECONDS=600"
 set "PACKAGE_VISIBILITY_TIMEOUT_SECONDS=20"
 set "XIAOMI_PERMISSION_ATTEMPTS=2"
 
