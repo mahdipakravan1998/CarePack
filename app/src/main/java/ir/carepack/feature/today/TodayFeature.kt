@@ -43,7 +43,6 @@ import ir.carepack.ui.experience.carePackExperience
 fun TodayRoute(
     viewModel: TodayViewModel,
     onOpenCarePlan: () -> Unit,
-    onOpenSettings: () -> Unit,
     onOpenTodayReport: () -> Unit,
     onOpenOccurrence: (String) -> Unit,
 ) {
@@ -78,7 +77,6 @@ fun TodayRoute(
         onHistorySelected = viewModel::showHistory,
         onRetry = viewModel::retry,
         onOpenCarePlan = onOpenCarePlan,
-        onOpenSettings = onOpenSettings,
         onOpenTodayReport = onOpenTodayReport,
         onOpenOccurrence = onOpenOccurrence,
         onGiven = { occurrenceId ->
@@ -112,7 +110,8 @@ fun TodayScreen(
     onHistorySelected: () -> Unit,
     onRetry: () -> Unit,
     onOpenCarePlan: () -> Unit,
-    onOpenSettings: () -> Unit,
+    @Suppress("UNUSED_PARAMETER")
+    onOpenSettings: () -> Unit = {},
     onOpenTodayReport: () -> Unit = {},
     onOpenOccurrence: (String) -> Unit,
     onGiven: (String) -> Unit = {},
@@ -153,7 +152,6 @@ fun TodayScreen(
                     TodayHeader(
                         localDate = state.localDate,
                         seniorMode = state.seniorMode,
-                        onOpenSettings = onOpenSettings,
                         onOpenTodayReport = onOpenTodayReport,
                     )
                 }

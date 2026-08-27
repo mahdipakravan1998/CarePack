@@ -19,6 +19,7 @@ sealed interface SetReportOutcome {
 
     data object OccurrenceNotFound : SetReportOutcome
     data object CancelledOccurrenceRejected : SetReportOutcome
+    data object BeforeScheduledTimeRejected : SetReportOutcome
 }
 
 sealed interface UndoReportOutcome {

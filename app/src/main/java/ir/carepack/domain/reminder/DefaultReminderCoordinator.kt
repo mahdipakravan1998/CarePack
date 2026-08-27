@@ -1,6 +1,8 @@
 package ir.carepack.domain.reminder
 
 import ir.carepack.core.concurrency.AppOperationGate
+import ir.carepack.domain.model.OccurrenceLifecycle
+import ir.carepack.domain.occurrence.RemindLaterEligibility
 import ir.carepack.reminder.alarm.AlarmDeliveryMode
 import ir.carepack.reminder.alarm.toReminderDeliveryMode
 import ir.carepack.reminder.alarm.AlarmGateway
@@ -302,7 +304,7 @@ class DefaultReminderCoordinator(
             outcome = "remind_later",
         )
 
-        if (delayMinutes <= 0L) {
+        if (delayMinutes != ReminderCoordinator.DEFAULT_REMIND_LATER_MINUTES) {
             return RemindLaterOutcome.Ignored(
                     reason = RemindLaterIgnoreReason
                             .INVALID_DELAY,
@@ -318,6 +320,20 @@ class DefaultReminderCoordinator(
                 )
 
         val now = clock.instant()
+
+        if (!RemindLaterEligibility.isAllowed(
+                lifecycle = OccurrenceLifecycle.ACTIVE,
+                hasCaregiverReport = false,
+                scheduledAt = target.scheduledAt,
+                occurrenceLocalEpochDay = target.localDate.toEpochDay(),
+                zoneIdSnapshot = target.zoneId,
+                now = now,
+            )) {
+            return RemindLaterOutcome.Ignored(
+                    reason = RemindLaterIgnoreReason
+                            .OCCURRENCE_NOT_ELIGIBLE,
+                )
+        }
 
         val decision = SnoozedReminderPolicy.create(
                 occurrenceId = occurrenceId,

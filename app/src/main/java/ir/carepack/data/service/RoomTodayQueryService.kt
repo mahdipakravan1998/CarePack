@@ -14,6 +14,8 @@ import ir.carepack.domain.model.TemporalStatus
 import ir.carepack.domain.model.TodayEmptyState
 import ir.carepack.domain.model.TodayItem
 import ir.carepack.domain.model.TodayModel
+import ir.carepack.domain.occurrence.RemindLaterEligibility
+import ir.carepack.domain.occurrence.ReportMutationEligibility
 import ir.carepack.domain.temporal.TemporalStatusClassifier
 import java.time.Instant
 import java.time.LocalDate
@@ -144,6 +146,8 @@ private data class MappedOccurrence(
     val temporalStatus: TemporalStatus,
     val isOverdue: Boolean,
     val cancellationReason: OccurrenceCancellationReason?,
+    val canMutateReport: Boolean,
+    val canRemindLater: Boolean,
 )
 
 private fun ReportingOccurrenceRow.toMappedOccurrence(
@@ -196,6 +200,19 @@ private fun ReportingOccurrenceRow.toMappedOccurrence(
                         )
                 }.getOrNull()
             },
+        canMutateReport = ReportMutationEligibility.isAllowed(
+                lifecycle = mappedLifecycle,
+                scheduledAt = scheduledAt,
+                now = now,
+            ),
+        canRemindLater = RemindLaterEligibility.isAllowed(
+                lifecycle = mappedLifecycle,
+                hasCaregiverReport = mappedReportState != null,
+                scheduledAt = scheduledAt,
+                occurrenceLocalEpochDay = localEpochDay,
+                zoneIdSnapshot = zoneIdSnapshot,
+                now = now,
+            ),
     )
 }
 
@@ -214,6 +231,8 @@ private fun MappedOccurrence.toTodayItem(): TodayItem =
         medicationType = medicationType,
         dosageText = dosageText,
         doseUnit = doseUnit,
+        canMutateReport = canMutateReport,
+        canRemindLater = canRemindLater,
     )
 
 private fun MappedOccurrence.toOccurrenceDetail(): OccurrenceDetail =
@@ -233,6 +252,8 @@ private fun MappedOccurrence.toOccurrenceDetail(): OccurrenceDetail =
         medicationType = medicationType,
         dosageText = dosageText,
         doseUnit = doseUnit,
+        canMutateReport = canMutateReport,
+        canRemindLater = canRemindLater,
     )
 
 private fun MappedOccurrence.toHistoryItem(): HistoryItem =

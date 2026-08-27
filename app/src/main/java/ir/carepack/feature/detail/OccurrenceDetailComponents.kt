@@ -79,8 +79,7 @@ internal fun OccurrenceDetailContent(
 ) {
     val experience = carePackExperience()
 
-    val canRecord = detail.lifecycle ==
-                OccurrenceLifecycle.ACTIVE
+    val canRecord = detail.canMutateReport
 
     val isReminderEntry = entryMode ==
                 OccurrenceDetailEntryMode.REMINDER
@@ -204,7 +203,11 @@ internal fun OccurrenceDetailContent(
 
             if (!canRecord) {
                 Text(
-                    text = "برای نوبت لغوشده نمی‌توان گزارش تازه ثبت کرد.",
+                    text = if (detail.lifecycle == OccurrenceLifecycle.CANCELLED) {
+                        "برای نوبت لغوشده نمی‌توان گزارش تازه ثبت کرد."
+                    } else {
+                        "این نوبت هنوز به زمان برنامه‌ریزی‌شده نرسیده است."
+                    },
                     color = MaterialTheme
                             .colorScheme.error,
                     modifier = Modifier
@@ -235,7 +238,7 @@ internal fun OccurrenceDetailContent(
 
                     Button(
                         onClick = onRemindLater,
-                        enabled = detail.reportState == null,
+                        enabled = detail.canRemindLater,
                         modifier = Modifier
                                 .fillMaxWidth().carePackPrimaryAction()
                                 .heightIn(
@@ -399,7 +402,7 @@ internal fun ReminderEntryPrimaryActions(
 
             Button(
                 onClick = onRemindLater,
-                enabled = detail.reportState == null,
+                enabled = detail.canRemindLater,
                 modifier = Modifier
                         .fillMaxWidth().carePackPrimaryAction()
                         .heightIn(

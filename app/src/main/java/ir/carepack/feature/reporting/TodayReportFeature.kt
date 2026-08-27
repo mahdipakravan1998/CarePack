@@ -105,9 +105,19 @@ class TodayReportViewModel(
         includeRecipientName: Boolean,
     ) {
         viewModelScope.launch {
-            privacyPreferenceStore.setIncludeRecipientName(
-                    includeRecipientName,
-                )
+            try {
+                privacyPreferenceStore.setIncludeRecipientName(
+                        includeRecipientName,
+                    )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                mutableState.update { current ->
+                    current.copy(
+                        errorMessage = "ذخیره تنظیم حریم خصوصی انجام نشد. مقدار قبلی همچنان فعال است.",
+                    )
+                }
+            }
         }
     }
 

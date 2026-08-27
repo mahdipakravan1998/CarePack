@@ -7,7 +7,9 @@ import ir.carepack.data.local.CaregiverReportEntity
 import ir.carepack.data.local.ReportingDao
 import ir.carepack.domain.model.CaregiverReportState
 import ir.carepack.domain.model.OccurrenceLifecycle
+import ir.carepack.domain.occurrence.ReportMutationEligibility
 import java.time.Clock
+import java.time.Instant
 
 class RoomCaregiverReportService(
     private val database: CarePackDatabase,
@@ -19,19 +21,34 @@ class RoomCaregiverReportService(
         occurrenceId: String,
         newState: CaregiverReportState,
     ): SetReportOutcome = database.withTransaction {
-        when (reportingDao.getOccurrenceLifecycle(occurrenceId)) {
-            null -> SetReportOutcome.OccurrenceNotFound
-            OccurrenceLifecycle.ACTIVE.name -> setActiveOccurrenceReport(occurrenceId, newState)
-            else -> SetReportOutcome.CancelledOccurrenceRejected
+        val target = reportingDao.getReportMutationTarget(occurrenceId)
+            ?: return@withTransaction SetReportOutcome.OccurrenceNotFound
+        val lifecycle = OccurrenceLifecycle.valueOf(target.lifecycle)
+        if (lifecycle != OccurrenceLifecycle.ACTIVE) {
+            return@withTransaction SetReportOutcome.CancelledOccurrenceRejected
         }
+        if (!ReportMutationEligibility.isAllowed(
+                lifecycle = lifecycle,
+                scheduledAt = Instant.ofEpochMilli(target.scheduledAtEpochMillis),
+                now = clock.instant(),
+            )) {
+            return@withTransaction SetReportOutcome.BeforeScheduledTimeRejected
+        }
+        setActiveOccurrenceReport(occurrenceId, newState)
     }
 
     override suspend fun restorePrevious(change: ReportChange): UndoReportOutcome = database.withTransaction {
-            when (reportingDao.getOccurrenceLifecycle(change.occurrenceId)) {
-                null -> UndoReportOutcome.OccurrenceNotFound
-                OccurrenceLifecycle.ACTIVE.name -> restoreActiveOccurrenceReport(change)
-                else -> UndoReportOutcome.NoLongerCurrent
+            val target = reportingDao.getReportMutationTarget(change.occurrenceId)
+                ?: return@withTransaction UndoReportOutcome.OccurrenceNotFound
+            val lifecycle = OccurrenceLifecycle.valueOf(target.lifecycle)
+            if (!ReportMutationEligibility.isAllowed(
+                    lifecycle = lifecycle,
+                    scheduledAt = Instant.ofEpochMilli(target.scheduledAtEpochMillis),
+                    now = clock.instant(),
+                )) {
+                return@withTransaction UndoReportOutcome.NoLongerCurrent
             }
+            restoreActiveOccurrenceReport(change)
         }
 
     private suspend fun setActiveOccurrenceReport(

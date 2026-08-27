@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExtendedFloatingActionButton
+
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -14,7 +14,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -39,9 +42,14 @@ import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ReminderCoordinator
+import ir.carepack.domain.reminder.ReminderPreferenceState
 import ir.carepack.domain.reminder.ReminderPreferenceStore
 import ir.carepack.domain.report.CaregiverReportService
 import ir.carepack.domain.today.TodayQueryService
+import ir.carepack.feature.careplan.ArchivedMedicationDetailRoute
+import ir.carepack.feature.careplan.ArchivedMedicationDetailViewModel
+import ir.carepack.feature.careplan.ArchivedMedicationListRoute
+import ir.carepack.feature.careplan.ArchivedMedicationListViewModel
 import ir.carepack.feature.careplan.CarePlanRoute
 import ir.carepack.feature.careplan.CarePlanViewModel
 import ir.carepack.feature.careplan.MedicationTextEditRoute
@@ -60,6 +68,7 @@ import ir.carepack.feature.onboarding.OnboardingScreen
 import ir.carepack.feature.privacy.PrivacyRoute
 import ir.carepack.feature.reminder.ReminderSettingsRoute
 import ir.carepack.feature.reminder.ReminderSettingsViewModel
+import ir.carepack.feature.reminder.TimezoneWarningBanner
 import ir.carepack.feature.reporting.RangeReportRoute
 import ir.carepack.feature.reporting.TodayReportRoute
 import ir.carepack.feature.settings.SettingsRoute
@@ -229,6 +238,11 @@ private fun CarePackNavigation(
     val currentRoute = backStackEntry
             ?.destination?.route
 
+    val reminderPreferenceState by reminderPreferenceStore.state
+        .collectAsStateWithLifecycle(initialValue = ReminderPreferenceState())
+    val navigationScope = rememberCoroutineScope()
+    var timezoneDismissError by remember { mutableStateOf<String?>(null) }
+
     LaunchedEffect(
         notificationOccurrenceId,
     ) {
@@ -262,6 +276,30 @@ private fun CarePackNavigation(
     }
 
     Scaffold(
+        topBar = {
+            reminderPreferenceState.timezoneWarning?.let { warning ->
+                TimezoneWarningBanner(
+                    warning = warning,
+                    errorMessage = timezoneDismissError,
+                    onReviewSchedules = {
+                        navController.navigatePrimary(CarePackRoutes.CarePlan)
+                    },
+                    onDismiss = {
+                        navigationScope.launch {
+                            try {
+                                reminderPreferenceStore.dismissTimezoneWarning()
+                                timezoneDismissError = null
+                            } catch (cancellation: kotlinx.coroutines.CancellationException) {
+                                throw cancellation
+                            } catch (_: Exception) {
+                                timezoneDismissError =
+                                    "ذخیره وضعیت هشدار انجام نشد؛ هشدار همچنان نمایش داده می‌شود."
+                            }
+                        }
+                    },
+                )
+            }
+        },
         bottomBar = {
             if (
                 currentRoute in primaryDestinations.map {
@@ -273,28 +311,7 @@ private fun CarePackNavigation(
                 )
             }
         },
-        floatingActionButton = {
-            if (currentRoute == CarePackRoutes.Settings) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        navController.navigate(
-                            CarePackRoutes.EditRecipientName,
-                        ) {
-                            launchSingleTop = true
-                        }
-                    },
-                    modifier = Modifier.testTag(
-                            "settings_edit_recipient_name",
-                        ),
-                ) {
-                    Text(
-                        text = stringResource(
-                                R.string.edit_recipient,
-                            ),
-                    )
-                }
-            }
-        },
+
     ) { contentPadding ->
         NavHost(
             navController = navController,
@@ -466,11 +483,7 @@ private fun CarePackNavigation(
                             CarePackRoutes.CarePlan,
                         )
                     },
-                    onOpenSettings = {
-                        navController.navigatePrimary(
-                            CarePackRoutes.Settings,
-                        )
-                    },
+
                     onOpenTodayReport = {
                         navController.navigate(
                             CarePackRoutes.TodayReport,
@@ -539,6 +552,50 @@ private fun CarePackNavigation(
                             ),
                         )
                     },
+                    onOpenArchivedMedications = {
+                        navController.navigate(CarePackRoutes.ArchivedMedications)
+                    },
+                )
+            }
+
+            composable(CarePackRoutes.ArchivedMedications) {
+                val viewModel: ArchivedMedicationListViewModel = viewModel(
+                    factory = ArchivedMedicationListViewModel.factory(carePlanService),
+                )
+                ArchivedMedicationListRoute(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onOpenMedication = { medicationId ->
+                        navController.navigate(
+                            CarePackRoutes.archivedMedicationDetail(medicationId),
+                        )
+                    },
+                )
+            }
+
+            composable(
+                route = CarePackRoutes.ArchivedMedicationDetailPattern,
+                arguments = listOf(
+                    navArgument(CarePackRoutes.MedicationIdArgument) {
+                        type = NavType.StringType
+                    },
+                ),
+            ) { entry ->
+                val medicationId = entry.requireStringArgument(
+                    CarePackRoutes.MedicationIdArgument,
+                )
+                val viewModel: ArchivedMedicationDetailViewModel = viewModel(
+                    factory = ArchivedMedicationDetailViewModel.factory(
+                        medicationId = medicationId,
+                        carePlanService = carePlanService,
+                    ),
+                )
+                ArchivedMedicationDetailRoute(
+                    viewModel = viewModel,
+                    onBack = { navController.popBackStack() },
+                    onDeleteMedication = { id ->
+                        navController.navigate(CarePackRoutes.deleteMedication(id))
+                    },
                 )
             }
 
@@ -573,6 +630,7 @@ private fun CarePackNavigation(
                     viewModel(
                         factory = SettingsViewModel.factory(
                                 userExperiencePreferenceStore = userExperiencePreferenceStore,
+                                carePlanService = carePlanService,
                                 zoneProvider = zoneProvider,
                                 appVersion = BuildConfig.VERSION_NAME,
                             ),
@@ -580,19 +638,12 @@ private fun CarePackNavigation(
 
                 SettingsRoute(
                     viewModel = viewModel,
-                    onBack = {
-                        navController.navigatePrimary(
-                            CarePackRoutes.Today,
-                        )
+                    onEditRecipient = {
+                        navController.navigate(CarePackRoutes.EditRecipientName)
                     },
                     onOpenReminderSettings = {
                         navController.navigate(
                             CarePackRoutes.ReminderSettings,
-                        )
-                    },
-                    onOpenTodayReport = {
-                        navController.navigate(
-                            CarePackRoutes.TodayReport,
                         )
                     },
                     onOpenPrivacy = {

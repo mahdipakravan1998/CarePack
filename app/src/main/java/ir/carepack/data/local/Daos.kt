@@ -77,6 +77,16 @@ interface MedicationDao {
 
     @Query(
         """
+        SELECT *
+        FROM medications
+        WHERE archivedAtEpochMillis IS NOT NULL
+        ORDER BY archivedAtEpochMillis DESC, id
+        """,
+    )
+    fun observeArchived(): Flow<List<MedicationEntity>>
+
+    @Query(
+        """
         UPDATE medications
         SET
             name = :name,
@@ -778,14 +788,8 @@ interface OccurrenceDao {
         FROM occurrences AS occurrence
         INNER JOIN schedule_versions AS version
             ON version.id = occurrence.scheduleVersionId
-        INNER JOIN schedule_series AS series
-            ON series.id = version.scheduleSeriesId
-        INNER JOIN medications AS medication
-            ON medication.id = occurrence.medicationId
         WHERE occurrence.id = :occurrenceId
           AND occurrence.lifecycle = 'ACTIVE'
-          AND medication.stoppedAtEpochMillis IS NULL
-          AND medication.archivedAtEpochMillis IS NULL
           AND NOT EXISTS (
               SELECT 1
               FROM caregiver_reports AS report

@@ -256,6 +256,18 @@ data class CarePlanOverview(
     val medications: List<MedicationPlanItem>,
 )
 
+data class ArchivedMedication(
+    val medicationId: String,
+    val name: String,
+    val instruction: String,
+    val medicationType: String,
+    val dosageText: String,
+    val doseUnit: String,
+    val createdAt: Instant,
+    val endedAt: Instant,
+    val archivedAt: Instant,
+)
+
 data class MedicationEditorSnapshot(
     val medicationId: String,
     val name: String,
@@ -315,6 +327,12 @@ interface CarePlanService {
     suspend fun getSetupProgress(): SetupProgress
 
     fun observeCarePlan(): Flow<CarePlanOverview?>
+
+    fun observeArchivedMedications(): Flow<List<ArchivedMedication>>
+
+    suspend fun getArchivedMedication(
+        medicationId: String,
+    ): ArchivedMedication?
 
     suspend fun getMedicationEditor(
         medicationId: String,

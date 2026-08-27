@@ -82,7 +82,7 @@ class AppViewModel(
         progress: SetupProgress,
     ): String {
         return when {
-            setupCompleted && progress == SetupProgress.Complete -> {
+            setupCompleted && progress != SetupProgress.Empty -> {
                 CarePackRoutes.Today
             }
 

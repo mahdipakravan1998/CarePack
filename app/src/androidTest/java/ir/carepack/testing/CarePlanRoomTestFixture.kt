@@ -301,6 +301,13 @@ internal class CarePlanRoomTestFixture private constructor(
         occurrenceId: String,
         state: CaregiverReportState,
     ) {
+        val occurrence = checkNotNull(
+            database.occurrenceDao().getById(occurrenceId),
+        )
+        val scheduledAt = Instant.ofEpochMilli(occurrence.scheduledAtEpochMillis)
+        if (clock.instant().isBefore(scheduledAt)) {
+            advanceTo(scheduledAt)
+        }
         reportService.setReport(
             occurrenceId =
                 occurrenceId,
