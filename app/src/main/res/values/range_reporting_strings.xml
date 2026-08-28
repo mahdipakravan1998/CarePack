@@ -23,4 +23,5 @@
     <string name="range_report_copy_failed">کپی متن گزارش انجام نشد.</string>
     <string name="range_report_no_share_target">برنامه‌ای برای اشتراک‌گذاری متن پیدا نشد.</string>
     <string name="range_report_share_failed">باز کردن اشتراک‌گذاری انجام نشد.</string>
+    <string name="preference_save_failed">ذخیره تنظیم حریم خصوصی انجام نشد. مقدار قبلی همچنان فعال است.</string>
 </resources>

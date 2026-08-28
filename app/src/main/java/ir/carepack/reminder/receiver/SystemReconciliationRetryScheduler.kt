@@ -96,7 +96,10 @@ class SystemReconciliationRetryScheduler internal constructor(
         retryPendingIntent(
             PendingIntent.FLAG_NO_CREATE or
                 PendingIntent.FLAG_IMMUTABLE,
-        )?.let(alarmGateway::cancel)
+        )?.let { pendingIntent ->
+            alarmGateway.cancel(pendingIntent)
+            pendingIntent.cancel()
+        }
 
         val committed = preferences.edit().clear().commit()
         check(committed)

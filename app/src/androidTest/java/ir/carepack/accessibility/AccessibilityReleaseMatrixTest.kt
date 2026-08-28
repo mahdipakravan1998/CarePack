@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -79,7 +80,7 @@ class AccessibilityReleaseMatrixTest {
 
         composeRule
             .onNodeWithTag("medication_deletion_confirm")
-
+            .performScrollTo()
             .assertIsEnabled()
             .assertHasClickAction()
 
@@ -90,6 +91,7 @@ class AccessibilityReleaseMatrixTest {
                         hasTestTag("medication_deletion_screen"),
                     ),
             )
+            .performScrollTo()
             .assertIsDisplayed()
             .assertHasClickAction()
     }

@@ -13,6 +13,7 @@ internal object CarePackRoutes {
     const val Privacy = "privacy"
     const val DeleteAllData = "delete-all-data"
     const val EditRecipientName = "edit-recipient-name"
+    const val ArchivedMedications = "archived-medications"
 
     const val RecipientIdArgument = "recipientId"
     const val MedicationIdArgument = "medicationId"
@@ -27,6 +28,7 @@ internal object CarePackRoutes {
     const val DeleteMedicationPattern = "delete-medication/{$MedicationIdArgument}"
     const val OccurrenceDetailPattern = "occurrence/{$OccurrenceIdArgument}"
     const val ReminderOccurrenceDetailPattern = "reminder/occurrence/{$OccurrenceIdArgument}"
+    const val ArchivedMedicationDetailPattern = "archived-medication/{$MedicationIdArgument}"
 
     fun medicationSchedule(recipientId: String): String = "medication-schedule/$recipientId"
 
@@ -43,4 +45,6 @@ internal object CarePackRoutes {
     fun occurrenceDetail(occurrenceId: String): String = "occurrence/$occurrenceId"
 
     fun reminderOccurrenceDetail(occurrenceId: String): String = "reminder/occurrence/$occurrenceId"
+
+    fun archivedMedicationDetail(medicationId: String): String = "archived-medication/$medicationId"
 }

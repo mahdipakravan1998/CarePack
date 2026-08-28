@@ -50,6 +50,8 @@ internal class OccurrenceActionController(
                         showSnackbar("این وضعیت قبلاً ثبت شده است.")
                     SetReportOutcome.CancelledOccurrenceRejected ->
                         showSnackbar("برای نوبت لغوشده نمی‌توان گزارش ثبت کرد.")
+                    SetReportOutcome.BeforeScheduledTimeRejected ->
+                        showSnackbar("ثبت گزارش از زمان برنامه‌ریزی‌شده نوبت در دسترس است.")
                     SetReportOutcome.OccurrenceNotFound ->
                         showSnackbar("نوبت پیدا نشد.")
                 }

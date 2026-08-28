@@ -31,6 +31,7 @@ import ir.carepack.testing.InstrumentedUserExperiencePreferenceStore
 import ir.carepack.testing.RecordingDataDeletionCoordinator
 import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
@@ -250,6 +251,7 @@ class CarePackComposeTest {
                 .onNodeWithTag(
                     scheduleTag,
                 )
+                .performScrollTo()
                 .assertIsDisplayed()
         }
     }
@@ -390,6 +392,7 @@ class CarePackComposeTest {
                 .onNodeWithTag(
                     scheduleTag,
                 )
+                .performScrollTo()
                 .assertIsDisplayed()
         }
 
@@ -409,6 +412,7 @@ class CarePackComposeTest {
                     substring = true,
                     useUnmergedTree = true,
                 )
+                .performScrollTo()
                 .assertIsDisplayed()
         }
 
@@ -517,15 +521,21 @@ class CarePackComposeTest {
                     ),
             )
 
-        return fixture
-            .occurrenceOn(
-                medicationId =
-                    plan.medicationId,
-                date = TODAY_DATE,
-                minuteOfDay =
-                    NOON_MINUTE_OF_DAY,
-            )
-            .id
+        val occurrenceId =
+            fixture
+                .occurrenceOn(
+                    medicationId =
+                        plan.medicationId,
+                    date = TODAY_DATE,
+                    minuteOfDay =
+                        NOON_MINUTE_OF_DAY,
+                )
+                .id
+
+        fixture.clock.currentInstant =
+            NOON_INSTANT
+
+        return occurrenceId
     }
 
     private fun openMedicationsScreen() {
@@ -719,6 +729,11 @@ class CarePackComposeTest {
         val SECOND_SCHEDULE_END_DATE: LocalDate =
             LocalDate.parse(
                 SECOND_SCHEDULE_END_GREGORIAN_DATE,
+            )
+
+        val NOON_INSTANT: Instant =
+            Instant.parse(
+                "2026-06-24T12:00:00Z",
             )
 
         const val NOON_MINUTE_OF_DAY =

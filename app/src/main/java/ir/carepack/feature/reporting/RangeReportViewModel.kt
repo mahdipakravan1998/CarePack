@@ -41,6 +41,7 @@ enum class RangeReportFailure {
     COPY_FAILED,
     NO_SHARE_TARGET,
     SHARE_FAILED,
+    PREFERENCE_SAVE_FAILED,
 }
 
 
@@ -118,9 +119,19 @@ class RangeReportViewModel(
         includeRecipientName: Boolean,
     ) {
         viewModelScope.launch {
-            privacyPreferenceStore.setIncludeRecipientName(
-                    includeRecipientName,
-                )
+            try {
+                privacyPreferenceStore.setIncludeRecipientName(
+                        includeRecipientName,
+                    )
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                mutableState.update { current ->
+                    current.copy(
+                        failure = RangeReportFailure.PREFERENCE_SAVE_FAILED,
+                    )
+                }
+            }
         }
     }
 

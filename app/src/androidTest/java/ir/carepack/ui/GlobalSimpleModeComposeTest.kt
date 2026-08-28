@@ -248,7 +248,6 @@ class GlobalSimpleModeComposeTest {
 
         listOf(
             "settings_reminders",
-            "settings_today_report",
             "settings_privacy",
             "display_simple",
             "settings_delete_all",

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="carepack_settings_title">تنظیمات</string>
-    <string name="carepack_settings_description">یادآوری‌ها، گزارش امروز، حریم خصوصی و حذف کامل اطلاعات را از این بخش مدیریت کنید.</string>
+    <string name="carepack_settings_description">فرد تحت مراقبت، یادآوری‌ها، نمایش، حریم خصوصی و حذف کامل اطلاعات را از این بخش مدیریت کنید.</string>
 
     <string name="carepack_settings_reminders">تنظیمات یادآوری</string>
     <string name="carepack_settings_reminders_description">دسترسی اعلان، وضعیت یادآوری دقیق یا تقریبی و برنامه‌های فعال را بررسی کنید.</string>

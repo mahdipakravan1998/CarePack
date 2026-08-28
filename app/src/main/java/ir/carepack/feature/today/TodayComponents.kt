@@ -55,7 +55,6 @@ import java.time.format.DateTimeFormatter
 internal fun TodayHeader(
     localDate: LocalDate,
     seniorMode: SeniorMode,
-    onOpenSettings: () -> Unit,
     onOpenTodayReport: () -> Unit,
 ) {
     val experience = carePackExperience()
@@ -115,20 +114,6 @@ internal fun TodayHeader(
             )
         }
 
-        OutlinedButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                    .fillMaxWidth().carePackInteractiveControl()
-                    .testTag(
-                        "today_open_settings",
-                    ),
-        ) {
-            Text(
-                text = stringResource(
-                        R.string.primary_nav_settings,
-                    ),
-            )
-        }
     }
 }
 
@@ -228,8 +213,7 @@ internal fun SimpleTodayCard(
 ) {
     val experience = carePackExperience()
 
-    val canRecord = item.lifecycle ==
-                OccurrenceLifecycle.ACTIVE
+    val canRecord = item.canMutateReport
 
     val statusText = item.statusText()
 
@@ -341,8 +325,7 @@ internal fun SimpleTodayCard(
 
             Button(
                 onClick = onRemindLater,
-                enabled = canRecord &&
-                            item.reportState == null,
+                enabled = item.canRemindLater,
                 modifier = Modifier
                         .fillMaxWidth().carePackPrimaryAction()
                         .heightIn(
@@ -434,8 +417,7 @@ internal fun TodayItemCard(
     onUnknown: () -> Unit,
     onRemindLater: () -> Unit,
 ) {
-    val canRecord = item.lifecycle ==
-                OccurrenceLifecycle.ACTIVE
+    val canRecord = item.canMutateReport
 
     val statusText = item.statusText()
 
@@ -531,8 +513,7 @@ internal fun TodayItemCard(
 
                 OutlinedButton(
                     onClick = onRemindLater,
-                    enabled = canRecord &&
-                                item.reportState == null,
+                    enabled = item.canRemindLater,
                     modifier = Modifier
                             .weight(1f).carePackInteractiveControl()
                             .testTag(

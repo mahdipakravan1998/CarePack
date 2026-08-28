@@ -22,6 +22,7 @@ import ir.carepack.domain.report.SetReportOutcome
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -99,7 +100,7 @@ class DestructiveOperationStateRaceIntegrationTest {
     @Test
     fun medicationDeleteAndCarePlanMutations_neverLeavePartialGraphOrMarker() =
         runBlocking {
-            verifyMedicationRace("update") { plan ->
+            verifyMedicationRace("update") { plan, _ ->
                 application.container.carePlanService
                     .updateMedicationText(
                         UpdateMedicationTextCommand(
@@ -112,7 +113,7 @@ class DestructiveOperationStateRaceIntegrationTest {
 
             resetState()
 
-            verifyMedicationRace("add") { plan ->
+            verifyMedicationRace("add") { plan, _ ->
                 application.container.carePlanService
                     .addSchedule(
                         AddScheduleCommand(
@@ -128,7 +129,7 @@ class DestructiveOperationStateRaceIntegrationTest {
 
             resetState()
 
-            verifyMedicationRace("stop") { plan ->
+            verifyMedicationRace("stop") { plan, _ ->
                 application.container.carePlanService
                     .stopMedication(plan.medicationId)
             }
@@ -139,13 +140,7 @@ class DestructiveOperationStateRaceIntegrationTest {
 
             resetState()
 
-            verifyMedicationRace("report") { plan ->
-                val occurrenceId =
-                    application.container.database
-                        .occurrenceDao()
-                        .getForMedication(plan.medicationId)
-                        .first()
-                        .id
+            verifyMedicationRace("report") { _, occurrenceId ->
                 application.container.caregiverReportService
                     .setReport(
                         occurrenceId = occurrenceId,
@@ -155,13 +150,7 @@ class DestructiveOperationStateRaceIntegrationTest {
 
             resetState()
 
-            verifyMedicationRace("snooze") { plan ->
-                val occurrenceId =
-                    application.container.database
-                        .occurrenceDao()
-                        .getForMedication(plan.medicationId)
-                        .first()
-                        .id
+            verifyMedicationRace("snooze") { _, occurrenceId ->
                 application.container.reminderCoordinator
                     .remindLater(
                         occurrenceId = occurrenceId,
@@ -203,9 +192,15 @@ class DestructiveOperationStateRaceIntegrationTest {
 
     private suspend fun verifyMedicationRace(
         label: String,
-        mutation: suspend (CreateMedicationScheduleOutcome.Created) -> Any?,
+        mutation: suspend (CreateMedicationScheduleOutcome.Created, String) -> Any?,
     ) {
         val plan = createPlan("داروی مسابقه $label")
+        val occurrenceId =
+            application.container.database
+                .occurrenceDao()
+                .getForMedication(plan.medicationId)
+                .first()
+                .id
         val preview =
             application.container.medicationDeletionCoordinator
                 .loadPreview(plan.medicationId)
@@ -218,7 +213,7 @@ class DestructiveOperationStateRaceIntegrationTest {
                     .deleteMedication(available.preview)
             },
             second = {
-                mutation(plan)
+                mutation(plan, occurrenceId)
             },
         )
 
@@ -335,6 +330,7 @@ class DestructiveOperationStateRaceIntegrationTest {
     }
 
     private companion object {
-        val TODAY: LocalDate = LocalDate.parse("2026-06-24")
+        val TODAY: LocalDate
+            get() = LocalDate.now(ZoneOffset.UTC)
     }
 }

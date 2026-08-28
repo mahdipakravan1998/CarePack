@@ -3,6 +3,7 @@ package ir.carepack.ui
 import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -838,7 +839,7 @@ class MedicationScheduleSetupComposeTest {
             .onNodeWithTag(
                 "add_time",
             )
-            .assertIsDisplayed()
+            .assertIsEnabled()
     }
 
     @Test

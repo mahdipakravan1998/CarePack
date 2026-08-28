@@ -394,7 +394,10 @@ class PersistentTracerBulletTest {
             val reportService =
                 RoomCaregiverReportService(
                     database = database,
-                    clock = fixedClock,
+                    clock = Clock.fixed(
+                        Instant.ofEpochMilli(occurrence.scheduledAtEpochMillis),
+                        ZoneOffset.UTC,
+                    ),
                 )
 
             val reportOutcome =

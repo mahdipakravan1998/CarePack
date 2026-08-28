@@ -7,6 +7,7 @@ import ir.carepack.core.error.toSafeAppFailure
 import ir.carepack.domain.careplan.AddScheduleCommand
 import ir.carepack.domain.careplan.AddScheduleOutcome
 import ir.carepack.domain.careplan.ArchiveMedicationOutcome
+import ir.carepack.domain.careplan.ArchivedMedication
 import ir.carepack.domain.careplan.CarePlanOverview
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.careplan.CreateMedicationScheduleCommand
@@ -129,6 +130,13 @@ class ReminderAwareCarePlanService(
     override suspend fun getSetupProgress(): SetupProgress = delegate.getSetupProgress()
 
     override fun observeCarePlan(): Flow<CarePlanOverview?> = delegate.observeCarePlan()
+
+    override fun observeArchivedMedications(): Flow<List<ArchivedMedication>> =
+        delegate.observeArchivedMedications()
+
+    override suspend fun getArchivedMedication(
+        medicationId: String,
+    ): ArchivedMedication? = delegate.getArchivedMedication(medicationId)
 
     override suspend fun getMedicationEditor(
         medicationId: String,

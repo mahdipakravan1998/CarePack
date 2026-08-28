@@ -6,6 +6,11 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+data class ReportMutationTargetRow(
+    val lifecycle: String,
+    val scheduledAtEpochMillis: Long,
+)
+
 data class ReportingOccurrenceRow(
     val occurrenceId: String,
     val localEpochDay: Long,
@@ -297,15 +302,17 @@ interface ReportingDao {
 
     @Query(
         """
-        SELECT lifecycle
+        SELECT
+            lifecycle,
+            scheduledAtEpochMillis
         FROM occurrences
         WHERE id = :occurrenceId
         LIMIT 1
         """,
     )
-    suspend fun getOccurrenceLifecycle(
+    suspend fun getReportMutationTarget(
         occurrenceId: String,
-    ): String?
+    ): ReportMutationTargetRow?
 
     @Query(
         """

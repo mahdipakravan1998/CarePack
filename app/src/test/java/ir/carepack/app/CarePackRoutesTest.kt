@@ -13,6 +13,10 @@ class CarePackRoutesTest {
         assertEquals("edit-medication/medication-1", CarePackRoutes.editMedicationText("medication-1"))
         assertEquals("edit-schedule/schedule-1", CarePackRoutes.editSchedule("schedule-1"))
         assertEquals("delete-medication/medication-1", CarePackRoutes.deleteMedication("medication-1"))
+        assertEquals(
+            "archived-medication/medication-1",
+            CarePackRoutes.archivedMedicationDetail("medication-1"),
+        )
         assertEquals("occurrence/occurrence-1", CarePackRoutes.occurrenceDetail("occurrence-1"))
         assertEquals(
             "reminder/occurrence/occurrence-1",
@@ -24,6 +28,10 @@ class CarePackRoutesTest {
     fun patterns_preserveArgumentNames() {
         assertEquals("medication-schedule/{recipientId}", CarePackRoutes.MedicationSchedulePattern)
         assertEquals("occurrence/{occurrenceId}", CarePackRoutes.OccurrenceDetailPattern)
+        assertEquals(
+            "archived-medication/{medicationId}",
+            CarePackRoutes.ArchivedMedicationDetailPattern,
+        )
         assertEquals(
             "reminder/occurrence/{occurrenceId}",
             CarePackRoutes.ReminderOccurrenceDetailPattern,

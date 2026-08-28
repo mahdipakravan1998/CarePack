@@ -653,6 +653,51 @@ class DefaultReminderCoordinatorTest {
         }
 
     @Test
+    fun remindLater_rejectsBeforeScheduledTimeExpiredLocalDayAndNonContractDelay() =
+        runTest {
+            val beforeTarget = reminderTarget(
+                    seriesId = "series-before",
+                    occurrenceId = "occurrence-before",
+                    scheduledAt = FIXED_NOW.plusSeconds(1),
+                )
+            val expiredTarget = reminderTarget(
+                    seriesId = "series-expired",
+                    occurrenceId = "occurrence-expired",
+                    scheduledAt = FIXED_NOW.minusSeconds(86_400),
+                ).copy(localDate = LocalDate.of(2026, 6, 23))
+            val validTarget = reminderTarget(
+                    seriesId = "series-valid",
+                    occurrenceId = "occurrence-valid",
+                    scheduledAt = FIXED_NOW.minusSeconds(1),
+                )
+            val fixture = CoordinatorFixture(
+                    remindersEnabled = true,
+                    permissionGranted = true,
+                    exactCapabilityGranted = true,
+                    allSeriesIds = setOf("series-before", "series-expired", "series-valid"),
+                    nextTargets = emptyList(),
+                    eligibleTargets = listOf(beforeTarget, expiredTarget, validTarget)
+                        .associateBy(ReminderTarget::occurrenceId),
+                )
+
+            assertTrue(
+                fixture.coordinator.remindLater(beforeTarget.occurrenceId) is
+                        RemindLaterOutcome.Ignored,
+            )
+            assertTrue(
+                fixture.coordinator.remindLater(expiredTarget.occurrenceId) is
+                        RemindLaterOutcome.Ignored,
+            )
+            assertTrue(
+                fixture.coordinator.remindLater(
+                    occurrenceId = validTarget.occurrenceId,
+                    delayMinutes = 5,
+                ) is RemindLaterOutcome.Ignored,
+            )
+            assertTrue(fixture.snoozedReminderStore.reminders.first().isEmpty())
+        }
+
+    @Test
     fun cancelReminderDelay_removesStoredDelayAndCancelsDelayedAlarm() =
         runTest {
             val target =

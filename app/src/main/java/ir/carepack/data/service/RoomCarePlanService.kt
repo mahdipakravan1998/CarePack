@@ -514,12 +514,24 @@ class RoomCarePlanService(
             }
         }
 
+    override fun observeArchivedMedications(): Flow<List<ArchivedMedication>> =
+        medicationDao.observeArchived()
+            .combine(recipientDao.observeSingleton()) { medications, _ ->
+                medications.mapNotNull(MedicationEntity::toArchivedMedicationOrNull)
+            }
+
+    override suspend fun getArchivedMedication(
+        medicationId: String,
+    ): ArchivedMedication? = medicationDao.getById(medicationId)
+        ?.toArchivedMedicationOrNull()
+
     override suspend fun getMedicationEditor(
         medicationId: String,
     ): MedicationEditorSnapshot? {
         val medication = medicationDao.getById(
                 medicationId,
-            ) ?: return null
+            )?.takeIf { it.archivedAtEpochMillis == null }
+            ?: return null
 
         val rows = medicationDao.getScheduleRowsForMedication(
                 medicationId,
@@ -741,6 +753,22 @@ private data class VersionDefinition(
 private val MedicationEntity.isEditable: Boolean
     get() = stoppedAtEpochMillis == null &&
                 archivedAtEpochMillis == null
+
+private fun MedicationEntity.toArchivedMedicationOrNull(): ArchivedMedication? {
+    val endedAt = stoppedAtEpochMillis ?: return null
+    val archivedAt = archivedAtEpochMillis ?: return null
+    return ArchivedMedication(
+        medicationId = id,
+        name = name,
+        instruction = instructionText,
+        medicationType = medicationType,
+        dosageText = dosageText,
+        doseUnit = doseUnit,
+        createdAt = Instant.ofEpochMilli(createdAtEpochMillis),
+        endedAt = Instant.ofEpochMilli(endedAt),
+        archivedAt = Instant.ofEpochMilli(archivedAt),
+    )
+}
 
 private fun MedicationEntity.toStatus(): MedicationStatus = if (stoppedAtEpochMillis == null) {
         MedicationStatus.ACTIVE

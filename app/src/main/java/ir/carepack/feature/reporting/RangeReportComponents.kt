@@ -278,6 +278,11 @@ internal fun rangeReportFailureText(
             stringResource(
                 R.string.range_report_share_failed,
             )
+
+        RangeReportFailure.PREFERENCE_SAVE_FAILED ->
+            stringResource(
+                R.string.preference_save_failed,
+            )
     }
 
 @Composable

@@ -26,20 +26,24 @@ class CorruptionResolutionUiTest {
     private lateinit var device: UiDevice
 
     @Before
-    fun setUp() = runBlocking {
-        context = ApplicationProvider.getApplicationContext()
-        device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
-        context.carePackDataStore.edit { preferences ->
-            preferences.clear()
-            preferences[MedicationDeletionPreferenceKeys.version] = 1
-            preferences[MedicationDeletionPreferenceKeys.medicationId] =
-                "corrupted-target"
+    fun setUp() {
+        runBlocking {
+            context = ApplicationProvider.getApplicationContext()
+            device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
+            context.carePackDataStore.edit { preferences ->
+                preferences.clear()
+                preferences[MedicationDeletionPreferenceKeys.version] = 1
+                preferences[MedicationDeletionPreferenceKeys.medicationId] =
+                    "corrupted-target"
+            }
         }
     }
 
     @After
-    fun tearDown() = runBlocking {
-        context.carePackDataStore.edit { it.clear() }
+    fun tearDown() {
+        runBlocking {
+            context.carePackDataStore.edit { it.clear() }
+        }
     }
 
     @Test

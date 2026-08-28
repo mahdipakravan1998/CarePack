@@ -72,15 +72,22 @@
     <string name="today_item_cancelled">این نوبت لغو شده است.</string>
     <string name="manage_care_plan">مدیریت برنامه مراقبت</string>
 
-    <string name="care_plan_title">برنامه مراقبت</string>
+    <string name="care_plan_title">داروها</string>
     <string name="add_medication">افزودن دارو</string>
-    <string name="no_medications">داروی فعالی برای نمایش وجود ندارد.</string>
-    <string name="edit_medication_text">ویرایش متن</string>
+    <string name="no_medications">هنوز دارویی در فهرست اصلی نیست. می‌توانید داروی تازه اضافه کنید یا بایگانی را ببینید.</string>
+    <string name="edit_medication_text">ویرایش اطلاعات دارو</string>
     <string name="edit_schedule">ویرایش برنامه</string>
-    <string name="stop_medication">توقف دارو</string>
-    <string name="archive_medication">بایگانی دارو</string>
+    <string name="stop_medication">پایان مصرف</string>
+    <string name="archive_medication">انتقال به بایگانی</string>
     <string name="status_active">فعال</string>
-    <string name="status_stopped">متوقف‌شده</string>
+    <string name="status_stopped">پایان مصرف</string>
+    <string name="active_medications_heading">داروهای فعال</string>
+    <string name="ended_medications_heading">پایان مصرف</string>
+    <string name="archived_medications_title">داروهای بایگانی‌شده</string>
+    <string name="archived_medications_empty">هنوز دارویی بایگانی نشده است.</string>
+    <string name="archived_medication_ended_at">پایان مصرف: %1$s</string>
+    <string name="archived_medication_archived_at">بایگانی: %1$s</string>
+    <string name="archived_medication_read_only">این سابقه فقط خواندنی است. بازگردانی، ویرایش و افزودن برنامه در دسترس نیست.</string>
 
     <string name="schedule_weekdays">روزها:</string>
     <string name="schedule_times">زمان‌ها:</string>
@@ -89,10 +96,10 @@
     <string name="schedule_pattern">زمان‌بندی:</string>
     <string name="open_ended">بدون محدودیت</string>
 
-    <string name="confirm_stop_title">توقف دارو</string>
-    <string name="confirm_stop_body">داروی «%1$s» متوقف شود؟ نوبت‌های آینده ثبت‌نشده لغو می‌شوند و سابقه باقی می‌ماند.</string>
-    <string name="confirm_archive_title">بایگانی دارو</string>
-    <string name="confirm_archive_body">داروی متوقف‌شده «%1$s» از فهرست اصلی پنهان شود؟ سابقه حذف نمی‌شود.</string>
+    <string name="confirm_stop_title">پایان مصرف دارو</string>
+    <string name="confirm_stop_body">پایان مصرف «%1$s» ثبت شود؟ نوبت‌های آینده ثبت‌نشده لغو می‌شوند، سابقه باقی می‌ماند و این دارو دیگر قابل ویرایش نیست. برای شروع دوباره باید داروی تازه‌ای بسازید.</string>
+    <string name="confirm_archive_title">انتقال به بایگانی</string>
+    <string name="confirm_archive_body">«%1$s» از فهرست اصلی به بایگانی منتقل شود؟ سابقه باقی می‌ماند و بازگردانی در دسترس نیست.</string>
 
     <string name="medication_text_edit_title">ویرایش متن دارو</string>
     <string name="schedule_edit_title">ویرایش برنامه دارو</string>

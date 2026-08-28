@@ -30,6 +30,7 @@ import androidx.lifecycle.viewModelScope
 import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.domain.calendar.FirstDayOfWeekPolicy
+import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.calendar.FirstDayOfWeekPreference
 import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceState
@@ -40,9 +41,12 @@ import ir.carepack.ui.accessibility.carePackPrimaryAction
 import ir.carepack.ui.experience.carePackExperience
 import java.time.DayOfWeek
 import java.util.Locale
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -51,86 +55,104 @@ data class SettingsUiState(
         UserExperiencePreferenceState(),
     val resolvedFirstDayOfWeek: DayOfWeek =
         DayOfWeek.MONDAY,
+    val recipientDisplayName: String = "",
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
     val appVersion: String = "",
+)
+
+private data class SettingsTransientState(
+    val isSaving: Boolean = false,
+    val errorMessage: String? = null,
 )
 
 class SettingsViewModel(
     private val userExperiencePreferenceStore: UserExperiencePreferenceStore,
+    carePlanService: CarePlanService? = null,
     zoneProvider: ZoneProvider,
     private val appVersion: String,
 ) : ViewModel() {
 
     private val zoneId = zoneProvider.currentZone()
+    private val transientState = MutableStateFlow(SettingsTransientState())
 
-    val state: StateFlow<SettingsUiState> =
-        userExperiencePreferenceStore.state
-            .map { preferences ->
-                SettingsUiState(
-                    preferenceState = preferences,
-                    resolvedFirstDayOfWeek = FirstDayOfWeekPolicy
-                            .resolve(
-                                preference = preferences
-                                        .firstDayOfWeekPreference,
-                                zoneId = zoneId,
-                                locale = Locale.getDefault(),
-                            ),
-                    appVersion = appVersion,
-                )
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted
-                        .WhileSubscribed(
-                            5_000,
-                        ),
-                initialValue = SettingsUiState(
-                        appVersion = appVersion,
-                    ),
+    val state: StateFlow<SettingsUiState> = combine(
+            userExperiencePreferenceStore.state,
+            carePlanService?.observeCarePlan() ?: flowOf(null),
+            transientState,
+        ) { preferences, carePlan, transient ->
+            SettingsUiState(
+                preferenceState = preferences,
+                resolvedFirstDayOfWeek = FirstDayOfWeekPolicy.resolve(
+                    preference = preferences.firstDayOfWeekPreference,
+                    zoneId = zoneId,
+                    locale = Locale.getDefault(),
+                ),
+                recipientDisplayName = carePlan?.recipientDisplayName.orEmpty(),
+                isSaving = transient.isSaving,
+                errorMessage = transient.errorMessage,
+                appVersion = appVersion,
             )
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SettingsUiState(appVersion = appVersion),
+        )
 
-    fun setFirstDayOfWeekPreference(
-        preference: FirstDayOfWeekPreference,
-    ) {
-        viewModelScope.launch {
-            userExperiencePreferenceStore.setFirstDayOfWeekPreference(
-                    preference,
-                )
+    fun setFirstDayOfWeekPreference(preference: FirstDayOfWeekPreference) {
+        savePreference {
+            userExperiencePreferenceStore.setFirstDayOfWeekPreference(preference)
         }
     }
 
-    fun setSeniorMode(
-        seniorMode: SeniorMode,
-    ) {
+    fun setSeniorMode(seniorMode: SeniorMode) {
+        savePreference {
+            userExperiencePreferenceStore.setSeniorMode(seniorMode)
+        }
+    }
+
+    private fun savePreference(operation: suspend () -> Unit) {
         viewModelScope.launch {
-            userExperiencePreferenceStore.setSeniorMode(
-                    seniorMode,
+            transientState.value = SettingsTransientState(isSaving = true)
+            try {
+                operation()
+                transientState.value = SettingsTransientState()
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                transientState.value = SettingsTransientState(
+                    errorMessage = "ذخیره تنظیمات انجام نشد. مقدار قبلی همچنان فعال است.",
                 )
+            }
         }
     }
 
     companion object {
-
         fun factory(
             userExperiencePreferenceStore: UserExperiencePreferenceStore,
+            carePlanService: CarePlanService,
             zoneProvider: ZoneProvider,
             appVersion: String,
         ): ViewModelProvider.Factory = carePackViewModelFactory {
-                    SettingsViewModel(
-                        userExperiencePreferenceStore = userExperiencePreferenceStore,
-                        zoneProvider = zoneProvider,
-                        appVersion = appVersion,
-                    )
-            }
+            SettingsViewModel(
+                userExperiencePreferenceStore = userExperiencePreferenceStore,
+                carePlanService = carePlanService,
+                zoneProvider = zoneProvider,
+                appVersion = appVersion,
+            )
+        }
     }
 }
 
 @Composable
 fun SettingsRoute(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit,
+    onEditRecipient: () -> Unit = {},
     onOpenReminderSettings: () -> Unit,
-    onOpenTodayReport: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onDeleteAllData: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit = {},
+    @Suppress("UNUSED_PARAMETER") onOpenTodayReport: () -> Unit = {},
 ) {
     val state by
     viewModel.state
@@ -138,9 +160,8 @@ fun SettingsRoute(
 
     SettingsScreen(
         state = state,
-        onBack = onBack,
+        onEditRecipient = onEditRecipient,
         onOpenReminderSettings = onOpenReminderSettings,
-        onOpenTodayReport = onOpenTodayReport,
         onOpenPrivacy = onOpenPrivacy,
         onDeleteAllData = onDeleteAllData,
         onFirstDayOfWeekPreferenceChanged = viewModel::setFirstDayOfWeekPreference,
@@ -151,14 +172,15 @@ fun SettingsRoute(
 @Composable
 fun SettingsScreen(
     state: SettingsUiState,
-    onBack: () -> Unit,
+    onEditRecipient: () -> Unit = {},
     onOpenReminderSettings: () -> Unit,
-    onOpenTodayReport: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onDeleteAllData: () -> Unit,
     onFirstDayOfWeekPreferenceChanged: (FirstDayOfWeekPreference) -> Unit,
     onSeniorModeChanged: (SeniorMode) -> Unit,
     modifier: Modifier = Modifier,
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit = {},
+    @Suppress("UNUSED_PARAMETER") onOpenTodayReport: () -> Unit = {},
 ) {
     val experience = carePackExperience()
 
@@ -185,9 +207,6 @@ fun SettingsScreen(
                     experience.sectionSpacing,
                 ),
         ) {
-            TextButtonBack(
-                onBack = onBack,
-            )
 
             Text(
                 text = stringResource(
@@ -211,6 +230,30 @@ fun SettingsScreen(
                 )
             }
 
+            if (state.errorMessage != null) {
+                Text(
+                    text = state.errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.testTag("settings_save_error"),
+                )
+            } else if (state.isSaving) {
+                Text(
+                    text = "در حال ذخیره تنظیمات…",
+                    modifier = Modifier.testTag("settings_saving"),
+                )
+            }
+
+            SettingsActionButton(
+                title = stringResource(R.string.edit_recipient),
+                description = if (state.recipientDisplayName.isBlank()) {
+                        "نام فرد تحت مراقبت را ویرایش کنید."
+                    } else {
+                        "فرد تحت مراقبت: ${state.recipientDisplayName}"
+                    },
+                testTag = "settings_edit_recipient",
+                onClick = onEditRecipient,
+            )
+
             SettingsActionButton(
                 title = stringResource(
                         R.string.carepack_settings_reminders,
@@ -220,17 +263,6 @@ fun SettingsScreen(
                     ),
                 testTag = "settings_reminders",
                 onClick = onOpenReminderSettings,
-            )
-
-            SettingsActionButton(
-                title = stringResource(
-                        R.string.carepack_settings_today_report,
-                    ),
-                description = stringResource(
-                        R.string.carepack_settings_today_report_description,
-                    ),
-                testTag = "settings_today_report",
-                onClick = onOpenTodayReport,
             )
 
             SettingsActionButton(
@@ -273,24 +305,6 @@ fun SettingsScreen(
     }
 }
 
-@Composable
-private fun TextButtonBack(
-    onBack: () -> Unit,
-) {
-    androidx.compose.material3.TextButton(
-        onClick = onBack,
-        modifier = Modifier
-                .carePackInteractiveControl().testTag(
-                    "settings_back",
-                ),
-    ) {
-        Text(
-            text = stringResource(
-                    R.string.back,
-                ),
-        )
-    }
-}
 
 @Composable
 private fun WeekStartSection(

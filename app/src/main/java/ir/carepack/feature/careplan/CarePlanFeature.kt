@@ -237,7 +237,7 @@ class CarePlanViewModel(
             StopMedicationOutcome.Stopped -> {
                 eventChannel.send(
                     CarePlanEvent.ShowMessage(
-                        "دارو متوقف شد.",
+                        "مصرف دارو پایان یافت.",
                     ),
                 )
             }
@@ -252,7 +252,7 @@ class CarePlanViewModel(
             StopMedicationOutcome.AlreadyStopped -> {
                 eventChannel.send(
                     CarePlanEvent.ShowMessage(
-                        "دارو قبلاً متوقف شده است.",
+                        "مصرف این دارو قبلاً پایان یافته است.",
                     ),
                 )
             }
@@ -284,7 +284,7 @@ class CarePlanViewModel(
             ArchiveMedicationOutcome.MustStopFirst -> {
                 mutableState.value = mutableState
                         .value.copy(
-                            errorMessage = "قبل از بایگانی، دارو را متوقف کنید.",
+                            errorMessage = "پیش از بایگانی، پایان مصرف دارو را ثبت کنید.",
                         )
             }
 
@@ -318,6 +318,7 @@ fun CarePlanRoute(
     onEditMedicationText: (String) -> Unit,
     onEditSchedule: (String) -> Unit,
     onDeleteMedication: (String) -> Unit,
+    onOpenArchivedMedications: () -> Unit,
     snackbarHost: suspend (String) -> Unit = {},
 ) {
     val state by
@@ -347,6 +348,7 @@ fun CarePlanRoute(
         onEditMedicationText = onEditMedicationText,
         onEditSchedule = onEditSchedule,
         onDeleteMedication = onDeleteMedication,
+        onOpenArchivedMedications = onOpenArchivedMedications,
         onStopMedication = viewModel::requestStopMedication,
         onArchiveMedication = viewModel::requestArchiveMedication,
         onConfirmMedicationAction = viewModel::confirmMedicationAction,
@@ -363,6 +365,7 @@ private fun CarePlanScreen(
     onEditMedicationText: (String) -> Unit,
     onEditSchedule: (String) -> Unit,
     onDeleteMedication: (String) -> Unit,
+    onOpenArchivedMedications: () -> Unit,
     onStopMedication: (String, String) -> Unit,
     onArchiveMedication: (String, String) -> Unit,
     onConfirmMedicationAction: () -> Unit,
@@ -436,12 +439,6 @@ private fun CarePlanScreen(
                     }
                 }
 
-                overview.medications.isEmpty() -> {
-                    item {
-                        EmptyCarePlanCard()
-                    }
-                }
-
                 else -> {
                     item {
                         AddMedicationButton(
@@ -450,21 +447,63 @@ private fun CarePlanScreen(
                         )
                     }
 
-                    items(
-                        items = overview.medications,
-                        key = {
-                            it.medicationId
-                        },
-                    ) { medication ->
-                        MedicationCard(
-                            medication = medication,
-                            onAddSchedule = onAddSchedule,
-                            onEditMedicationText = onEditMedicationText,
-                            onEditSchedule = onEditSchedule,
-                            onDeleteMedication = onDeleteMedication,
-                            onStopMedication = onStopMedication,
-                            onArchiveMedication = onArchiveMedication,
+                    item {
+                        ArchivedMedicationsButton(
+                            onOpenArchivedMedications = onOpenArchivedMedications,
                         )
+                    }
+
+                    val activeMedications = overview.medications.filter {
+                        it.status == MedicationStatus.ACTIVE
+                    }
+                    val endedMedications = overview.medications.filter {
+                        it.status == MedicationStatus.STOPPED
+                    }
+
+                    if (activeMedications.isEmpty() && endedMedications.isEmpty()) {
+                        item {
+                            EmptyCarePlanCard()
+                        }
+                    }
+
+                    if (activeMedications.isNotEmpty()) {
+                        item {
+                            MedicationSectionHeading(
+                                text = stringResource(R.string.active_medications_heading),
+                                testTag = "active_medications_heading",
+                            )
+                        }
+                        items(activeMedications, key = MedicationPlanItem::medicationId) { medication ->
+                            MedicationCard(
+                                medication = medication,
+                                onAddSchedule = onAddSchedule,
+                                onEditMedicationText = onEditMedicationText,
+                                onEditSchedule = onEditSchedule,
+                                onDeleteMedication = onDeleteMedication,
+                                onStopMedication = onStopMedication,
+                                onArchiveMedication = onArchiveMedication,
+                            )
+                        }
+                    }
+
+                    if (endedMedications.isNotEmpty()) {
+                        item {
+                            MedicationSectionHeading(
+                                text = stringResource(R.string.ended_medications_heading),
+                                testTag = "ended_medications_heading",
+                            )
+                        }
+                        items(endedMedications, key = MedicationPlanItem::medicationId) { medication ->
+                            MedicationCard(
+                                medication = medication,
+                                onAddSchedule = onAddSchedule,
+                                onEditMedicationText = onEditMedicationText,
+                                onEditSchedule = onEditSchedule,
+                                onDeleteMedication = onDeleteMedication,
+                                onStopMedication = onStopMedication,
+                                onArchiveMedication = onArchiveMedication,
+                            )
+                        }
                     }
                 }
             }
@@ -596,66 +635,39 @@ private fun MedicationCard(
                 }
             }
 
-            OutlinedButton(
-                onClick = {
-                    onEditMedicationText(
-                        medication.medicationId,
-                    )
-                },
-                enabled = medication.status ==
-                            MedicationStatus.ACTIVE,
-                modifier = Modifier
-                        .fillMaxWidth().testTag(
+            if (medication.status == MedicationStatus.ACTIVE) {
+                OutlinedButton(
+                    onClick = {
+                        onEditMedicationText(medication.medicationId)
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag(
                             "edit_medication_${medication.medicationId}",
                         ),
-            ) {
-                Text(
-                    text = stringResource(
-                            R.string.edit_medication_text,
-                        ),
-                )
-            }
+                ) {
+                    Text(text = stringResource(R.string.edit_medication_text))
+                }
 
-            OutlinedButton(
-                onClick = {
-                    onStopMedication(
-                        medication.medicationId,
-                        medication.name,
-                    )
-                },
-                enabled = medication.status ==
-                            MedicationStatus.ACTIVE,
-                modifier = Modifier
-                        .fillMaxWidth().testTag(
+                OutlinedButton(
+                    onClick = {
+                        onStopMedication(medication.medicationId, medication.name)
+                    },
+                    modifier = Modifier.fillMaxWidth().testTag(
                             "stop_medication_${medication.medicationId}",
                         ),
-            ) {
-                Text(
-                    text = stringResource(
-                            R.string.stop_medication,
-                        ),
-                )
-            }
-
-            OutlinedButton(
-                onClick = {
-                    onArchiveMedication(
-                        medication.medicationId,
-                        medication.name,
-                    )
-                },
-                enabled = medication.status ==
-                            MedicationStatus.STOPPED,
-                modifier = Modifier
-                        .fillMaxWidth().testTag(
+                ) {
+                    Text(text = stringResource(R.string.stop_medication))
+                }
+            } else {
+                OutlinedButton(
+                    onClick = {
+                        onArchiveMedication(medication.medicationId, medication.name)
+                    },
+                    modifier = Modifier.fillMaxWidth().carePackPrimaryAction().testTag(
                             "archive_medication_${medication.medicationId}",
                         ),
-            ) {
-                Text(
-                    text = stringResource(
-                            R.string.archive_medication,
-                        ),
-                )
+                ) {
+                    Text(text = stringResource(R.string.archive_medication))
+                }
             }
 
             HorizontalDivider()
@@ -872,6 +884,31 @@ private fun AddMedicationButton(
                 ),
         )
     }
+}
+
+@Composable
+private fun ArchivedMedicationsButton(
+    onOpenArchivedMedications: () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onOpenArchivedMedications,
+        modifier = Modifier.fillMaxWidth().carePackPrimaryAction()
+            .testTag("open_archived_medications"),
+    ) {
+        Text(text = stringResource(R.string.archived_medications_title))
+    }
+}
+
+@Composable
+private fun MedicationSectionHeading(
+    text: String,
+    testTag: String,
+) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.carePackHeading().testTag(testTag),
+    )
 }
 
 @Composable
