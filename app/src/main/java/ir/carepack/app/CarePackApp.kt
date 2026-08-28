@@ -39,7 +39,6 @@ import ir.carepack.R
 import ir.carepack.core.time.ZoneProvider
 import ir.carepack.domain.careplan.CarePlanService
 import ir.carepack.domain.experience.SeniorMode
-import ir.carepack.domain.experience.UserExperiencePreferenceState
 import ir.carepack.domain.experience.UserExperiencePreferenceStore
 import ir.carepack.domain.reminder.ReminderCoordinator
 import ir.carepack.domain.reminder.ReminderPreferenceState
@@ -65,6 +64,7 @@ import ir.carepack.feature.detail.OccurrenceDetailEntryMode
 import ir.carepack.feature.detail.OccurrenceDetailRoute
 import ir.carepack.feature.detail.OccurrenceDetailViewModel
 import ir.carepack.feature.onboarding.OnboardingScreen
+import ir.carepack.feature.onboarding.OnboardingSimpleModeViewModel
 import ir.carepack.feature.privacy.PrivacyRoute
 import ir.carepack.feature.reminder.ReminderSettingsRoute
 import ir.carepack.feature.reminder.ReminderSettingsViewModel
@@ -323,13 +323,14 @@ private fun CarePackNavigation(
             composable(
                 CarePackRoutes.Onboarding,
             ) {
-                val onboardingScope = rememberCoroutineScope()
-
-                val userExperienceState by
-                userExperiencePreferenceStore.state
-                    .collectAsStateWithLifecycle(
-                        initialValue = UserExperiencePreferenceState(),
+                val onboardingSimpleModeViewModel: OnboardingSimpleModeViewModel =
+                    viewModel(
+                        factory = OnboardingSimpleModeViewModel.factory(
+                            userExperiencePreferenceStore,
+                        ),
                     )
+                val onboardingSimpleModeState by onboardingSimpleModeViewModel.state
+                    .collectAsStateWithLifecycle()
 
                 OnboardingScreen(
                     onContinue = {
@@ -352,22 +353,14 @@ private fun CarePackNavigation(
                             launchSingleTop = true
                         }
                     },
-                    simpleModeEnabled = userExperienceState
+                    simpleModeEnabled = onboardingSimpleModeState.preferenceState
                             .seniorMode == SeniorMode.SIMPLE,
-                    onEnableSimpleMode = {
-                        onboardingScope.launch {
-                            userExperiencePreferenceStore.setSeniorMode(
-                                    SeniorMode.SIMPLE,
-                                )
-                        }
-                    },
-                    onKeepStandardMode = {
-                        onboardingScope.launch {
-                            userExperiencePreferenceStore.setSeniorMode(
-                                    SeniorMode.STANDARD,
-                                )
-                        }
-                    },
+                    isSavingSimpleMode = onboardingSimpleModeState.isSaving,
+                    simpleModeErrorMessage = onboardingSimpleModeState.errorMessage,
+                    onEnableSimpleMode = onboardingSimpleModeViewModel::selectSimpleMode,
+                    onKeepStandardMode = onboardingSimpleModeViewModel::keepStandardMode,
+                    onRetrySimpleModeSelection =
+                        onboardingSimpleModeViewModel::retryLastSelection,
                 )
             }
 

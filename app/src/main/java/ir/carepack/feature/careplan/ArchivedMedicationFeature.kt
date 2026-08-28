@@ -305,12 +305,14 @@ fun ArchivedMedicationDetailScreen(
                         R.string.archived_medication_ended_at,
                         medication.endedAt.toDisplayDateTime(),
                     ),
+                    modifier = Modifier.testTag("archive_detail_ended_at"),
                 )
                 Text(
                     stringResource(
                         R.string.archived_medication_archived_at,
                         medication.archivedAt.toDisplayDateTime(),
                     ),
+                    modifier = Modifier.testTag("archive_detail_archived_at"),
                 )
                 Text(
                     text = stringResource(R.string.archived_medication_read_only),

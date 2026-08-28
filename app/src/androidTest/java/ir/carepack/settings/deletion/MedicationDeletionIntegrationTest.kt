@@ -1,6 +1,8 @@
 package ir.carepack.settings.deletion
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import ir.carepack.domain.careplan.ArchiveMedicationOutcome
+import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.domain.careplan.UpdateMedicationTextCommand
 import ir.carepack.domain.careplan.UpdateMedicationTextOutcome
 import ir.carepack.domain.model.CaregiverReportState
@@ -394,6 +396,27 @@ class MedicationDeletionIntegrationTest {
                         expectedPreview = preview,
                     ),
                 )
+            }
+        }
+
+    @Test
+    fun permanentDelete_isAvailableForEndedAndArchivedMedicationRecords() =
+        runBlocking {
+            CarePlanRoomTestFixture.create().use { fixture ->
+                val ended = fixture.createPlan(medicationName = "داروی پایان‌یافته", minutesOfDay = listOf(12 * 60))
+                val archived = fixture.createPlan(medicationName = "داروی بایگانی‌شده", minutesOfDay = listOf(13 * 60))
+                assertEquals(StopMedicationOutcome.Stopped, fixture.carePlanService.stopMedication(ended.medicationId))
+                assertEquals(StopMedicationOutcome.Stopped, fixture.carePlanService.stopMedication(archived.medicationId))
+                assertEquals(ArchiveMedicationOutcome.Archived, fixture.carePlanService.archiveMedication(archived.medicationId))
+
+                val dataSource = RoomMedicationDeletionDataSource(database = fixture.database)
+                listOf(ended.medicationId, archived.medicationId).forEach { medicationId ->
+                    val preview = checkNotNull(dataSource.loadPreview(medicationId))
+                    assertTrue(
+                        dataSource.deleteGraph(medicationId, preview) is MedicationGraphDeletionResult.Deleted,
+                    )
+                    assertNull(fixture.database.medicationDao().getById(medicationId))
+                }
             }
         }
 
