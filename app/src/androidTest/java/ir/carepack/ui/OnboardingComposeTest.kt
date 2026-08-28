@@ -16,6 +16,9 @@ import ir.carepack.core.time.ZoneProvider
 import ir.carepack.data.preferences.SetupPreferenceStore
 import ir.carepack.domain.experience.SeniorMode
 import ir.carepack.domain.experience.UserExperiencePreferenceState
+import ir.carepack.domain.experience.UserExperiencePreferenceStore
+import ir.carepack.domain.careplan.ArchiveMedicationOutcome
+import ir.carepack.domain.careplan.StopMedicationOutcome
 import ir.carepack.domain.reminder.AlarmFireResult
 import ir.carepack.domain.reminder.ReconciliationReason
 import ir.carepack.domain.reminder.ReminderAvailability
@@ -34,6 +37,7 @@ import ir.carepack.testing.RecordingDataDeletionCoordinator
 import ir.carepack.testing.RecordingTextShareGateway
 import ir.carepack.ui.theme.CarePackTheme
 import java.time.ZoneId
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -303,6 +307,68 @@ class OnboardingComposeTest {
     }
 
     @Test
+    fun onboardingSimpleModeSaveFailure_keepsPersistedValueVisibleAndRetryRecovers() {
+        val store = FailingOnboardingUserExperienceStore(
+            initialMode = SeniorMode.STANDARD,
+            failure = IOException("injected write failure"),
+        )
+
+        renderApp(
+            setupPreferenceStore = OnboardingSetupPreferenceStore(setupComplete = false),
+            userExperiencePreferenceStore = store,
+        )
+
+        waitForTag("onboarding_simple_mode_enable")
+        composeRule.onNodeWithTag("onboarding_simple_mode_enable")
+            .performScrollTo()
+            .performClick()
+
+        waitForTag("onboarding_simple_mode_save_error")
+        assertEquals(
+            SeniorMode.STANDARD,
+            runBlocking { store.state.first().seniorMode },
+        )
+
+        store.failure = null
+        composeRule.onNodeWithTag("onboarding_simple_mode_retry")
+            .performScrollTo()
+            .performClick()
+
+        composeRule.waitUntil(timeoutMillis = WAIT_TIMEOUT_MILLIS) {
+            runBlocking { store.state.first().seniorMode == SeniorMode.SIMPLE }
+        }
+        assertTrue(
+            composeRule.onAllNodesWithTag("onboarding_simple_mode_save_error")
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isEmpty(),
+        )
+    }
+
+    @Test
+    fun configuredUserWithOnlyArchivedMedication_stillFindsAddMedicationWithoutOnboarding() {
+        runBlocking {
+            val plan = fixture.createPlan(minutesOfDay = listOf(12 * 60))
+            assertEquals(StopMedicationOutcome.Stopped, fixture.carePlanService.stopMedication(plan.medicationId))
+            assertEquals(ArchiveMedicationOutcome.Archived, fixture.carePlanService.archiveMedication(plan.medicationId))
+        }
+
+        renderApp(
+            setupPreferenceStore = OnboardingSetupPreferenceStore(setupComplete = true),
+            userExperiencePreferenceStore = InstrumentedUserExperiencePreferenceStore(),
+        )
+
+        waitForTag("primary_nav_medications")
+        composeRule.onNodeWithTag("primary_nav_medications").performClick()
+        waitForTag("add_medication")
+        composeRule.onNodeWithTag("add_medication").assertIsDisplayed()
+        assertTrue(
+            composeRule.onAllNodesWithTag("onboarding_screen")
+                .fetchSemanticsNodes(atLeastOneRootRequired = false)
+                .isEmpty(),
+        )
+    }
+
+    @Test
     fun firstMedicationSetup_enablingSimpleModeNavigatesToTodayWithDynamicTheme() {
         val setupStore =
             OnboardingSetupPreferenceStore(
@@ -474,7 +540,7 @@ class OnboardingComposeTest {
     private fun renderApp(
         setupPreferenceStore: SetupPreferenceStore,
         userExperiencePreferenceStore:
-        InstrumentedUserExperiencePreferenceStore,
+        UserExperiencePreferenceStore,
     ) {
         composeRule.setContent {
             val userExperienceState by
@@ -593,6 +659,27 @@ private class OnboardingSetupPreferenceStore(
     override suspend fun markSetupComplete() {
         mutableSetupComplete.value =
             true
+    }
+}
+
+private class FailingOnboardingUserExperienceStore(
+    initialMode: SeniorMode,
+    var failure: Throwable?,
+) : UserExperiencePreferenceStore {
+
+    private val mutableState = MutableStateFlow(
+        UserExperiencePreferenceState(seniorMode = initialMode),
+    )
+
+    override val state: Flow<UserExperiencePreferenceState> = mutableState
+
+    override suspend fun setFirstDayOfWeekPreference(
+        preference: ir.carepack.domain.calendar.FirstDayOfWeekPreference,
+    ) = Unit
+
+    override suspend fun setSeniorMode(seniorMode: SeniorMode) {
+        failure?.let { throw it }
+        mutableState.value = mutableState.value.copy(seniorMode = seniorMode)
     }
 }
 

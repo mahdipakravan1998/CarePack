@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import ir.carepack.R
 import ir.carepack.ui.accessibility.carePackHeading
 import ir.carepack.ui.accessibility.carePackInteractiveControl
+import ir.carepack.ui.accessibility.carePackPoliteLiveRegion
 import ir.carepack.ui.accessibility.carePackPrimaryAction
 import ir.carepack.ui.experience.carePackExperience
 
@@ -32,8 +33,11 @@ fun OnboardingScreen(
     onContinue: () -> Unit,
     onOpenPrivacy: () -> Unit,
     simpleModeEnabled: Boolean,
+    isSavingSimpleMode: Boolean = false,
+    simpleModeErrorMessage: String? = null,
     onEnableSimpleMode: () -> Unit,
     onKeepStandardMode: () -> Unit,
+    onRetrySimpleModeSelection: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val experience = carePackExperience()
@@ -179,8 +183,39 @@ fun OnboardingScreen(
                             ),
                     )
 
+                    if (isSavingSimpleMode) {
+                        Text(
+                            text = "در حال ذخیره انتخاب نمایش…",
+                            modifier = Modifier
+                                    .carePackPoliteLiveRegion().testTag(
+                                        "onboarding_simple_mode_saving",
+                                    ),
+                        )
+                    }
+
+                    simpleModeErrorMessage?.let { errorMessage ->
+                        Text(
+                            text = errorMessage,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier
+                                    .carePackPoliteLiveRegion().testTag(
+                                        "onboarding_simple_mode_save_error",
+                                    ),
+                        )
+
+                        TextButton(
+                            onClick = onRetrySimpleModeSelection,
+                            modifier = Modifier
+                                    .fillMaxWidth().carePackInteractiveControl()
+                                    .testTag("onboarding_simple_mode_retry"),
+                        ) {
+                            Text(text = "تلاش دوباره")
+                        }
+                    }
+
                     Button(
                         onClick = onEnableSimpleMode,
+                        enabled = !isSavingSimpleMode,
                         modifier = Modifier
                                 .fillMaxWidth().carePackPrimaryAction()
                                 .testTag(
@@ -196,6 +231,7 @@ fun OnboardingScreen(
 
                     OutlinedButton(
                         onClick = onKeepStandardMode,
+                        enabled = !isSavingSimpleMode,
                         modifier = Modifier
                                 .fillMaxWidth().carePackInteractiveControl()
                                 .testTag(

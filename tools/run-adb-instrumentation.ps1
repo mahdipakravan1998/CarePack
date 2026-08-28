@@ -21,6 +21,8 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$FilterValue,
 
+    [string]$AdditionalTestOutputDir = "",
+
     [ValidateRange(
         30,
         3600
@@ -81,6 +83,23 @@ $arguments =
         $FilterValue,
         $Component
     )
+
+if (-not [string]::IsNullOrWhiteSpace($AdditionalTestOutputDir)) {
+    $arguments = @(
+        "shell",
+        "am",
+        "instrument",
+        "-w",
+        "-r",
+        "-e",
+        "additionalTestOutputDir",
+        $AdditionalTestOutputDir,
+        "-e",
+        $FilterArgumentName,
+        $FilterValue,
+        $Component
+    )
+}
 
 Write-Host ""
 Write-Host "Instrumentation filter:"

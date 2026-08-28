@@ -157,6 +157,29 @@ class OccurrenceActionEligibilityTest {
         )
     }
 
+    @Test
+    fun remindLaterEligibility_isIndependentOfNotificationDelivery() {
+        val now = scheduledAt.plusSeconds(60)
+
+        assertTrue(
+            RemindLaterEligibility.isAllowed(
+                lifecycle = OccurrenceLifecycle.ACTIVE,
+                hasCaregiverReport = false,
+                scheduledAt = scheduledAt,
+                occurrenceLocalEpochDay = LocalDate.of(2026, 8, 27).toEpochDay(),
+                zoneIdSnapshot = "Asia/Tehran",
+                now = now,
+            ),
+        )
+        assertTrue(
+            ReportMutationEligibility.isAllowed(
+                lifecycle = OccurrenceLifecycle.ACTIVE,
+                scheduledAt = scheduledAt,
+                now = now,
+            ),
+        )
+    }
+
     private fun allowedReminder(
         now: Instant,
         hasReport: Boolean = false,

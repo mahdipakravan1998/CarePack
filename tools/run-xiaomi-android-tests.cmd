@@ -6,6 +6,9 @@ rem CarePack Xiaomi physical-device instrumented test runner
 rem
 rem Full instrumented suite:
 rem   tools\run-xiaomi-android-tests.cmd
+
+rem Full suite after the one-time locked-device privacy test has already run:
+rem   tools\run-xiaomi-android-tests.cmd --skip-locked-device-privacy
 rem
 rem Current CarePack feature-verification suite:
 rem   tools\run-xiaomi-android-tests.cmd --core-workflows
@@ -48,10 +51,13 @@ set "REMINDER_COMPOSE_CLASS=ir.carepack.ui.ReminderComposeTest"
 set "REMINDER_NAVIGATION_COMPOSE_CLASS=ir.carepack.ui.ReminderNavigationComposeTest"
 set "SENIOR_MODE_TODAY_COMPOSE_CLASS=ir.carepack.ui.SeniorModeTodayComposeTest"
 set "TODAY_REPORT_ENTRY_COMPOSE_CLASS=ir.carepack.ui.TodayReportEntryComposeTest"
+set "LOCKED_DEVICE_PRIVACY_CLASS=ir.carepack.reminder.ReminderLockedDevicePrivacyTest"
 
 set "ADDITIONAL_COMPOSE_CLASSES=%CALENDAR_COMPOSE_CLASS% %CARE_RECIPIENT_EDIT_COMPOSE_CLASS% %GLOBAL_SIMPLE_MODE_COMPOSE_CLASS% %JALALI_DATE_PICKER_COMPOSE_CLASS% %MEDICATION_DELETION_COMPOSE_CLASS% %MEDICATION_SCHEDULE_SETUP_COMPOSE_CLASS% %ONBOARDING_COMPOSE_CLASS% %RANGE_REPORT_COMPOSE_CLASS% %REMINDER_COMPOSE_CLASS% %REMINDER_NAVIGATION_COMPOSE_CLASS% %SENIOR_MODE_TODAY_COMPOSE_CLASS% %TODAY_REPORT_ENTRY_COMPOSE_CLASS%"
 
 set "COMPOSE_EXCLUDED_CLASSES=%REPORTING_PRIVACY_DELETION_COMPOSE_CLASS%,%REPORTING_COMPOSE_CLASS%,%CAREPACK_COMPOSE_CLASS%,%CALENDAR_COMPOSE_CLASS%,%CARE_RECIPIENT_EDIT_COMPOSE_CLASS%,%GLOBAL_SIMPLE_MODE_COMPOSE_CLASS%,%JALALI_DATE_PICKER_COMPOSE_CLASS%,%MEDICATION_DELETION_COMPOSE_CLASS%,%MEDICATION_SCHEDULE_SETUP_COMPOSE_CLASS%,%ONBOARDING_COMPOSE_CLASS%,%RANGE_REPORT_COMPOSE_CLASS%,%REMINDER_COMPOSE_CLASS%,%REMINDER_NAVIGATION_COMPOSE_CLASS%,%SENIOR_MODE_TODAY_COMPOSE_CLASS%,%TODAY_REPORT_ENTRY_COMPOSE_CLASS%"
+set "FULL_SUITE_NON_UI_EXCLUDED_CLASSES=%COMPOSE_EXCLUDED_CLASSES%"
+set "SKIP_LOCKED_DEVICE_PRIVACY=0"
 
 set "CORE_WORKFLOW_STANDARD_CLASSES=ir.carepack.data.preferences.DataStoreMedicationDeletionMarkerStoreTest ir.carepack.reporting.RangeReportingIntegrationTest ir.carepack.settings.deletion.MedicationDeletionIntegrationTest ir.carepack.reminder.ReminderTestContractTest %CALENDAR_COMPOSE_CLASS% %JALALI_DATE_PICKER_COMPOSE_CLASS% %RANGE_REPORT_COMPOSE_CLASS% %MEDICATION_DELETION_COMPOSE_CLASS% %GLOBAL_SIMPLE_MODE_COMPOSE_CLASS% %REMINDER_NAVIGATION_COMPOSE_CLASS% %TODAY_REPORT_ENTRY_COMPOSE_CLASS% %ONBOARDING_COMPOSE_CLASS% %CARE_RECIPIENT_EDIT_COMPOSE_CLASS% %REMINDER_COMPOSE_CLASS%"
 
@@ -86,6 +92,12 @@ echo ============================================================
 echo.
 
 if /I "%~1"=="--help" goto :show_help
+
+if /I "%~1"=="--skip-locked-device-privacy" (
+    set "SKIP_LOCKED_DEVICE_PRIVACY=1"
+    set "FULL_SUITE_NON_UI_EXCLUDED_CLASSES=%COMPOSE_EXCLUDED_CLASSES%,%LOCKED_DEVICE_PRIVACY_CLASS%"
+    shift
+)
 
 if not exist "%GRADLEW%" (
     echo ERROR: gradlew.bat was not found.
@@ -155,6 +167,8 @@ for /f "usebackq delims=" %%U in (`adb shell am get-current-user`) do (
 if not defined DEVICE_USER_ID (
     set "DEVICE_USER_ID=0"
 )
+
+set "ADDITIONAL_TEST_OUTPUT_DIR=/data/user/%DEVICE_USER_ID%/%TARGET_PACKAGE%/files/instrumentation"
 
 echo Device manufacturer: %DEVICE_MANUFACTURER%
 echo Device model:        %DEVICE_MODEL%
@@ -552,12 +566,12 @@ goto :selected_test_passed
 
 echo [9A/9] Running non-Compose instrumented tests...
 echo Excluded classes:
-echo %COMPOSE_EXCLUDED_CLASSES%
+echo %FULL_SUITE_NON_UI_EXCLUDED_CLASSES%
 echo.
 
 call :run_and_validate ^
     "notClass" ^
-    "%COMPOSE_EXCLUDED_CLASSES%" ^
+    "%FULL_SUITE_NON_UI_EXCLUDED_CLASSES%" ^
     "%NON_UI_REPORT_FILE%" ^
     "Non-Compose instrumented tests"
 
@@ -682,6 +696,7 @@ powershell.exe ^
     -TestPackage "%TEST_PACKAGE%" ^
     -FilterArgumentName "%RUN_FILTER_ARGUMENT%" ^
     -FilterValue "%RUN_FILTER_VALUE%" ^
+    -AdditionalTestOutputDir "%ADDITIONAL_TEST_OUTPUT_DIR%" ^
     -TimeoutSeconds "%INSTRUMENTATION_TIMEOUT_SECONDS%"
 
 set "RUN_ADB_EXIT_CODE=!ERRORLEVEL!"
@@ -1107,6 +1122,9 @@ echo Usage:
 echo.
 echo   tools\run-xiaomi-android-tests.cmd
 echo       Runs the complete instrumented suite.
+
+echo   tools\run-xiaomi-android-tests.cmd --skip-locked-device-privacy
+echo       Runs the complete suite except the one-time lock-screen privacy class.
 echo.
 echo   tools\run-xiaomi-android-tests.cmd --core-workflows
 echo       Runs the focused CarePack calendar, reporting, deletion,
