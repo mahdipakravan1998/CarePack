@@ -61,7 +61,7 @@ Scope of this audit is the implemented application and its executable automated 
 ## Xiaomi physical-device verification
 
 - Device: Xiaomi M2101K6G, Android 13, authorized through `adb`.
-- One-time lock-screen privacy test: **FAIL**. The privacy test reached its cleanup, but its fixed test PIN did not unlock this device; it failed with `The privacy test must restore an unlocked device.` It was not rerun.
+- One-time lock-screen privacy test: **PASS**. The device started unlocked, the privacy notification and tap assertions passed, and cleanup restored the unlocked state (`OK (1 test)`).
 - Core workflows: **PASS** through `tools\\run-xiaomi-android-tests.cmd --core-workflows`.
 - Full physical-device instrumentation: **PASS** through `tools\\run-xiaomi-android-tests.cmd --skip-locked-device-privacy`.
 - Final full run: 218 executed, 0 failed, 1 intentionally skipped: `ir.carepack.reminder.ReminderLockedDevicePrivacyTest`, because the one-time lock-screen run had already occurred in this verification session.
