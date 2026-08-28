@@ -5,6 +5,8 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -69,6 +71,8 @@ class ReportingComposeTest {
                             null,
                         phase =
                             TemporalStatus.UPCOMING,
+                        canMutateReport = false,
+                        canRemindLater = false,
                     ),
                 ),
             )
@@ -95,7 +99,6 @@ class ReportingComposeTest {
                     onHistorySelected = {},
                     onRetry = {},
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenOccurrence = {},
                 )
             }
@@ -123,6 +126,8 @@ class ReportingComposeTest {
                         CaregiverReportState.UNKNOWN,
                     phase =
                         TemporalStatus.DUE,
+                    canMutateReport = true,
+                    canRemindLater = false,
                 ),
         )
 
@@ -148,6 +153,8 @@ class ReportingComposeTest {
                         CaregiverReportState.GIVEN,
                     phase =
                         TemporalStatus.PAST,
+                    canMutateReport = true,
+                    canRemindLater = false,
                 ),
         )
 
@@ -173,6 +180,8 @@ class ReportingComposeTest {
                         CaregiverReportState.NOT_GIVEN,
                     phase =
                         TemporalStatus.PAST,
+                    canMutateReport = true,
+                    canRemindLater = false,
                 ),
         )
 
@@ -210,6 +219,8 @@ class ReportingComposeTest {
                                             null,
                                         phase =
                                             TemporalStatus.DUE,
+                                        canMutateReport = true,
+                                        canRemindLater = true,
                                         medicationType =
                                             "قرص",
                                         dosageText =
@@ -229,6 +240,8 @@ class ReportingComposeTest {
                                             null,
                                         phase =
                                             TemporalStatus.UPCOMING,
+                                        canMutateReport = false,
+                                        canRemindLater = false,
                                     ),
                                 ),
                             emptyState =
@@ -240,7 +253,6 @@ class ReportingComposeTest {
                     onHistorySelected = {},
                     onRetry = {},
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenOccurrence = {},
                 )
             }
@@ -271,6 +283,51 @@ class ReportingComposeTest {
             )
             .performScrollTo()
             .assertIsDisplayed()
+    }
+
+    @Test
+    fun standardToday_upcomingOccurrenceDisablesReportAndRemindLaterControls() {
+        val occurrenceId = "upcoming"
+
+        composeRule.setContent {
+            CarePackTheme {
+                TodayScreen(
+                    state = TodayUiState(
+                        localDate = TEST_DATE,
+                        selectedSection = TodaySection.TODAY,
+                        isLoading = false,
+                        items = listOf(
+                            todayItem(
+                                id = occurrenceId,
+                                localTime = LocalTime.of(20, 0),
+                                reportState = null,
+                                phase = TemporalStatus.UPCOMING,
+                                canMutateReport = false,
+                                canRemindLater = false,
+                            ),
+                        ),
+                        emptyState = null,
+                        isHistoryLoading = false,
+                    ),
+                    onTodaySelected = {},
+                    onHistorySelected = {},
+                    onRetry = {},
+                    onOpenCarePlan = {},
+                    onOpenOccurrence = {},
+                )
+            }
+        }
+
+        listOf(
+            "today_given_$occurrenceId",
+            "today_not_given_$occurrenceId",
+            "today_unknown_$occurrenceId",
+            "today_remind_later_$occurrenceId",
+        ).forEach { tag ->
+            composeRule.onNodeWithTag(tag, useUnmergedTree = true)
+                .performScrollTo()
+                .assertIsNotEnabled()
+        }
     }
 
     @Test
@@ -331,6 +388,11 @@ class ReportingComposeTest {
         )
 
         composeRule
+            .onNodeWithTag("remind_later", useUnmergedTree = true)
+            .performScrollTo()
+            .assertIsNotEnabled()
+
+        composeRule
             .onNodeWithTag(
                 "report_unknown",
             )
@@ -341,6 +403,75 @@ class ReportingComposeTest {
             CaregiverReportState.UNKNOWN,
             selectedState,
         )
+    }
+
+    @Test
+    fun detail_sameOccurrenceLocalDayEnablesReportAndRemindLater() {
+        composeRule.setContent {
+            CarePackTheme {
+                OccurrenceDetailScreen(
+                    state = OccurrenceDetailUiState(
+                        isLoading = false,
+                        detail = detailOccurrence(
+                            lifecycle = OccurrenceLifecycle.ACTIVE,
+                            reportState = null,
+                            canMutateReport = true,
+                            canRemindLater = true,
+                        ),
+                    ),
+                    onBack = {},
+                    onGiven = {},
+                    onNotGiven = {},
+                    onUnknown = {},
+                    onUndo = {},
+                    onSnackbarConsumed = {},
+                )
+            }
+        }
+
+        listOf("report_given", "report_not_given", "report_unknown", "remind_later")
+            .forEach { tag ->
+                composeRule.onNodeWithTag(tag, useUnmergedTree = true)
+                    .performScrollTo()
+                    .assertIsEnabled()
+            }
+    }
+
+    @Test
+    fun detail_previousOccurrenceLocalDayKeepsReportAvailableButDisablesRemindLater() {
+        composeRule.setContent {
+            CarePackTheme {
+                OccurrenceDetailScreen(
+                    state = OccurrenceDetailUiState(
+                        isLoading = false,
+                        detail = detailOccurrence(
+                            lifecycle = OccurrenceLifecycle.ACTIVE,
+                            reportState = null,
+                            canMutateReport = true,
+                            canRemindLater = false,
+                            localDate = TEST_DATE.minusDays(1),
+                            scheduledAt = TEST_INSTANT.minusSeconds(24 * 60 * 60L),
+                            zoneId = "Asia/Tehran",
+                        ),
+                    ),
+                    onBack = {},
+                    onGiven = {},
+                    onNotGiven = {},
+                    onUnknown = {},
+                    onUndo = {},
+                    onSnackbarConsumed = {},
+                )
+            }
+        }
+
+        listOf("report_given", "report_not_given", "report_unknown").forEach { tag ->
+            composeRule.onNodeWithTag(tag, useUnmergedTree = true)
+                .performScrollTo()
+                .assertIsEnabled()
+        }
+        composeRule.onNodeWithTag("remind_later", useUnmergedTree = true)
+            .performScrollTo()
+            .assertIsNotEnabled()
     }
 
     @Test
@@ -358,6 +489,8 @@ class ReportingComposeTest {
                                         OccurrenceLifecycle.CANCELLED,
                                     reportState =
                                         CaregiverReportState.GIVEN,
+                                    canMutateReport = false,
+                                    canRemindLater = false,
                                     cancellationReason =
                                         OccurrenceCancellationReason
                                             .SCHEDULE_REPLACED,
@@ -398,6 +531,10 @@ class ReportingComposeTest {
         assertTagDoesNotExist(
             tag =
                 "report_unknown",
+        )
+
+        assertTagDoesNotExist(
+            tag = "remind_later",
         )
     }
 
@@ -490,7 +627,6 @@ class ReportingComposeTest {
                             1
                     },
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenOccurrence = {},
                 )
             }
@@ -586,7 +722,6 @@ class ReportingComposeTest {
                     onHistorySelected = {},
                     onRetry = {},
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenOccurrence = {
                             occurrenceId ->
                         selectedOccurrenceId =
@@ -698,6 +833,8 @@ class ReportingComposeTest {
                         OccurrenceLifecycle.ACTIVE,
                     reportState =
                         reportState,
+                    canMutateReport = true,
+                    canRemindLater = false,
                 ),
             snackbarMessage =
                 snackbarMessage,
@@ -708,6 +845,11 @@ class ReportingComposeTest {
     private fun detailOccurrence(
         lifecycle: OccurrenceLifecycle,
         reportState: CaregiverReportState?,
+        canMutateReport: Boolean,
+        canRemindLater: Boolean,
+        localDate: LocalDate = TEST_DATE,
+        scheduledAt: Instant = TEST_INSTANT,
+        zoneId: String = "Asia/Tehran",
         cancellationReason:
         OccurrenceCancellationReason? =
             null,
@@ -716,14 +858,14 @@ class ReportingComposeTest {
             occurrenceId =
                 "occurrence-1",
             localDate =
-                TEST_DATE,
+                localDate,
             localTime =
                 LocalTime.of(
                     9,
                     0,
                 ),
             scheduledAt =
-                TEST_INSTANT,
+                scheduledAt,
             medicationName =
                 "داروی نمونه",
             medicationInstruction =
@@ -733,7 +875,7 @@ class ReportingComposeTest {
             reportState =
                 reportState,
             zoneId =
-                "Asia/Tehran",
+                zoneId,
             temporalStatus =
                 TemporalStatus.DUE,
             isOverdue =
@@ -746,6 +888,8 @@ class ReportingComposeTest {
                 "نصف",
             doseUnit =
                 "عدد",
+            canMutateReport = canMutateReport,
+            canRemindLater = canRemindLater,
         )
 
     private fun todayItem(
@@ -754,6 +898,8 @@ class ReportingComposeTest {
         reportState:
         CaregiverReportState?,
         phase: TemporalStatus,
+        canMutateReport: Boolean,
+        canRemindLater: Boolean,
         isOverdue: Boolean =
             false,
         medicationType: String = "",
@@ -793,6 +939,8 @@ class ReportingComposeTest {
                 dosageText,
             doseUnit =
                 doseUnit,
+            canMutateReport = canMutateReport,
+            canRemindLater = canRemindLater,
         )
 
     private fun historyItem(

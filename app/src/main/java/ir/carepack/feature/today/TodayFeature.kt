@@ -110,8 +110,6 @@ fun TodayScreen(
     onHistorySelected: () -> Unit,
     onRetry: () -> Unit,
     onOpenCarePlan: () -> Unit,
-    @Suppress("UNUSED_PARAMETER")
-    onOpenSettings: () -> Unit = {},
     onOpenTodayReport: () -> Unit = {},
     onOpenOccurrence: (String) -> Unit,
     onGiven: (String) -> Unit = {},

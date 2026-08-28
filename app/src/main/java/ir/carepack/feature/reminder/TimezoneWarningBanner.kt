@@ -69,7 +69,7 @@ fun TimezoneWarningBanner(
                     modifier = Modifier.carePackInteractiveControl()
                         .testTag("timezone_warning_dismiss"),
                 ) {
-                    Text(stringResource(R.string.dismiss_for_later))
+                    Text(stringResource(R.string.timezone_warning_acknowledge))
                 }
             }
         }

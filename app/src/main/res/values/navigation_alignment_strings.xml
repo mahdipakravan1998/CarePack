@@ -2,7 +2,6 @@
 <resources>
     <string name="primary_nav_today">امروز</string>
     <string name="primary_nav_medications">داروها</string>
-    <string name="primary_nav_history">سابقه</string>
     <string name="primary_nav_settings">تنظیمات</string>
 
     <string name="add_schedule">افزودن برنامه مصرف</string>

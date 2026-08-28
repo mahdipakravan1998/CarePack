@@ -1,6 +1,7 @@
 package ir.carepack.ui
 
 import androidx.compose.ui.test.assertHasClickAction
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createComposeRule
@@ -32,13 +33,10 @@ class SeniorModeTodayComposeTest {
         createComposeRule()
 
     @Test
-    fun seniorMode_rendersEveryTodayItemWithSeniorControls() {
+    fun seniorMode_rendersEligibleOccurrenceWithSeniorControlsAndKeepsUpcomingActionsDisabled() {
         renderSeniorToday()
 
-        listOf(
-            MORNING_ID,
-            EVENING_ID,
-        ).forEach { occurrenceId ->
+        MORNING_ID.let { occurrenceId ->
             assertVisibleAfterScroll(
                 "simple_today_card_$occurrenceId",
             )
@@ -62,6 +60,17 @@ class SeniorModeTodayComposeTest {
             assertActionVisibleAndClickable(
                 "simple_today_details_$occurrenceId",
             )
+        }
+
+        EVENING_ID.let { occurrenceId ->
+            assertVisibleAfterScroll("simple_today_card_$occurrenceId")
+            listOf(
+                "simple_today_given_$occurrenceId",
+                "simple_today_not_given_$occurrenceId",
+                "simple_today_unknown_$occurrenceId",
+                "simple_today_remind_later_$occurrenceId",
+            ).forEach(::assertActionVisibleAndDisabled)
+            assertActionVisibleAndClickable("simple_today_details_$occurrenceId")
         }
     }
 
@@ -90,27 +99,27 @@ class SeniorModeTodayComposeTest {
         )
 
         clickAfterScroll(
-            "simple_today_given_$EVENING_ID",
+            "simple_today_given_$MORNING_ID",
         )
 
         clickAfterScroll(
-            "simple_today_remind_later_$EVENING_ID",
+            "simple_today_remind_later_$MORNING_ID",
         )
 
         clickAfterScroll(
-            "simple_today_not_given_$EVENING_ID",
+            "simple_today_not_given_$MORNING_ID",
         )
 
         clickAfterScroll(
-            "simple_today_unknown_$EVENING_ID",
+            "simple_today_unknown_$MORNING_ID",
         )
 
         assertEquals(
             listOf(
-                "given:$EVENING_ID",
-                "remind-later:$EVENING_ID",
-                "not-given:$EVENING_ID",
-                "unknown:$EVENING_ID",
+                "given:$MORNING_ID",
+                "remind-later:$MORNING_ID",
+                "not-given:$MORNING_ID",
+                "unknown:$MORNING_ID",
             ),
             actions,
         )
@@ -145,6 +154,8 @@ class SeniorModeTodayComposeTest {
                                             ),
                                         phase =
                                             TemporalStatus.DUE,
+                                        canMutateReport = true,
+                                        canRemindLater = true,
                                     ),
                                     todayItem(
                                         id =
@@ -156,6 +167,8 @@ class SeniorModeTodayComposeTest {
                                             ),
                                         phase =
                                             TemporalStatus.UPCOMING,
+                                        canMutateReport = false,
+                                        canRemindLater = false,
                                     ),
                                 ),
                             emptyState =
@@ -169,7 +182,6 @@ class SeniorModeTodayComposeTest {
                     onHistorySelected = {},
                     onRetry = {},
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenOccurrence = {},
                     onGiven = onGiven,
                     onNotGiven = onNotGiven,
@@ -198,6 +210,16 @@ class SeniorModeTodayComposeTest {
                     true,
             )
             .assertHasClickAction()
+    }
+
+    private fun assertActionVisibleAndDisabled(tag: String) {
+        assertVisibleAfterScroll(tag)
+        composeRule
+            .onNodeWithTag(
+                testTag = tag,
+                useUnmergedTree = true,
+            )
+            .assertIsNotEnabled()
     }
 
     private fun clickAfterScroll(
@@ -246,6 +268,8 @@ class SeniorModeTodayComposeTest {
         id: String,
         localTime: LocalTime,
         phase: TemporalStatus,
+        canMutateReport: Boolean,
+        canRemindLater: Boolean,
     ): TodayItem =
         TodayItem(
             occurrenceId =
@@ -274,6 +298,8 @@ class SeniorModeTodayComposeTest {
                 phase,
             isOverdue =
                 phase == TemporalStatus.PAST,
+            canMutateReport = canMutateReport,
+            canRemindLater = canRemindLater,
         )
 
     private companion object {

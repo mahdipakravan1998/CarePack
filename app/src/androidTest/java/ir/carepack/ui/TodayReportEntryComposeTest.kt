@@ -183,7 +183,6 @@ class TodayReportEntryComposeTest {
                     onHistorySelected = {},
                     onRetry = {},
                     onOpenCarePlan = {},
-                    onOpenSettings = {},
                     onOpenTodayReport = {
                         openedReportCount += 1
                     },

@@ -4,6 +4,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import ir.carepack.domain.reminder.TimezoneWarning
 import ir.carepack.domain.careplan.ArchivedMedication
@@ -45,6 +46,7 @@ class FinalProductAlignmentComposeTest {
         }
 
         composeRule.onNodeWithTag("timezone_warning_banner").assertIsDisplayed()
+        composeRule.onNodeWithText("متوجه شدم").assertIsDisplayed()
         composeRule.onNodeWithTag("timezone_warning_review").performClick()
         composeRule.onNodeWithTag("timezone_warning_dismiss").performClick()
         assertTrue(reviewed.get())

@@ -76,8 +76,8 @@ data class TodayItem(
     val medicationType: String = "",
     val dosageText: String = "",
     val doseUnit: String = "",
-    val canMutateReport: Boolean = lifecycle == OccurrenceLifecycle.ACTIVE,
-    val canRemindLater: Boolean = canMutateReport && reportState == null,
+    val canMutateReport: Boolean,
+    val canRemindLater: Boolean,
 )
 
 data class TodayModel(
@@ -102,8 +102,8 @@ data class OccurrenceDetail(
     val medicationType: String = "",
     val dosageText: String = "",
     val doseUnit: String = "",
-    val canMutateReport: Boolean = lifecycle == OccurrenceLifecycle.ACTIVE,
-    val canRemindLater: Boolean = canMutateReport && reportState == null,
+    val canMutateReport: Boolean,
+    val canRemindLater: Boolean,
 )
 
 data class HistoryItem(

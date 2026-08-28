@@ -419,6 +419,8 @@ private class FakeTodayQueryService :
                             temporalStatus =
                                 TemporalStatus.DUE,
                             isOverdue = false,
+                            canMutateReport = true,
+                            canRemindLater = true,
                         ),
                     ),
                 emptyState = null,

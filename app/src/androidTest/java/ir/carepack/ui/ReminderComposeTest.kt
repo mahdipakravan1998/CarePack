@@ -621,7 +621,6 @@ class ReminderComposeTest {
                         carePlanOpenCount
                             .incrementAndGet()
                     },
-                    onOpenSettings = {},
                     onOpenOccurrence = {},
                 )
             }

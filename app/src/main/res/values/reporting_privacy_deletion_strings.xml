@@ -6,8 +6,7 @@
     <string name="carepack_settings_reminders">تنظیمات یادآوری</string>
     <string name="carepack_settings_reminders_description">دسترسی اعلان، وضعیت یادآوری دقیق یا تقریبی و برنامه‌های فعال را بررسی کنید.</string>
 
-    <string name="carepack_settings_today_report">گزارش امروز</string>
-    <string name="carepack_settings_today_report_description">متن دقیق گزارش امروز را پیش‌نمایش، کپی یا با انتخاب صریح خودتان اشتراک‌گذاری کنید.</string>
+    <string name="carepack_today_report_action">گزارش امروز</string>
 
     <string name="carepack_settings_privacy">حریم خصوصی</string>
     <string name="carepack_settings_privacy_description">خلاصه کوتاه نگهداری محلی و حذف اطلاعات را بخوانید.</string>

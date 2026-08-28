@@ -74,6 +74,7 @@
     <string name="timezone_warning_body">منطقه زمانی دستگاه از %1$s به %2$s تغییر کرده است. برنامه‌های قبلی در منطقه زمانی ثابت خود باقی می‌مانند. برای استفاده از منطقه جدید، برنامه را بررسی و ویرایش کنید.</string>
     <string name="review_schedules">بررسی برنامه‌ها</string>
     <string name="dismiss_for_later">بعداً</string>
+    <string name="timezone_warning_acknowledge">متوجه شدم</string>
 
     <string name="reminder_notification_channel_name">یادآورهای نوبت دارو</string>
     <string name="reminder_notification_channel_description">اعلان‌های محلی برای بررسی نوبت‌های ثبت‌شده؛ صدا و لرزش را می‌توانید از تنظیمات اعلان اندروید تغییر دهید.</string>

@@ -6,7 +6,7 @@
     <string name="medication_deletion_preview_failed">اطلاعات لازم برای بررسی حذف بارگذاری نشد. دوباره تلاش کنید.</string>
     <string name="medication_deletion_not_found">این دارو دیگر در کرپک وجود ندارد.</string>
     <string name="medication_deletion_warning_title">این حذف قابل بازیابی نیست</string>
-    <string name="medication_deletion_warning_body">با ادامه، خود دارو، همه برنامه‌های مصرف و نسخه‌های آن‌ها، زمان‌ها، همه نوبت‌های گذشته و آینده، گزارش‌های وابسته، یادآورها، یادآوری‌های دوباره و اعلان‌های مربوط به این دارو از همین دستگاه حذف می‌شوند. توقف یا بایگانی برای نگه‌داشتن سابقه مناسب‌تر است.</string>
+    <string name="medication_deletion_warning_body">با ادامه، خود دارو، همه برنامه‌های مصرف و نسخه‌های آن‌ها، زمان‌ها، همه نوبت‌های گذشته و آینده، گزارش‌های وابسته، یادآورها، یادآوری‌های دوباره و اعلان‌های مربوط به این دارو از همین دستگاه حذف می‌شوند. پایان مصرف یا بایگانی برای نگه‌داشتن سابقه مناسب‌تر است.</string>
     <string name="medication_deletion_impact_title">اطلاعاتی که حذف می‌شوند</string>
     <string name="medication_deletion_schedule_series_count">برنامه‌های مصرف</string>
     <string name="medication_deletion_schedule_version_count">نسخه‌های برنامه</string>

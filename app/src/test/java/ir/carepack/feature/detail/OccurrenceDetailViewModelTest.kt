@@ -482,6 +482,8 @@ private class FakeTodayQueryService :
             temporalStatus =
                 TemporalStatus.UPCOMING,
             isOverdue = false,
+            canMutateReport = false,
+            canRemindLater = false,
         )
 
     private val occurrenceFlow =

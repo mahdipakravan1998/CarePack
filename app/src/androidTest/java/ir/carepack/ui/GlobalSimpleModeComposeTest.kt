@@ -60,9 +60,7 @@ class GlobalSimpleModeComposeTest {
             ) {
                 SettingsRoute(
                     viewModel = viewModel,
-                    onBack = {},
                     onOpenReminderSettings = {},
-                    onOpenTodayReport = {},
                     onOpenPrivacy = {},
                     onDeleteAllData = {},
                 )
@@ -234,9 +232,7 @@ class GlobalSimpleModeComposeTest {
                 ) {
                     ir.carepack.feature.settings.SettingsScreen(
                         state = state,
-                        onBack = {},
                         onOpenReminderSettings = {},
-                        onOpenTodayReport = {},
                         onOpenPrivacy = {},
                         onDeleteAllData = {},
                         onFirstDayOfWeekPreferenceChanged = {},

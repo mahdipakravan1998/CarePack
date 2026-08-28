@@ -109,7 +109,7 @@ internal fun TodayHeader(
         ) {
             Text(
                 text = stringResource(
-                        R.string.carepack_settings_today_report,
+                        R.string.carepack_today_report_action,
                     ),
             )
         }

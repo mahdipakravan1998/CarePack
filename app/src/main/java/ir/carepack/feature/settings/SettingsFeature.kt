@@ -151,8 +151,6 @@ fun SettingsRoute(
     onOpenReminderSettings: () -> Unit,
     onOpenPrivacy: () -> Unit,
     onDeleteAllData: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit = {},
-    @Suppress("UNUSED_PARAMETER") onOpenTodayReport: () -> Unit = {},
 ) {
     val state by
     viewModel.state
@@ -179,8 +177,6 @@ fun SettingsScreen(
     onFirstDayOfWeekPreferenceChanged: (FirstDayOfWeekPreference) -> Unit,
     onSeniorModeChanged: (SeniorMode) -> Unit,
     modifier: Modifier = Modifier,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit = {},
-    @Suppress("UNUSED_PARAMETER") onOpenTodayReport: () -> Unit = {},
 ) {
     val experience = carePackExperience()
 
