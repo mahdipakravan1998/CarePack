@@ -1,6 +1,7 @@
 name: Android verification
 
 on:
+  workflow_dispatch:
   pull_request:
   push:
     branches:
@@ -382,7 +383,7 @@ jobs:
             app/build/outputs/connected_android_test_additional_output/
 
   release:
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs:
       - verify
       - reproducibility
