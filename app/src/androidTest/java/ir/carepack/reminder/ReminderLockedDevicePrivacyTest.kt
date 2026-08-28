@@ -68,13 +68,26 @@ class ReminderLockedDevicePrivacyTest {
                 "input text $TEST_DEVICE_PIN",
             )
             device.pressEnter()
-            device.wait(
-                Until.gone(By.pkg("com.android.systemui")),
-                UI_TIMEOUT_MILLIS,
+
+            val unlockDeadline =
+                SystemClock.elapsedRealtime() + UI_TIMEOUT_MILLIS
+
+            while (
+                keyguardManager.isDeviceLocked &&
+                SystemClock.elapsedRealtime() < unlockDeadline
+            ) {
+                device.waitForIdle()
+                SystemClock.sleep(POLL_INTERVAL_MILLIS)
+            }
+
+            assertTrue(
+                "The privacy test must restore an unlocked device.",
+                !keyguardManager.isDeviceLocked,
             )
         }
 
         device.pressHome()
+        device.waitForIdle()
     }
 
     @Test
