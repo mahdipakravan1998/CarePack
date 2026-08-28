@@ -5,6 +5,7 @@ import android.os.Build
 import android.os.SystemClock
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
 import ir.carepack.data.local.CarePackDatabase
@@ -110,7 +111,25 @@ class LongHistoryHotPathEvidenceTest {
                     rangePlan.forEach(::appendLine)
                 }
 
-            File(context.filesDir, EVIDENCE_FILE).writeText(evidence)
+            val additionalTestOutputDir =
+                InstrumentationRegistry.getArguments()
+                    .getString("additionalTestOutputDir")
+                    ?.let(::File)
+                    ?: error(
+                        "additionalTestOutputDir instrumentation argument is unavailable.",
+                    )
+
+            check(
+                additionalTestOutputDir.isDirectory ||
+                    additionalTestOutputDir.mkdirs(),
+            ) {
+                "Unable to create the additional test output directory."
+            }
+
+            File(
+                additionalTestOutputDir,
+                EVIDENCE_FILE,
+            ).writeText(evidence)
 
             assertTrue(
                 "Reminder per-series candidate lookup must be indexed. Plan=$reminderPlan",

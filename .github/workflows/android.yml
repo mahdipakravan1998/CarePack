@@ -379,7 +379,7 @@ jobs:
             app/build/reports/androidTests/connected/
             app/build/outputs/androidTest-results/
             build/test-summary.json
-            build/performance-evidence/
+            app/build/outputs/connected_android_test_additional_output/
 
   release:
     if: github.ref == 'refs/heads/main'
