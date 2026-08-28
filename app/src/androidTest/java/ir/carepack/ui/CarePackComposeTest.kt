@@ -251,6 +251,7 @@ class CarePackComposeTest {
                 .onNodeWithTag(
                     scheduleTag,
                 )
+                .performScrollTo()
                 .assertIsDisplayed()
         }
     }
@@ -391,6 +392,7 @@ class CarePackComposeTest {
                 .onNodeWithTag(
                     scheduleTag,
                 )
+                .performScrollTo()
                 .assertIsDisplayed()
         }
 

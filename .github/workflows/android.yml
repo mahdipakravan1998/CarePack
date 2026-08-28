@@ -362,25 +362,12 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: |
-            trap 'adb shell locksettings clear --old 246810 || true' EXIT
-            adb shell locksettings set-pin 246810
-            adb shell pm grant ir.carepack.debug android.permission.POST_NOTIFICATIONS || true
-            adb shell appops set ir.carepack.debug SCHEDULE_EXACT_ALARM allow || true
-            ./gradlew --no-daemon --no-configuration-cache --dependency-verification strict connectedDebugAndroidTest
+          script: bash tools/run-ci-instrumentation.sh
 
       - name: Summarize instrumentation results
         if: always()
         shell: pwsh
         run: tools/summarize-tests.ps1 -Root app/build/outputs/androidTest-results
-
-      - name: Collect performance evidence from debug app
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p build/performance-evidence
-          adb shell run-as ir.carepack.debug cat files/carepack-performance-evidence.txt \
-            > build/performance-evidence/carepack-performance-evidence.txt
 
       - name: Upload instrumentation evidence
         if: always()
